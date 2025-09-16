@@ -1,0 +1,5110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>学生练琴 - 收纳视图</title>
+  <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg-gradient-start:#f5f7fa;
+      --bg-gradient-end:#c3cfe2;
+      --surface:#ffffff;
+      --surface-muted:#f6f8fa;
+      --border:#e5e7eb;
+      --border-strong:#d0d7de;
+      --text:#1f2937;
+      --text-muted:#6b7280;
+      --primary:#6366f1;
+      --primary-600:#5458ee;
+      --primary-700:#4f46e5;
+      --success:#22c55e;
+      --warning:#f59e0b;
+      --info:#0ea5e9;
+      --shadow:0 8px 24px rgba(31,41,55,.08);
+      --shadow-strong:0 12px 32px rgba(31,41,55,.12);
+      --radius-lg:16px;
+      --radius-md:12px;
+      --radius-sm:8px;
+      --card-pad:24px;
+      --gap-md:16px;
+    }
+    /*
+     * ==============================
+     *  样式区（CSS）— 概览
+     *  1) 全局与布局
+     *  2) 首页概览（卡片/圆环/标签）
+     *  3) 列表视图
+     *  4) 学生详情视图（信息/状态/时间轴/历史7天）
+     *  注：仅添加结构化注释，不改现有样式含义
+     * ==============================
+     */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      color: #1d1d1f;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* 布局容器 */
+    .container {
+      width: 100%;
+      max-width: 960px;
+      padding: 24px 16px 32px;
+      margin: 0 auto;
+    }
+    /* 首页居中展示 */
+    #homeView { 
+      min-height: 100vh;
+      padding: 24px 16px;
+      overflow-y: auto;
+    }
+
+    /* 页面标题 */
+    .page-header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .page-title {
+      font-size: 28px;
+      font-weight: 700;
+      color: #24292f;
+      margin-bottom: 8px;
+      letter-spacing: -0.02em;
+    }
+
+    .page-subtitle {
+      font-size: 16px;
+      color: #656d76;
+      font-weight: 500;
+    }
+
+    /* 搜索区域 */
+    .search-section {
+      margin-bottom: 32px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .search-container {
+      position: relative;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 12px 16px 12px 44px;
+      border: 2px solid #e1e4e8;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 500;
+      background: #ffffff;
+      transition: all 0.2s ease;
+      box-sizing: border-box;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: #0969da;
+      box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.1);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #656d76;
+      font-size: 16px;
+    }
+
+    .search-results {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: #ffffff;
+      border: 2px solid #e1e4e8;
+      border-top: none;
+      border-radius: 0 0 12px 12px;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 1000;
+      display: none;
+    }
+
+    .search-result-item {
+      padding: 12px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid #f6f8fa;
+      transition: background-color 0.2s ease;
+    }
+
+    .search-result-item:hover {
+      background-color: #f6f8fa;
+    }
+
+    .search-result-item:last-child {
+      border-bottom: none;
+    }
+
+    .search-no-results {
+      padding: 12px 16px;
+      color: #656d76;
+      text-align: center;
+      font-style: italic;
+    }
+
+    /* 概览卡片容器调整 */
+    .overview-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 32px;
+    }
+
+    /* 主卡片容器 */
+    .overview-card {
+      background: #ffffff;
+      border-radius: 24px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      padding: 32px;
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+    }
+
+    /* 排行榜卡片 */
+    .ranking-card {
+      background: #ffffff;
+      border-radius: 24px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  padding: 24px 20px;
+      width: 100%;
+      max-width: 400px;
+      margin-top: 24px;
+    }
+
+    /* 排行榜列表 */
+  .ranking-list { margin: 0 4px 24px 4px; }
+
+    .ranking-item {
+      display: flex;
+      align-items: center;
+      padding: 16px 0;
+      border-bottom: 1px solid #f6f8fa;
+      transition: background-color 0.2s ease;
+      position: relative;
+      z-index: 0; /* 创建堆叠上下文，便于 ::before 放到内容下方 */
+    }
+
+    .ranking-item:last-child {
+      border-bottom: none;
+    }
+
+  /* 稳定的 hover 高亮：不改变 padding/尺寸，使用内部伪元素过渡 */
+  .ranking-item { cursor: pointer; }
+  .ranking-item::before {
+    content: "";
+    position: absolute;
+    left: -8px; right: -8px; top: 4px; bottom: 4px;
+    border-radius: 12px;
+    background: transparent;
+    transition: background .18s ease, box-shadow .18s ease;
+    pointer-events: none;
+    z-index: -1; /* 置于文字下方，避免遮挡 */
+  }
+  .ranking-item:hover { background: transparent; }
+  .ranking-item:hover::before { background: var(--surface-0); box-shadow: var(--shadow-1); }
+
+    .ranking-position {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      margin-right: 16px;
+      flex-shrink: 0;
+    }
+
+    .ranking-position.rank-1 {
+      background: linear-gradient(45deg, #ffd700, #ffa500);
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
+    }
+
+    .ranking-position.rank-2 {
+      background: linear-gradient(45deg, #c0c0c0, #a8a8a8);
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(192, 192, 192, 0.3);
+    }
+
+    .ranking-position.rank-3 {
+      background: linear-gradient(135deg, #cd7f32, #b8860b);
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(205, 127, 50, 0.3);
+    }
+
+    .ranking-student-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      margin-right: 16px;
+    }
+
+    .ranking-student-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: #24292f;
+      margin-bottom: 4px;
+    }
+
+    .ranking-student-meta {
+      font-size: 12px;
+      color: #656d76;
+    }
+
+    .ranking-score {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+
+    .ranking-score-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: #0969da;
+      margin-bottom: 2px;
+    }
+
+    .ranking-score-label {
+      font-size: 12px;
+      color: #656d76;
+    }
+
+    /* 排行榜详情按钮 */
+    .ranking-details-btn {
+      width: 100%;
+      padding: 16px 24px;
+      background: linear-gradient(135deg, #f6f8fa 0%, #ffffff 100%);
+      border: 2px solid #e1e4e8;
+      border-radius: 16px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #24292f;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .ranking-details-btn:hover {
+      background: linear-gradient(135deg, #e1e4e8 0%, #f6f8fa 100%);
+      border-color: #d0d7de;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .ranking-details-btn:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .card-subtitle {
+      font-size: 14px;
+      color: #656d76;
+      font-weight: 500;
+    }
+
+    /* 头部标题区域 */
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+    }
+
+    .card-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #24292f;
+      letter-spacing: -0.02em;
+    }
+
+    .card-date {
+      font-size: 16px;
+      font-weight: 500;
+      color: #656d76;
+      cursor: default;
+    }
+
+    /* 分类标签区域 */
+    .category-tabs {
+      display: flex;
+      background: #f6f8fa;
+      border-radius: 16px;
+      padding: 4px;
+      margin-bottom: 32px;
+      gap: 2px;
+    }
+
+    .category-tab {
+      flex: 1;
+      padding: 8px 12px;
+      border: none;
+      background: transparent;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #656d76;
+      cursor: pointer;
+      transition: all 200ms ease;
+      text-align: center;
+    }
+
+    .category-tab.active {
+      background: #8b5cf6;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+    }
+
+    .category-tab:hover:not(.active) {
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    /* 圆形进度图 */
+    .progress-circle {
+      position: relative;
+      width: 160px;
+      height: 160px;
+      margin: 0 auto 24px;
+    }
+
+    .progress-circle svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+
+    .progress-bg {
+      fill: none;
+      stroke: #f1f3f4;
+      stroke-width: 12;
+      stroke-linecap: round;
+    }
+
+    .progress-fill {
+      fill: none;
+      stroke: #8b5cf6;
+      stroke-width: 12;
+      stroke-linecap: round;
+      stroke-dasharray: 439.82;
+      stroke-dashoffset: 439.82;
+      transition: stroke-dashoffset 800ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* 中心显示区域 */
+    .progress-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+
+    .progress-percentage {
+      font-size: 32px;
+      font-weight: 800;
+      color: #24292f;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      display: inline;
+    }
+
+    .progress-percentage-symbol {
+      font-size: 18px;
+      color: #656d76;
+      font-weight: 600;
+      margin-left: 2px;
+      display: inline;
+    }
+
+    /* 进度条下方信息 */
+    .progress-info {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .progress-count {
+      font-size: 24px;
+      font-weight: 700;
+      color: #24292f;
+      margin-bottom: 4px;
+    }
+
+    .progress-count-unit {
+      font-size: 16px;
+      color: #656d76;
+      margin-left: 4px;
+    }
+
+    .progress-description {
+      font-size: 14px;
+      color: #656d76;
+      font-weight: 500;
+    }
+
+    /* 查看详情按钮 */
+    .view-details-btn {
+      width: 100%;
+      padding: 16px 24px;
+      background: #8b5cf6;
+      color: #ffffff;
+      border: none;
+      border-radius: 16px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 200ms ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .view-details-btn:hover {
+      background: #7c3aed;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(139, 92, 246, 0.3);
+    }
+
+    .view-details-btn:active {
+      transform: translateY(0);
+    }
+
+    /* 列表视图 */
+    .list-view {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      z-index: 100;
+      transform: scale(0);
+      opacity: 0;
+      transform-origin: center center;
+      transition: all 400ms cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+  will-change: transform, opacity;
+    }
+    .list-view.expanding {
+      transform: scale(1);
+      opacity: 1;
+    }
+    .list-view[hidden] { 
+      display: none !important; 
+    }
+
+    .list-header { 
+      display: flex; 
+      align-items: center; 
+      gap: 12px; 
+      margin-bottom: 16px; 
+      padding: 24px 16px 0;
+      position: sticky;
+      top: 0;
+      /* 与主背景统一，无底边线 */
+      background: var(--bg);
+      border-bottom: none;
+      box-shadow: none;
+      z-index: 10;
+    }
+    .back-btn {
+      appearance: none; border: none; 
+      background: #ffffff; 
+      border-radius: 8px; padding: 8px 16px; cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
+      border: 1px solid #d0d7de; 
+      font-weight: 600; color: #24292f;
+      transition: all 150ms ease;
+    }
+    .back-btn:hover { 
+      background: #f6f8fa;
+      border-color: #8c959f;
+    }
+    .list-title { 
+      font-size: 20px; 
+      font-weight: 600; 
+      color: #24292f; 
+      letter-spacing: -0.01em; 
+    }
+
+    .student-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 12px;
+      width: 100%;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 16px 32px;
+    }
+    .stu-card {
+      border-radius: 12px;
+      background: #ffffff;
+      border: 1px solid #d0d7de;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      padding: 16px;
+      display: flex; flex-direction: column; gap: 8px;
+      transition: all 150ms ease;
+      opacity: 0;
+      transform: translateY(20px);
+      animation: slideInUp 300ms ease forwards;
+    }
+    /* 移动端：去除逐项延迟，提升点击响应速度 */
+    @media (max-width: 640px) {
+      .stu-card { 
+        animation-delay: 0ms !important; 
+        animation-duration: 180ms !important; 
+        touch-action: manipulation; 
+      }
+      .list-view { transition: all 240ms cubic-bezier(0.4, 0, 0.2, 1); }
+    }
+    .stu-card:hover { 
+      transform: translateY(-1px); 
+      box-shadow: 0 3px 12px rgba(0,0,0,0.1);
+      border-color: #8c959f;
+    }
+    
+    @keyframes slideInUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .stu-line1 { display: flex; align-items: center; gap: 8px; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .status-dot.active { background: #22c55e; }
+    .status-dot.offline { background: #9ca3af; }
+    .status-dot.attendance { background: #22c55e; } /* 出勤 - 绿色 */
+    .status-dot.absent { background: #ef4444; } /* 缺勤 - 红色 */
+    .status-dot.self-practice { background: #f59e0b; } /* 自主练琴 - 橙色 */
+    .status-dot.not-practice { background: #9ca3af; } /* 未练琴 - 灰色 */
+    .stu-name { 
+      font-weight: 600; 
+      color: #24292f; 
+      font-size: 15px; 
+      letter-spacing: -0.005em; 
+    }
+    .stu-meta { 
+      color: #656d76; 
+      font-size: 13px; 
+      font-weight: 500; 
+    }
+    .stu-mins { 
+      margin-top: 2px; 
+      font-weight: 700; 
+      color: #24292f; 
+      font-size: 18px; 
+      letter-spacing: -0.01em; 
+    }
+    .stu-detail {
+      color: #656d76;
+      font-size: 11px;
+      font-weight: 500;
+      margin-top: 1px;
+    }
+
+    /* 详情页面样式 */
+    .detail-view {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+      z-index: 200;
+      transform: translateX(100%);
+      transition: transform 400ms cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    .detail-view.active {
+      transform: translateX(0);
+    }
+    
+    .detail-view[hidden] { 
+      display: none !important; 
+    }
+
+    .detail-container {
+      flex: 1;
+      max-width: 800px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .detail-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 24px 16px 16px;
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .detail-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: #24292f;
+      letter-spacing: -0.01em;
+    }
+
+  .detail-content { padding: 12px 16px 32px; display: flex; flex-direction: column; gap: var(--gap-md); }
+  @media (max-width: 560px){ .detail-content { padding-top: 16px; } }
+
+    /* 个人信息卡片 */
+    .info-card, .status-card, .timeline-card, .history-card {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      padding: var(--card-pad);
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+      transition: box-shadow .2s ease, transform .15s ease, border-color .2s ease;
+    }
+    .info-card:hover, .status-card:hover, .timeline-card:hover, .history-card:hover {
+      box-shadow: var(--shadow-strong);
+      transform: translateY(-1px);
+      border-color: var(--border-strong);
+    }
+
+  .student-info h2 { font-size: 28px; font-weight: 700; color: var(--text); margin: 0 0 4px 0; letter-spacing: -0.02em; }
+
+  .student-meta { display: flex; align-items: center; gap: 8px; font-size: 16px; color: var(--text-muted); font-weight: 500; }
+
+    .separator {
+      color: #d0d7de;
+    }
+
+    /* 学生详情头部右侧：今日排行榜分徽章 */
+    .info-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .today-score {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 10px 12px;
+      background: linear-gradient(135deg, var(--brand-600), var(--brand-700));
+      color: var(--text-on-accent);
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.28);
+      box-shadow: 0 6px 18px rgba(2,6,23,0.18);
+      white-space: nowrap;
+    }
+    .today-score-label { font-size: 12px; font-weight: 700; opacity: .92; letter-spacing: .02em; }
+    .today-score-value { font-size: 22px; font-weight: 800; letter-spacing: -.02em; line-height: 1; }
+    @media (prefers-color-scheme: light){
+      .today-score { border-color: rgba(255,255,255,0.35); }
+    }
+    @media (max-width: 480px){
+      .info-head { flex-direction: column; align-items: flex-start; gap: 10px; }
+      .today-score { align-self: stretch; justify-content: space-between; width: 100%; }
+    }
+
+    /* 状态卡片 */
+    .status-card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+  .status-card h3, .timeline-card h3, .history-card h3 { font-size: 18px; font-weight: 600; color: var(--text); margin: 0 0 16px 0; letter-spacing: -0.01em; }
+
+  .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--gap-md); }
+
+  .status-item { text-align: center; padding: 16px 12px; background: var(--surface-muted); border-radius: var(--radius-md); border: 1px solid var(--border); transition: background .2s ease, border-color .2s ease, transform .15s ease; }
+  .status-item:hover { background: #eef2ff; border-color: #c7d2fe; transform: translateY(-1px); }
+
+  .status-label { display: block; font-size: 12px; color: var(--text-muted); font-weight: 600; margin-bottom: 6px; letter-spacing: .02em; text-transform: uppercase; }
+
+  .status-value { display: block; font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+
+    /* 时间轴卡片 */
+    .timeline-card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+  /* 时间轴标题行：左标题 + 右侧操作按钮 */
+  .timeline-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .timeline-actions { display: inline-flex; align-items: center; gap: 8px; }
+  .timeline-head h3 { margin: 0; }
+
+    .timeline-card h3 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #24292f;
+      margin: 0 0 16px 0;
+      letter-spacing: -0.01em;
+    }
+
+    .timeline-container {
+      position: relative;
+    }
+
+  .timeline-item { display: flex; align-items: center; gap: 12px; padding: 12px 10px 12px 16px; border-left: 3px solid var(--border); margin-left: 8px; position: relative; border-radius: var(--radius-sm); }
+  .timeline-item:hover { background: #f9fafb; }
+
+  .timeline-item::before { content: ''; position: absolute; left: -6px; top: 18px; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 3px rgba(99,102,241,.15); }
+
+  .timeline-item.in-schedule::before { background: var(--success); box-shadow: 0 0 0 3px rgba(34,197,94,.15); }
+  .timeline-item.out-schedule::before { background: var(--warning); box-shadow: 0 0 0 3px rgba(245,158,11,.15); }
+
+  .timeline-time { font-size: 14px; font-weight: 700; color: var(--text); min-width: 120px; letter-spacing: -0.01em; }
+
+  .timeline-duration { font-size: 14px; color: var(--text-muted); font-weight: 600; }
+
+  .timeline-room { font-size: 12px; color: var(--primary); background: #eef2ff; padding: 2px 8px; border-radius: 6px; font-weight: 600; border: 1px solid #c7d2fe; }
+
+    .timeline-empty {
+      text-align: center;
+      padding: 32px;
+      color: #656d76;
+      font-size: 16px;
+    }
+
+    /* 历史总结卡片 */
+  /* .history-card inherits card styles */
+
+    .history-card h3 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #24292f;
+      margin: 0 0 16px 0;
+      letter-spacing: -0.01em;
+    }
+
+    /* 周练琴图表 */
+    .week-chart {
+      padding-top: 20px;
+    }
+
+  .chart-container { display: flex; align-items: end; gap: 10px; height: 130px; padding: 0 8px; }
+
+    .chart-bar {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+  cursor: pointer;
+    }
+
+    .bar-container {
+      width: 100%;
+      height: 80px;
+      display: flex;
+      flex-direction: column;
+      justify-content: end;
+      align-items: center;
+      position: relative;
+    }
+
+  .bar-fill { width: 18px; background: linear-gradient(to top, var(--primary-700) 0%, var(--primary) 100%); border-radius: 5px 5px 0 0; transition: height 500ms ease; min-height: 2px; }
+
+  .bar-label { font-size: 12px; color: var(--text-muted); font-weight: 600; letter-spacing: .02em; }
+
+  .bar-value { font-size: 10px; color: var(--text); font-weight: 700; position: absolute; top: -16px; white-space: nowrap; }
+
+    /* 交互与提示 */
+    .chart-bar:hover .bar-fill { filter: brightness(1.06); }
+    .bar-tooltip {
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translate(-50%, -6px);
+      background: #111827;
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      line-height: 1.4;
+      white-space: nowrap;
+      box-shadow: 0 8px 24px rgba(140,149,159,0.2);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 150ms ease, transform 150ms ease;
+    }
+    .chart-bar.show-tooltip .bar-tooltip {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translate(-50%, -10px);
+    }
+
+    /* 完整排行榜样式 - 简洁专业 */
+  .ranking-root { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+  @media (max-width: 640px){ .ranking-root { padding: 0 16px; } }
+    .ranking-hero {
+      background: linear-gradient(135deg, #f8fafc, #ffffff);
+      color: #1e293b;
+      border-radius: 20px;
+      border: 1px solid #e2e8f0;
+      padding: 24px 20px 18px;
+      margin: 16px 0 20px;
+      box-shadow: 0 1px 3px rgba(15,23,42,0.04), 0 1px 2px rgba(15,23,42,0.06);
+    }
+    .ranking-hero-sub { opacity: .85; margin-top: 6px; font-weight: 500; color: #64748b; font-size: 14px; }
+
+  .top3-wrap { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 20px; align-items: end; }
+  .top3-card { position: relative; background: #ffffff; color: #1e293b; border-radius: 16px; padding: 20px 18px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(15,23,42,0.06); text-align: center; transition: transform .2s ease, box-shadow .25s ease; cursor: pointer; }
+    .top3-card.first-place { transform: translateY(-16px); box-shadow: 0 4px 12px rgba(15,23,42,0.08); }
+    .top3-card.second-place { transform: translateY(6px); }
+    .top3-card.third-place { transform: translateY(6px); }
+    .top3-card:hover { box-shadow: 0 6px 20px rgba(15,23,42,0.12); }
+  .top3-name { font-weight: 600; font-size: 16px; margin-top: 8px; letter-spacing: -0.01em; color: #1e293b; }
+  .top3-points { font-size: 13px; color: #64748b; font-weight: 600; margin-top: 8px; }
+  .rank-badge { position: absolute; top: -12px; right: -10px; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #ffffff; border: 3px solid #ffffff; box-shadow: 0 2px 8px rgba(15,23,42,0.12); }
+  .rank-1 { background: linear-gradient(135deg,#f59e0b,#d97706); }
+  .rank-2 { background: linear-gradient(135deg,#6b7280,#4b5563); }
+  /* unify rank-3 color with list badge (bronze) */
+  .rank-3 { background: linear-gradient(135deg,#cd7f32,#b8860b); }
+
+  .ranking-section { padding: 12px 0 32px; }
+  .ranking-rows { display: flex; flex-direction: column; gap: 12px; }
+  .ranking-row { display: grid; grid-template-columns: 52px 1fr 130px; align-items: center; gap: 16px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 18px; box-shadow: 0 1px 3px rgba(15,23,42,0.04); transition: background .2s ease, box-shadow .25s ease, transform .15s ease, border-color .2s ease; cursor: pointer; }
+  .ranking-row:hover { background: #f8fafc; box-shadow: 0 2px 8px rgba(15,23,42,0.08); border-color: #cbd5e1; }
+  .rank-num { font-weight: 700; color: #64748b; text-align: center; font-size: 16px; }
+  .row-user { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .row-name { font-weight: 600; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15px; }
+  .row-points { text-align: right; font-weight: 700; color: #1e293b; font-size: 15px; }
+
+    @media (prefers-reduced-motion: reduce) { 
+      .bin-card, .back-btn, .detail-view, .bar-fill { 
+        transition: none !important; 
+      } 
+    }
+
+    /* ===== 评分详情按钮和模态框样式 ===== */
+    .score-detail-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      background: #f1f5f9;
+      color: #3b82f6;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0;
+      margin-left: 8px;
+      transition: all 0.2s ease;
+    }
+    
+    .score-detail-btn:hover {
+      background: #3b82f6;
+      color: #ffffff;
+      border-color: #3b82f6;
+      transform: scale(1.08);
+      box-shadow: 0 2px 8px rgba(59,130,246,0.25);
+    }
+    
+    .score-detail-btn:active {
+      transform: scale(0.95);
+    }
+
+    /* 评分详情模态框 */
+    .score-detail-modal {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.45);
+      z-index: 10000;
+      opacity: 0;
+      transition: opacity 0.18s ease;
+      backdrop-filter: blur(2px);
+    }
+    
+    .score-detail-modal.show {
+      opacity: 1;
+    }
+    
+    .score-detail-content {
+      background: #1f2429;
+      color: #f0f6fc;
+      border: 1px solid #30363d;
+      border-radius: 14px;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.45);
+      padding: 18px 20px 20px;
+      width: min(480px, 90vw);
+      max-height: 80vh;
+      overflow-y: auto;
+      position: relative;
+      font-size: 13px;
+      line-height: 1.55;
+      animation: scoreModalIn 0.22s cubic-bezier(0.32, 0.72, 0.33, 1);
+    }
+
+    @keyframes scoreModalIn {
+      from {
+        opacity: 0;
+        transform: translateY(6px) scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .score-detail-close {
+      position: absolute;
+      top: 8px;
+      right: 10px;
+      background: transparent;
+      border: none;
+      color: #8b949e;
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      padding: 2px;
+      border-radius: 6px;
+    }
+    
+    .score-detail-close:hover {
+      color: #fff;
+      background: rgba(255,255,255,0.08);
+    }
+
+    /* 评分卡片样式 */
+    .dimension-card {
+      background: rgba(255,255,255,0.04);
+      border-radius: 8px;
+      padding: 12px;
+      margin: 8px 0;
+      border-left: 3px solid;
+    }
+    
+    .dimension-card.d1 { border-left-color: #1976d2; }
+    .dimension-card.d2 { border-left-color: #8e24aa; }
+    .dimension-card.d3 { border-left-color: #f57c00; }
+    
+    .dimension-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .dimension-score {
+      font-size: 18px;
+      font-weight: 700;
+      color: #58a6ff;
+    }
+    
+    .score-bar {
+      height: 6px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 6px 0;
+    }
+    
+    .score-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+    
+    .score-fill.d1 { background: linear-gradient(90deg, #1976d2, #42a5f5); }
+    .score-fill.d2 { background: linear-gradient(90deg, #8e24aa, #ab47bc); }
+    .score-fill.d3 { background: linear-gradient(90deg, #f57c00, #ff9800); }
+
+    /* 日间模式适配 */
+    @media (prefers-color-scheme: light) {
+      .score-detail-content {
+        background: #fff;
+        color: #1f2937;
+        border-color: #e5e7eb;
+      }
+      
+      .score-detail-close {
+        color: #6b7280;
+      }
+      
+      .score-detail-close:hover {
+        color: #1f2937;
+        background: rgba(0,0,0,0.05);
+      }
+      
+      .dimension-card {
+        background: rgba(0,0,0,0.02);
+      }
+      
+      .dimension-score {
+        color: #1976d2;
+      }
+      
+      .score-bar {
+        background: rgba(0,0,0,0.08);
+      }
+    }
+
+    /* ===== 统一弹窗/卡片/分区样式（专业 · 简洁） ===== */
+    .lb-modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(17,24,39,.5); backdrop-filter: blur(2px); z-index: 10000; opacity: 0; transition: opacity .2s ease; }
+    .lb-modal.show { opacity: 1; }
+    .lb-dialog { width: min(760px, 92vw); max-height: 84vh; display: flex; flex-direction: column; background: #0b1220; color: #e5e7eb; border: 1px solid rgba(148,163,184,.25); border-radius: 16px; box-shadow: 0 20px 60px rgba(2,6,23,.5); overflow: hidden; animation: lbIn .22s cubic-bezier(.32,.72,.33,1); }
+    .lb-dialog__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid rgba(148,163,184,.18); background: linear-gradient(180deg, rgba(148,163,184,.06), rgba(148,163,184,0)); }
+    .lb-dialog__title { font-size: 16px; font-weight: 700; letter-spacing: .2px; color: #e2e8f0; }
+    .lb-dialog__body { padding: 14px 16px 16px; overflow: auto; }
+    .lb-dialog__close { appearance: none; background: transparent; border: none; color: #94a3b8; width: 28px; height: 28px; border-radius: 8px; font-size: 18px; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+    .lb-dialog__close:hover { color: #e2e8f0; background: rgba(148,163,184,.12); }
+    @keyframes lbIn { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+    /* 统一分区与卡片 */
+    .lb-section { margin: 10px 0 14px; }
+    .lb-section__title { margin: 0 0 8px; font-size: 14px; font-weight: 700; color: #cbd5e1; display: flex; align-items: center; gap: 8px; }
+    .lb-section__title span { font-size: 12px; font-weight: 600; color: #60a5fa; background: rgba(56,189,248,.18); padding: 2px 8px; border-radius: 999px; }
+    .lb-card { background: rgba(148,163,184,.06); border: 1px solid rgba(148,163,184,.18); border-radius: 12px; padding: 12px; box-shadow: 0 2px 8px rgba(2,6,23,.25); transition: box-shadow .2s ease, transform .15s ease, border-color .2s ease; }
+    .lb-card:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(2,6,23,.35); border-color: rgba(148,163,184,.35); }
+    .lb-card h4 { margin: 0 0 6px; font-size: 14px; font-weight: 700; color: #e2e8f0; }
+    .lb-card p { margin: 0; font-size: 12px; color: #94a3b8; }
+  /* 渐变卡片高对比文本（浅色/深色均强制白字） */
+  .lb-card--gradient,
+  .lb-card--gradient h1,
+  .lb-card--gradient h2,
+  .lb-card--gradient h3,
+  .lb-card--gradient h4,
+  .lb-card--gradient p,
+  .lb-card--gradient .lb-kv,
+  .lb-card--gradient .lb-kv span,
+  .lb-card--gradient .lb-kv strong { color: #ffffff !important; text-shadow: 0 1px 2px rgba(0,0,0,.25); }
+  .lb-grid { display: grid; gap: 10px; }
+  .lb-grid--1 { grid-template-columns: minmax(0,1fr); }
+    .lb-grid--2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .lb-grid--3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+    .lb-grid--4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
+    @media (max-width: 560px){ .lb-grid--3, .lb-grid--4 { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+
+    /* 评分详情维度卡片与进度条统一视觉 */
+    .lb-card--d1 { border-left: 3px solid #1976d2; }
+    .lb-card--d2 { border-left: 3px solid #8e24aa; }
+    .lb-card--d3 { border-left: 3px solid #f59e0b; }
+    .lb-kv { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: #94a3b8; }
+    .lb-kv strong { color: #e2e8f0; }
+
+    /* 详情/列表统一样式 */
+    .lb-list { margin: 6px 0 0; padding-left: 18px; color: #94a3b8; font-size: 12px; }
+    .lb-list li { margin: 2px 0; }
+
+    /* 统一明细控件 */
+    .lb-details summary { cursor: pointer; font-size: 12px; color: #94a3b8; }
+    .lb-details[open] summary { color: #e2e8f0; }
+
+    /* 统一浅色模式 */
+    @media (prefers-color-scheme: light){
+      .lb-dialog { background: #ffffff; color: #0f172a; border-color: #e5e7eb; box-shadow: 0 20px 60px rgba(15,23,42,.15); }
+      .lb-dialog__header { border-color: #e5e7eb; background: linear-gradient(180deg,#f8fafc,#ffffff); }
+      .lb-dialog__title { color: #0f172a; }
+      .lb-dialog__close { color: #64748b; }
+      .lb-dialog__close:hover { color: #0f172a; background: rgba(2,6,23,.06); }
+      .lb-card { background: #ffffff; border-color: #e5e7eb; box-shadow: 0 1px 2px rgba(16,24,40,.06); }
+      .lb-card:hover { box-shadow: 0 6px 14px rgba(16,24,40,.12); }
+      .lb-card h4 { color: #0f172a; }
+      .lb-card p, .lb-list { color: #475569; }
+      .lb-section__title { color: #0f172a; }
+  /* 提升浅色模式下分类得分可读性 */
+  .lb-kv { color: #64748b; }
+  .lb-kv strong { color: #0f172a; }
+  /* 明细 summary 在浅色模式下的可读性 */
+  .lb-details summary { color: #64748b; }
+  .lb-details[open] summary { color: #0f172a; }
+    }
+    /* 轻量提示（Toast） */
+    .lb-toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(8px); z-index: 20000; pointer-events: none; opacity: 0; transition: opacity .18s ease, transform .18s ease; background: rgba(15,23,42,.92); color: #e5e7eb; border: 1px solid rgba(148,163,184,.28); border-radius: 12px; box-shadow: 0 8px 28px rgba(2,6,23,.45); padding: 10px 14px; font-size: 14px; font-weight: 600; letter-spacing: .01em; }
+    .lb-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    @media (prefers-color-scheme: light){
+      .lb-toast { background: rgba(255,255,255,.98); color: #0f172a; border-color: rgba(2,6,23,.08); box-shadow: 0 8px 24px rgba(15,23,42,.15); }
+    }
+  </style>
+  <!-- ===== Global Design Layer: Tokens + Baseline + Components (Unified) ===== -->
+  <style>
+    /* Design Tokens (Light) */
+    :root {
+      /* brand */
+      --brand-50:#eef6ff; --brand-100:#daeaff; --brand-200:#b9d6ff; --brand-300:#91bdff;
+      --brand-400:#5fa1ff; --brand-500:#3b82f6; --brand-600:#2563eb; --brand-700:#1d4ed8; --brand-800:#1e40af; --brand-900:#1e3a8a;
+
+      /* background & surface & border */
+      --bg: #f7f9fc;               /* App background */
+      --surface-0:#f1f5f9;         /* Secondary background */
+      --surface-1:#ffffff;         /* Card/dialog background */
+      --surface-2:#f8fafc;         /* Hero/strip background */
+      --border:#e2e8f0;            /* Hairline */
+
+      /* text */
+      --text-1:#0f172a;            /* Primary text */
+      --text-2:#334155;            /* Secondary */
+      --text-3:#64748b;            /* Tertiary */
+      --text-on-accent:#ffffff;    /* On brand */
+
+      /* overlay */
+      --backdrop: rgba(2, 6, 23, 0.55);
+
+      /* radius */
+      --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px; --radius-xl: 20px;
+
+      /* spacing */
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+
+      /* elevation */
+      --shadow-1: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 1px rgba(15, 23, 42, 0.04);
+      --shadow-2: 0 6px 18px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.06);
+
+      /* container widths */
+      --container-xs: 640px; --container-sm: 768px; --container-md: 1024px; --container-lg: 1200px;
+
+      /* typography */
+      --font-sans: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans CJK SC', 'Microsoft YaHei', Arial, 'Helvetica Neue', Helvetica, sans-serif;
+      --fs-xs: 12px; --fs-sm: 13.5px; --fs-base: 15px; --fs-md: 16.5px; --fs-lg: 18px; --fs-xl: 20px; --fs-2xl: 24px;
+      --lh-tight: 1.2; --lh-base: 1.5; --lh-relaxed: 1.7;
+
+      /* controls */
+      --control-sm-h: 30px; --control-md-h: 36px; --control-lg-h: 44px;
+
+      /* motion */
+      --ease-1: cubic-bezier(.2,.7,.4,1); --dur-1: 160ms;
+    }
+
+    /* Tokens (Dark) - follows system */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:#0b1220; --surface-0:#0e1627; --surface-1:#0f172a; --surface-2:#111b2e; --border:#22314a;
+        --text-1:#e6edf6; --text-2:#c8d2e3; --text-3:#94a3b8;
+        --brand-500:#5ea1ff; --brand-600:#4a8df0; --brand-700:#3b78e0;
+        --shadow-1: 0 1px 2px rgba(0,0,0,0.35);
+        --shadow-2: 0 12px 36px rgba(0,0,0,0.35), 0 2px 10px rgba(0,0,0,0.25);
+        --backdrop: rgba(2, 6, 23, 0.7);
+      }
+    }
+
+    /* Optional manual theme: <html data-theme="dark"> */
+    html[data-theme="dark"] {
+      --bg:#0b1220; --surface-0:#0e1627; --surface-1:#0f172a; --surface-2:#111b2e; --border:#22314a;
+      --text-1:#e6edf6; --text-2:#c8d2e3; --text-3:#94a3b8;
+      --brand-500:#5ea1ff; --brand-600:#4a8df0; --brand-700:#3b78e0;
+      --shadow-1: 0 1px 2px rgba(0,0,0,0.35);
+      --shadow-2: 0 12px 36px rgba(0,0,0,0.35), 0 2px 10px rgba(0,0,0,0.25);
+      --backdrop: rgba(2, 6, 23, 0.7);
+    }
+
+    /* Baseline overrides (keep structure, unify look) */
+    body {
+      background: var(--bg) !important;
+      color: var(--text-1);
+      font-family: var(--font-sans);
+      font-size: var(--fs-base);
+      line-height: var(--lh-base);
+    }
+
+    .container {
+      max-width: var(--container-lg) !important;
+      padding-inline: var(--space-4) !important;
+    }
+    @media (max-width: 1024px) { .container { max-width: var(--container-md) !important; } }
+    @media (max-width: 800px)  { .container { max-width: var(--container-sm) !important; padding-inline: var(--space-3) !important; } }
+    @media (max-width: 640px)  { .container { max-width: var(--container-xs) !important; } }
+
+    /* Headings & text */
+    h1,h2,h3,h4 { color: var(--text-1); letter-spacing: -0.01em; line-height: var(--lh-tight); font-weight: 700; }
+    h1 { font-size: var(--fs-2xl); }
+    h2 { font-size: var(--fs-xl); }
+    h3 { font-size: var(--fs-lg); }
+    h4 { font-size: var(--fs-md); }
+    p  { color: var(--text-2); }
+    .text-muted { color: var(--text-3); }
+
+    /* Cards unification: map existing classes to shared skin */
+    .overview-card, .ranking-card, .info-card, .status-card, .timeline-card, .history-card, .stu-card, .ranking-row, .top3-card, .card {
+      background: var(--surface-1) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: var(--radius-lg) !important;
+      box-shadow: var(--shadow-1) !important;
+    }
+    /* 仅非渐变类的 lb-card 使用统一皮肤，保留渐变卡片原有背景与无边框设计 */
+    .lb-card:not(.lb-card--gradient) {
+      background: var(--surface-1) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: var(--radius-lg) !important;
+      box-shadow: var(--shadow-1) !important;
+    }
+    .overview-card, .ranking-card, .info-card, .status-card, .timeline-card, .history-card, .card, .lb-card { padding: var(--space-5) !important; }
+    .stu-card { padding: var(--space-4) !important; }
+
+    /* Hero/strips */
+    .ranking-hero {
+      background: linear-gradient(180deg, var(--surface-2), var(--surface-1)) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: var(--radius-xl) !important;
+      padding: var(--space-6) !important;
+      box-shadow: var(--shadow-1) !important;
+      color: var(--text-1) !important;
+    }
+
+  /* Ensure full ranking view uses the same width as container */
+  .ranking-root { width: 100% !important; max-width: var(--container-lg) !important; margin-inline: auto !important; }
+  #rankingFullList { width: 100% !important; }
+  /* Relax row columns so the score column isn't cramped */
+  .ranking-row { grid-template-columns: 64px 1fr 160px !important; }
+  @media (max-width: 560px) { .ranking-row { grid-template-columns: 44px 1fr auto !important; } }
+
+    /* Buttons unification */
+    .view-details-btn, .ranking-details-btn, .back-btn, .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      height: var(--control-md-h); padding: 0 var(--space-4);
+      font-size: var(--fs-sm); font-weight: 600;
+      border-radius: var(--radius-md); border: 1px solid var(--border);
+      background: var(--surface-1); color: var(--text-1);
+      transition: all var(--dur-1) var(--ease-1);
+    }
+  .btn--sm { height: var(--control-sm-h); padding: 0 var(--space-3); font-size: var(--fs-xs); border-radius: 10px; }
+  .btn--lg { height: var(--control-lg-h); padding: 0 var(--space-5); }
+  .btn--ghost { background: var(--surface-0); }
+  .btn--ghost:hover { background: var(--surface-1); }
+    .view-details-btn, .ranking-details-btn { width: 100%; }
+    .view-details-btn:hover, .ranking-details-btn:hover, .back-btn:hover, .btn:hover {
+      border-color: color-mix(in oklab, var(--brand-600) 30%, var(--border));
+      box-shadow: var(--shadow-1);
+      transform: translateY(-1px);
+    }
+    .view-details-btn:active, .ranking-details-btn:active, .back-btn:active, .btn:active { transform: translateY(0); }
+    .btn--primary, .view-details-btn.btn--primary { background: var(--brand-600); color: var(--text-on-accent); border-color: transparent; }
+    .btn--primary:hover { background: var(--brand-700); color: var(--text-on-accent); }
+
+    /* Score detail icon button keeps accent but adopts sizing */
+    .score-detail-btn {
+      width: 22px; height: 22px; border-radius: 6px;
+      border: 1px solid var(--border); background: var(--surface-0); color: var(--brand-600);
+      box-shadow: none; transition: all var(--dur-1) var(--ease-1);
+    }
+    .score-detail-btn:hover { background: var(--brand-600); color: var(--text-on-accent); border-color: var(--brand-600); box-shadow: 0 2px 8px rgba(59,130,246,0.25); transform: scale(1.06); }
+
+    /* Lists & rows */
+    .ranking-row { padding: var(--space-4) var(--space-5) !important; }
+    .ranking-row:hover { border-color: color-mix(in oklab, var(--brand-600) 24%, var(--border)) !important; box-shadow: var(--shadow-1) !important; }
+    .row-name { color: var(--text-1) !important; font-size: var(--fs-md) !important; }
+    .row-points, .rank-num, .ranking-student-name { color: var(--text-1) !important; }
+    .ranking-student-meta, .ranking-score-label { color: var(--text-3) !important; }
+
+    /* Modals unify (lb-*) */
+    .lb-modal { background: var(--backdrop) !important; }
+    .lb-dialog { background: var(--surface-1) !important; border: 1px solid var(--border) !important; border-radius: var(--radius-xl) !important; box-shadow: var(--shadow-2) !important; }
+    .lb-dialog__title { color: var(--text-1) !important; }
+    .lb-dialog__body { color: var(--text-2) !important; }
+    .lb-dialog__close { color: var(--text-3) !important; }
+    .lb-dialog__close:hover { color: var(--text-1) !important; }
+
+    /* Grid gap normalization */
+    .lb-grid { gap: var(--space-4) !important; }
+
+    /* Detail/list backgrounds unify */
+    .list-view, .detail-view { background: var(--bg) !important; }
+  .detail-header { background: linear-gradient(180deg, var(--surface-2), var(--surface-1)) !important; border-bottom: 1px solid var(--border); }
+
+    /* Progress circle colors keep brand */
+    .progress-bg { stroke: color-mix(in oklab, var(--border) 85%, white); }
+    .progress-fill { stroke: var(--brand-600) !important; }
+
+    /* Section spacing */
+    .section, .ranking-section, .overview-container { margin-bottom: var(--space-6); }
+
+    /* Light/Dark readability helpers */
+    .text-on-brand, .on-gradient { color: var(--text-on-accent) !important; text-shadow: 0 1px 0 rgba(0,0,0,.18); }
+  </style>
+    <!-- Accessibility & Contrast Fixes: enforce readable colors in light/dark -->
+    <style>
+      /* Primary text surfaces */
+      .page-title, .card-title, .detail-title, .stu-name, .status-value,
+      .ranking-student-name, .row-name, .row-points, .rank-num,
+      .timeline-time, .progress-count, .progress-percentage,
+      .lb-dialog__title { color: var(--text-1) !important; }
+  /* 列表标题与分钟数（仍有浅色硬编码） */
+  .list-title, .stu-mins { color: var(--text-1) !important; }
+
+      /* Secondary/tertiary text */
+      .page-subtitle, .card-subtitle, .ranking-student-meta, .ranking-score-label,
+      .progress-description, .stu-meta, .stu-detail, .status-label,
+      .timeline-duration, .bar-label, .ranking-hero-sub,
+      .lb-dialog__body, .lb-list, .text-muted { color: var(--text-3) !important; }
+
+      /* Brand accents */
+      .ranking-score-value, .bar-tooltip .em, .timeline-room { color: var(--brand-600) !important; }
+
+      /* Inputs & result lists */
+      .search-input { color: var(--text-1) !important; background: var(--surface-1) !important; border-color: var(--border) !important; }
+      .search-results { background: var(--surface-1) !important; border-color: var(--border) !important; }
+      .search-result-item { color: var(--text-1) !important; }
+      .search-result-item:hover { background: var(--surface-0) !important; }
+
+  /* Hover rows in both themes */
+  .timeline-item:hover { background: var(--surface-0) !important; }
+  /* 排行列表分隔线在深色下可见 */
+  .ranking-item { border-bottom-color: var(--border) !important; }
+
+      /* Timeline room pill adapts to theme */
+      .timeline-room { 
+        background: color-mix(in oklab, var(--brand-600) 12%, transparent);
+        border: 1px solid color-mix(in oklab, var(--brand-600) 55%, var(--border));
+      }
+
+      /* Chart tooltip */
+      .bar-tooltip { 
+        background: color-mix(in oklab, var(--text-1) 92%, transparent) !important;
+        color: var(--surface-1) !important; 
+        border: 1px solid color-mix(in oklab, var(--border) 70%, var(--text-1));
+        box-shadow: var(--shadow-2);
+      }
+
+      /* Additional text elements */
+      .card-date, .progress-count-unit, .progress-percentage-symbol { color: var(--text-3) !important; }
+      .separator { color: var(--border) !important; }
+
+      /* Category tabs: theme-aware */
+      .category-tabs { background: var(--surface-0) !important; }
+      .category-tab { color: var(--text-2) !important; }
+      .category-tab.active { background: var(--brand-600) !important; color: var(--text-on-accent) !important; box-shadow: 0 2px 8px color-mix(in oklab, var(--brand-600) 35%, transparent) !important; }
+      .category-tab:hover:not(.active) { background: var(--surface-0) !important; color: var(--text-1) !important; }
+
+      /* Inputs: focus ring brand-aware */
+      .search-input:focus { border-color: var(--brand-600) !important; box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand-600) 20%, transparent) !important; }
+
+      /* Buttons hover on neutral surfaces */
+      .back-btn:hover { background: var(--surface-0) !important; }
+
+      /* Status item hover unify */
+      .status-item:hover { background: color-mix(in oklab, var(--brand-600) 10%, transparent) !important; border-color: color-mix(in oklab, var(--brand-600) 45%, var(--border)) !important; }
+
+      /* Bars adopt brand gradient */
+      .bar-fill { background: linear-gradient(to top, var(--brand-700) 0%, var(--brand-500) 100%) !important; }
+  
+      /* Ensure ranking hover row background in dark */
+      .ranking-row:hover { background: var(--surface-0) !important; }
+
+      /* Top3 区域在深色模式下的可读性修复 */
+      .top3-card { background: var(--surface-1) !important; border-color: var(--border) !important; color: var(--text-1) !important; }
+      .top3-card:hover { background: var(--surface-2) !important; }
+      .top3-name { color: var(--text-1) !important; }
+      .top3-points { color: var(--text-3) !important; }
+      .ranking-hero-sub { color: var(--text-3) !important; }
+
+      /* Top3 卡片内“评分详情 ?”按钮增强对比度 */
+      .top3-card .score-detail-btn {
+        color: var(--brand-600) !important;
+        border-color: var(--brand-600) !important;
+        background: color-mix(in oklab, var(--brand-600) 12%, transparent) !important;
+      }
+      .top3-card .score-detail-btn:hover {
+        background: var(--brand-600) !important;
+        color: var(--text-on-accent) !important;
+        border-color: var(--brand-600) !important;
+        box-shadow: 0 2px 10px rgba(59,130,246,.35) !important;
+      }
+
+  /* 细节补齐：旧变量 var(--text) 定义的标题在深色下偏暗 */
+  .student-info h2,
+  .status-card h3,
+  .timeline-card h3,
+  .history-card h3 { color: var(--text-1) !important; }
+  .status-label { color: var(--text-3) !important; }
+  .status-value { color: var(--text-1) !important; }
+
+  /* 状态小卡默认底/边改为主题令牌，避免浅色硬编码 */
+  .status-item { background: var(--surface-0) !important; border-color: var(--border) !important; }
+
+  /* 排行按钮与查看详情按钮在深色下保持对比度 */
+  .ranking-details-btn,
+  .view-details-btn { background: var(--surface-1) !important; border-color: var(--border) !important; color: var(--text-1) !important; }
+  .ranking-details-btn:hover,
+  .view-details-btn:hover { border-color: color-mix(in oklab, var(--brand-600) 30%, var(--border)) !important; box-shadow: var(--shadow-1) !important; }
+
+  /* 指定两个主要按钮为品牌蓝色填充（覆盖上面的中性底规则） */
+  #viewDetailsBtn,
+  #rankingDetailsBtn { background: var(--brand-600) !important; color: var(--text-on-accent) !important; border-color: transparent !important; }
+  #viewDetailsBtn:hover,
+  #rankingDetailsBtn:hover { background: var(--brand-700) !important; box-shadow: 0 6px 16px rgba(59,130,246,.35) !important; }
+  #viewDetailsBtn:active,
+  #rankingDetailsBtn:active { background: var(--brand-800) !important; }
+    </style>
+    
+</head>
+<body>
+  <main class="container">
+    <!-- 首页：今日纵览 -->
+    <section id="homeView" class="home-view">
+      <!-- 页面标题 -->
+      <div class="page-header">
+        <h1 class="page-title">青岛耶胡迪梅纽因学校</h1>
+        <p class="page-subtitle">练琴跟踪系统</p>
+      </div>
+
+      <!-- 搜索功能 -->
+      <div class="search-section">
+        <div class="search-container">
+          <span class="search-icon">🔍</span>
+          <input 
+            type="text" 
+            class="search-input" 
+            placeholder="搜索学生姓名..." 
+            id="studentSearchInput"
+          />
+          <div class="search-results" id="searchResults"></div>
+        </div>
+      </div>
+
+      <!-- 概览区域 -->
+      <div class="overview-container">
+        <div class="overview-card">
+          <!-- 头部 -->
+          <div class="card-header">
+            <h1 class="card-title">实时总览</h1>
+            <div class="card-date" id="currentDate">9月16日</div>
+          </div>
+
+        <!-- 分类标签 -->
+        <div class="category-tabs">
+          <button class="category-tab active" data-category="attendance">出勤</button>
+          <button class="category-tab" data-category="absent">缺勤</button>
+          <button class="category-tab" data-category="self-practice">自主</button>
+          <button class="category-tab" data-category="not-practice">未练</button>
+        </div>
+
+        <!-- 圆形进度图 -->
+        <div class="progress-circle">
+          <svg viewBox="0 0 160 160">
+            <circle 
+              class="progress-bg" 
+              cx="80" 
+              cy="80" 
+              r="70"
+            />
+            <circle 
+              id="progressPath"
+              class="progress-fill" 
+              cx="80" 
+              cy="80" 
+              r="70"
+            />
+          </svg>
+          <div class="progress-center">
+            <div style="white-space: nowrap;">
+              <span class="progress-percentage" id="progressPercentage">0</span>
+              <span class="progress-percentage-symbol">%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 进度条下方信息 -->
+        <div class="progress-info">
+          <div class="progress-count">
+            <span id="progressCount">0</span>
+            <span class="progress-count-unit">人</span>
+          </div>
+          <div class="progress-description" id="progressDescription">
+            在规定时间段练琴的人数占总人数的比例
+          </div>
+        </div>
+
+        <!-- 查看详情按钮 -->
+        <button class="view-details-btn btn--primary btn--lg" id="viewDetailsBtn">
+          <span>查看详情</span>
+        </button>
+        </div>
+
+        <!-- 442排行榜 -->
+        <div class="ranking-card">
+          <!-- 头部 -->
+          <div class="card-header">
+            <h2 class="card-title">442排行榜</h2>
+            <div class="card-subtitle">每日练琴质量排名</div>
+          </div>
+
+          <!-- 排行榜列表 -->
+          <div class="ranking-list" id="rankingList">
+            <!-- 动态生成排行榜内容 -->
+          </div>
+
+          <!-- 排行规则详情按钮 -->
+          <button class="ranking-details-btn" id="rankingRulesBtn" style="margin-bottom:8px;">
+            <span>📊 排行规则详情</span>
+          </button>
+
+          <!-- 查看完整排行榜按钮 -->
+          <button class="ranking-details-btn btn--primary btn--lg" id="rankingDetailsBtn">
+            <span>查看完整排行榜</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 列表：平铺学生卡片 -->
+    <section id="listView" class="list-view" hidden>
+      <div class="list-header">
+        <button id="backBtn" class="back-btn" aria-label="返回">← 返回</button>
+        <div class="list-title" id="listTitle">正在练琴</div>
+      </div>
+      <div id="studentGrid" class="student-grid"></div>
+    </section>
+
+    <!-- 完整排行榜视图 -->
+    <section id="rankingView" class="list-view" hidden>
+      <div class="ranking-root">
+        <div class="list-header">
+          <button id="rankingBackBtn" class="back-btn" aria-label="返回">← 返回</button>
+        </div>
+        <div id="rankingFullList"></div>
+      </div>
+    </section>
+
+    <!-- 学生详情页面 -->
+    <section id="detailView" class="detail-view" hidden>
+      <div class="detail-container">
+        <div class="detail-header">
+          <button id="detailBackBtn" class="back-btn" aria-label="返回">← 返回</button>
+          <div class="detail-title" id="detailTitle">学生详情</div>
+        </div>
+        
+        <div class="detail-content">
+          <!-- 个人信息卡片 -->
+          <div class="info-card">
+            <div class="info-head">
+              <div class="student-info">
+                <h2 id="studentName">劲豪</h2>
+                <div class="student-meta">
+                  <span id="studentGrade">2024级</span>
+                  <span class="separator">·</span>
+                  <span id="studentMajor">钢琴专业</span>
+                </div>
+              </div>
+              <div class="today-score" id="todayScoreBadge" title="今日 442 综合分">
+                <span class="today-score-label">今日442分</span>
+                <span class="today-score-value" id="todayScoreValue">--</span>
+                <button class="score-detail-btn" id="todayScoreDetailBtn" title="查看评分详情">?</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 当前状态卡片 -->
+          <div class="status-card">
+            <h3>当前状态</h3>
+            <div class="status-grid">
+              <div class="status-item">
+                <span class="status-label">练琴开始时间</span>
+                <span class="status-value" id="currentStartTime">--</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">当前时长</span>
+                <span class="status-value" id="currentDuration">--</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">当前琴房</span>
+                <span class="status-value" id="currentRoom">--</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">今日总计</span>
+                <span class="status-value" id="todayTotal">0分钟</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 今日时间轴 -->
+          <div class="timeline-card">
+            <div class="timeline-head">
+              <h3>今日练琴时间轴</h3>
+              <div class="timeline-actions">
+                <button class="btn btn--sm btn--ghost" id="viewWeekSlotsBtn" title="查看每周时段">🗓 查看周时段</button>
+              </div>
+            </div>
+            <div class="timeline-container" id="todayTimeline">
+              <!-- 时间轴内容将通过JavaScript生成 -->
+            </div>
+          </div>
+
+          <!-- 历史七天总结 -->
+          <div class="history-card">
+            <h3>近七天练琴总结</h3>
+            
+            <!-- 七天练琴条形图 -->
+            <div class="week-chart">
+              <div class="chart-container" id="weekChart">
+                <!-- 条形图将通过JavaScript生成 -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+  /**
+   * ==============================
+   *  脚本区（JS）— 源码导览
+   *  A. 常量与配置（Supabase、时间常量、休息时间）
+   *  B. 工具函数（utils：时间/格式化/判断）
+   *  C. 全局状态（appState、连接状态）
+   *  D. 数据获取（fetchAllData、订阅）
+   *  E. 数据分析计算（processStudentLogs、calculateDayPracticeTime 等）
+   *  F. UI 渲染（首页、列表、详情、图表）
+   *  G. 交互与事件（点击、切换、搜索）
+   *  H. 初始化（initializeApp）
+   *  注：本次仅整理注释与结构，不改变功能。
+   * ==============================
+   */
+
+  // === 调试日志统一入口 ===
+  // 将 DEBUG 置为 false 可静默所有 dbg 日志，而不影响 console.error/warn。
+  const DEBUG = true;
+  function dbg(...args) {
+    if (DEBUG) console.log(...args);
+  }
+
+  // 轻量提示：显示 1.8s 后自动隐藏
+  function showToast(message) {
+    try {
+      const el = document.getElementById('lbToast');
+      if (!el) { alert(message); return; }
+      el.textContent = message;
+      el.hidden = false;
+      // 强制回流以应用过渡
+      void el.offsetWidth;
+      el.classList.add('show');
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => {
+        el.classList.remove('show');
+        // 等过渡结束再隐藏
+        setTimeout(() => { el.hidden = true; el.textContent = ''; }, 200);
+      }, 1800);
+    } catch { /* no-op */ }
+  }
+    // ==== 配置和常量 ====
+    const SUPABASE_URL = 'https://waesizzoqodntrlvrwhw.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhZXNpenpvcW9kbnRybHZyd2h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc4MjIyOTYsImV4cCI6MjA3MzM5ODI5Nn0.kE5gSV68q1nLo4z2IqgwqfTBVqNOJw5qs08f6r0SQH0';
+
+    // 休息时间配置 - 剔除大课间、午餐、晚餐等休息时间
+    const BREAK_SCHEDULE = {
+      monTueThuFri: [
+        {start: 8*60+50, end: 9*60},      // 大课间 8:50-9:00
+        {start: 9*60+50, end: 10*60},     // 大课间 9:50-10:00
+        {start: 10*60+50, end: 11*60},    // 大课间 10:50-11:00
+        {start: 11*60+50, end: 13*60},    // 午餐时间 11:50-13:00
+        {start: 13*60+50, end: 14*60},    // 大课间 13:50-14:00
+        {start: 14*60+50, end: 15*60+10}, // 大课间 14:50-15:10
+        {start: 16*60, end: 16*60+10},    // 大课间 16:00-16:10
+        {start: 17*60, end: 17*60+10},    // 大课间 17:00-17:10
+        {start: 18*60, end: 19*60}        // 晚餐时间 18:00-19:00
+      ],
+      wed: [
+        {start: 8*60+50, end: 9*60},      // 大课间 8:50-9:00
+        {start: 9*60+50, end: 10*60},     // 大课间 9:50-10:00
+        {start: 10*60+50, end: 11*60},    // 大课间 10:50-11:00
+        {start: 11*60+50, end: 13*60+30}, // 午餐时间 11:50-13:30
+        {start: 14*60+20, end: 14*60+30}, // 大课间 14:20-14:30
+        {start: 15*60+20, end: 15*60+40}, // 大课间 15:20-15:40
+        {start: 16*60+30, end: 16*60+40}, // 大课间 16:30-16:40
+        {start: 17*60+30, end: 17*60+40}, // 大课间 17:30-17:40
+        {start: 18*60+30, end: 19*60+30}  // 晚餐时间 18:30-19:30
+      ]
+    };
+
+  /**
+   * 默认“规定时间段内”的窗口（当学生未配置个性化时段时使用）
+   */
+  const DEFAULT_SCHEDULE_IN = { start: 8*60, end: 21*60+30 };
+
+  /**
+   * 系统有效统计时间窗口：所有工作日统一统计至 21:30；周末不统计。
+   */
+  function getEffectiveDayWindow(date) {
+    const weekday = date.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+    if (weekday >= 1 && weekday <= 5) { // 周一至周五
+      return { start: 8*60, end: 21*60+30 }; // 08:00-21:30
+    } else {
+      // 周末或其他天数不统计
+      return { start: 8*60, end: 8*60 }; // 无效时间窗口
+    }
+  }
+  
+  // 保持兼容性，使用默认时间窗口（周1245的时间）
+  const EFFECTIVE_DAY_WINDOW = { start: 8*60, end: 21*60+30 };
+
+    // ==== 全局状态 ====
+    let supabaseClient = null;
+    let realtimeChannel = null;
+    let isConnected = false;
+
+    const appState = {
+      students: new Map(), // studentName -> StudentData
+      studentsMeta: new Map(), // studentName -> {major, grade, external_id}
+      timeSlots: new Map(), // studentName -> {1..7: [{start,end}]}
+      practiceLogs: [],
+      currentFilter: 'all',
+  searchQuery: '',
+  // 缓存：后端备份的每日排行榜（dateKey -> Map<student_key, rank>）
+  dailyLeaderboards: new Map()
+    };
+
+    // ==== 工具函数 ====
+    const utils = {
+  // ISO 日期字符串（不含时间）
+  toIsoDate: (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,
+        // 统一学生姓名：去首尾空格、压缩中间空白、标准化全角空格与括号
+        normalizeStudentName: (name) => {
+          if (!name) return '';
+          let s = String(name);
+          // 去除零宽与不可见控制字符、BOM
+          s = s.replace(/[\u200B-\u200D\uFEFF\u2060]/g, '');
+          // 全角空格/不间断空格 -> 半角空格
+          s = s.replace(/[\u3000\u00A0]/g, ' ');
+          // 全角括号 -> 半角
+          s = s.replace(/（/g, '(').replace(/）/g, ')');
+          // 规范尾部括号内部空格
+          s = s.replace(/[\(]\s*([^)]*?)\s*[)]$/, '($1)');
+          // 去首尾并压缩多余内部空白
+          s = s.trim().replace(/\s+/g, ' ');
+          return s;
+        },
+
+        // 安全获取指定学生的时段 Map（已标准化姓名，并支持 weekday 0->7 归一化）
+        getStudentTimeSlots: (name) => {
+          const key = utils.normalizeStudentName(name);
+          const m = appState.timeSlots.get(key) || appState.timeSlots.get(name) || {};
+          // 复制并将 0 号星期映射为 7，避免取不到
+          const fixed = {};
+          Object.keys(m || {}).forEach(k => {
+            const wk = Number(k);
+            if (!Number.isFinite(wk)) return;
+            const norm = wk === 0 ? 7 : wk;
+            fixed[norm] = (m[k] || []).slice();
+          });
+          return fixed;
+        },
+      formatTime: (date) => {
+        return new Intl.DateTimeFormat('zh-CN', {
+          hour: '2-digit',
+          minute: '2-digit'
+        }).format(date);
+      },
+
+      formatDuration: (minutes) => {
+        if (minutes < 60) return `${Math.round(minutes)}分钟`;
+        const hours = Math.floor(minutes / 60);
+        const mins = Math.round(minutes % 60);
+        return mins > 0 ? `${hours}小时${mins}分钟` : `${hours}小时`;
+      },
+
+      // 简洁格式，用于近七天练琴总结
+      formatDurationShort: (minutes) => {
+        if (minutes < 60) return `${Math.round(minutes)}分`;
+        const hours = Math.floor(minutes / 60);
+        const mins = Math.round(minutes % 60);
+        return mins > 0 ? `${hours}时${mins}分` : `${hours}时`;
+      },
+
+      // 完整格式，用于学生卡片
+      formatDurationFull: (minutes) => {
+        if (minutes < 60) return `${Math.round(minutes)}分钟`;
+        const hours = Math.floor(minutes / 60);
+        const mins = Math.round(minutes % 60);
+        return mins > 0 ? `${hours}小时${mins}分钟` : `${hours}小时`;
+      },
+
+      getDateKey: (timestamp) => {
+        const date = new Date(timestamp);
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      },
+
+      getWeekday: (date) => {
+        const day = date.getDay();
+        return day === 0 ? 7 : day;
+      },
+
+      minutesFromDayStart: (date) => {
+        return date.getHours() * 60 + date.getMinutes();
+      },
+
+      parseTimeSlot: (timeStr) => {
+        if (!timeStr) return null;
+        // 统一全角冒号/空白与零宽字符
+        const raw = String(timeStr)
+          .replace(/[\u200B-\u200D\uFEFF\u2060]/g, '')
+          .replace(/[\u3000\u00A0]/g, ' ')
+          .replace(/：/g, ':')
+          .trim();
+        const parts = raw.split(':').map(s => s.trim());
+        if (parts.length < 2) return null;
+        const hours = Number(parts[0]);
+        const minutes = Number(parts[1]);
+        if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+        return hours * 60 + minutes;
+      },
+
+      getStudentInitials: (name) => {
+        if (!name) return '?';
+        const parts = name.trim().split('');
+        return parts.length >= 2 ? parts.slice(-2).join('') : parts[0] || '?';
+      },
+
+      // 将多种星期表示归一到 1..7（周一..周日）；无法识别时返回 NaN
+      normalizeWeekday: (val) => {
+        if (val === null || val === undefined) return NaN;
+        const n = Number(val);
+        if (Number.isFinite(n)) {
+          if (n === 0) return 7;
+          if (n >= 1 && n <= 7) return n;
+        }
+        const s = String(val).trim();
+        const map = {
+          '1':1,'一':1,'周一':1,'星期一':1,'Mon':1,'Monday':1,
+          '2':2,'二':2,'周二':2,'星期二':2,'Tue':2,'Tues':2,'Tuesday':2,
+          '3':3,'三':3,'周三':3,'星期三':3,'Wed':3,'Wednesday':3,
+          '4':4,'四':4,'周四':4,'星期四':4,'Thu':4,'Thur':4,'Thursday':4,
+          '5':5,'五':5,'周五':5,'星期五':5,'Fri':5,'Friday':5,
+          '6':6,'六':6,'周六':6,'星期六':6,'Sat':6,'Saturday':6,
+          '7':7,'日':7,'天':7,'周日':7,'星期日':7,'星期天':7,'Sun':7,'Sunday':7
+        };
+        return map[s] ?? NaN;
+      },
+
+      // 简单编辑距离（Levenshtein）用于相似姓名排查
+      editDistance: (a, b) => {
+        a = String(a); b = String(b);
+        const m = a.length, n = b.length;
+        if (!m) return n; if (!n) return m;
+        const dp = Array.from({length:m+1}, (_,i)=>Array(n+1).fill(0));
+        for (let i=0;i<=m;i++) dp[i][0]=i;
+        for (let j=0;j<=n;j++) dp[0][j]=j;
+        for (let i=1;i<=m;i++){
+          for (let j=1;j<=n;j++){
+            const cost = a[i-1]===b[j-1]?0:1;
+            dp[i][j] = Math.min(
+              dp[i-1][j]+1,
+              dp[i][j-1]+1,
+              dp[i-1][j-1]+cost
+            );
+          }
+        }
+        return dp[m][n];
+      },
+
+      // 在 timeSlots 的键中找与给定姓名相似的候选（返回前5个）
+  findSimilarStudentKeys: (name) => {
+        const norm = utils.normalizeStudentName(name);
+        const keys = Array.from(appState.timeSlots.keys());
+        const scored = keys.map(k=>({k, d: utils.editDistance(norm, k)}));
+        scored.sort((a,b)=>a.d-b.d);
+        return scored.slice(0,5).map(x=>x.k);
+  },
+
+      isWithinTimeRange: (minutes, range) => {
+        return minutes >= range.start && minutes < range.end;
+      }
+    };
+
+    // ==== 后端备份读取辅助 ====
+    async function fetchDailyPracticeSummaries(studentName, startDate, endDate) {
+      try {
+        if (!supabaseClient) return new Map();
+        const key = utils.normalizeStudentName(studentName);
+        const from = utils.toIsoDate(startDate);
+        const to = utils.toIsoDate(endDate);
+        const { data, error } = await supabaseClient
+          .from('daily_practice_summaries')
+          .select('date,total_minutes')
+          .eq('student_key', key)
+          .gte('date', from)
+          .lte('date', to)
+          .order('date', { ascending: true });
+        if (error) { console.warn('fetchDailyPracticeSummaries error:', error); return new Map(); }
+        const map = new Map();
+        (data||[]).forEach(r => map.set(r.date, Number(r.total_minutes)||0));
+        return map;
+      } catch (e) { console.warn('fetchDailyPracticeSummaries exception:', e); return new Map(); }
+    }
+
+    async function fetchDailyLeaderboardMap(date) {
+      try {
+        if (!supabaseClient) return null;
+        const d = utils.toIsoDate(date);
+        const { data, error } = await supabaseClient
+          .from('daily_leaderboards')
+          .select('student_key,rank')
+          .eq('date', d);
+        if (error) { console.warn('fetchDailyLeaderboardMap error:', error); return null; }
+        if (!data || data.length === 0) return null;
+        const m = new Map();
+        data.forEach(r => m.set(utils.normalizeStudentName(r.student_key), r.rank));
+        return m;
+      } catch (e) { console.warn('fetchDailyLeaderboardMap exception:', e); return null; }
+    }
+
+    // ==== 数据处理 ====
+    class StudentData {
+      constructor(name) {
+        this.name = name;
+        this.todayMinutes = { in: 0, out: 0 };
+        this.weekMinutes = { in: 0, out: 0 };
+        this.isPresent = false;
+        this.currentStatus = 'offline'; // 'practicing-in', 'practicing-out', 'offline'
+        this.currentRoom = null;
+        this.currentStartTime = null;
+        this.achievementRate = 0;
+        this.weekStreak = 0;
+        this.totalSessions = 0;
+      }
+    }
+
+    // ==== Supabase 初始化 ====
+    async function initializeSupabase() {
+      try {
+        setConnectionStatus('syncing', '连接中...');
+        
+        // 尝试加载 Supabase
+        if (!window.supabase && !window.Supabase) {
+          await loadSupabaseScript();
+        }
+        
+        const supabase = window.supabase || window.Supabase;
+        if (!supabase) {
+          throw new Error('Supabase 库未找到');
+        }
+        
+        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        isConnected = true;
+        setConnectionStatus('online', '已连接');
+        
+        return true;
+      } catch (error) {
+        console.error('Supabase 初始化失败:', error);
+        setConnectionStatus('offline', '连接失败');
+        return false;
+      }
+    }
+
+    function loadSupabaseScript() {
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+        script.onload = resolve;
+        script.onerror = () => {
+          // 尝试备用 CDN
+          const fallbackScript = document.createElement('script');
+          fallbackScript.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js';
+          fallbackScript.onload = resolve;
+          fallbackScript.onerror = reject;
+          document.head.appendChild(fallbackScript);
+        };
+        document.head.appendChild(script);
+      });
+    }
+
+    function setConnectionStatus(status, text) {
+      const statusEl = document.getElementById('connectionStatus');
+      if (!statusEl) return;
+      
+      statusEl.className = `connection-status ${status}`;
+      statusEl.querySelector('span').textContent = text;
+    }
+
+    // 通用：分页获取整表/大结果集（避免 1000 行上限）
+    async function fetchAllRowsPaginated({ table, select = '*', orderBy = 'id', ascending = true, pageSize = 1000, apply }) {
+      if (!supabaseClient) throw new Error('Supabase 未初始化');
+      const all = [];
+      let from = 0;
+      while (true) {
+        let query = supabaseClient
+          .from(table)
+          .select(select)
+          .order(orderBy, { ascending });
+        if (typeof apply === 'function') {
+          query = apply(query);
+        }
+        const { data, error } = await query.range(from, from + pageSize - 1);
+        if (error) throw error;
+        const batch = data || [];
+        all.push(...batch);
+        dbg(`[分页] ${table} 批次 ${from}-${from + pageSize - 1} 返回 ${batch.length} 行`);
+        if (batch.length < pageSize) break;
+        from += pageSize;
+      }
+      dbg(`[分页] ${table} 合计加载 ${all.length} 行`);
+      return all;
+    }
+
+    // ==== 数据获取和处理 ====
+    async function fetchAllData() {
+      dbg('=== fetchAllData 开始执行 ===');
+      if (!isConnected) {
+        dbg('fetchAllData: 连接未建立，跳过');
+        return;
+      }
+      
+      try {
+        setConnectionStatus('syncing', '同步数据...');
+        dbg('开始 Supabase 查询...');
+        
+        const now = Date.now();
+        const weekAgo = now - 8 * 24 * 60 * 60 * 1000;
+        
+        const [logsData, metaResult, slotsData, roomsResult] = await Promise.all([
+          fetchAllRowsPaginated({
+            table: 'practice_logs',
+            select: '*',
+            orderBy: 'timestamp',
+            ascending: true,
+            pageSize: 1000,
+            apply: (q) => q.gte('timestamp', new Date(weekAgo).toISOString())
+          }),
+          supabaseClient
+            .from('student_database')
+            .select('name, major, grade, external_id'),
+          fetchAllRowsPaginated({
+            table: 'student_time_slots',
+            select: '*',
+            orderBy: 'id',
+            ascending: true,
+            pageSize: 1000
+          }),
+          supabaseClient
+            .from('rooms')
+            .select('*')
+        ]);
+
+        if (metaResult.error) {
+          console.error('学生信息查询错误:', metaResult.error);
+          throw metaResult.error;
+        }
+        
+        dbg('=== 开始处理数据 ===');
+        dbg('练琴日志数量:', Array.isArray(logsData) ? logsData.length : 0);
+        dbg('学生信息数量:', metaResult.data?.length || 0);
+        dbg('时间段数据数量:', Array.isArray(slotsData) ? slotsData.length : 0);
+        
+        // 处理数据
+        appState.practiceLogs = logsData || [];
+        
+        // 学生元信息
+        appState.studentsMeta.clear();
+        (metaResult.data || []).forEach(student => {
+          if (student.name) {
+            const norm = utils.normalizeStudentName(student.name);
+            appState.studentsMeta.set(norm, {
+              major: student.major || '',
+              grade: student.grade || '',
+              external_id: student.external_id || ''
+            });
+          }
+        });
+        
+        // 时间段配置
+        appState.timeSlots.clear();
+        dbg('时间段原始数据:', slotsData);
+        dbg('时间段原始数据长度:', Array.isArray(slotsData) ? slotsData.length : 0);
+        // 强制显示前几条数据的student_name字段
+        if (Array.isArray(slotsData) && slotsData.length > 0) {
+          dbg('前几条记录的student_name:', slotsData.slice(0, 5).map(s => s.student_name));
+        }
+        if (Array.isArray(slotsData) && slotsData.length > 0) {
+          dbg('时间段数据示例:', slotsData.slice(0, 3));
+          // 检查是否包含王申崚
+          const wangSlots = slotsData.filter(s => (s.student_name || s.student || s.name || '').includes?.('王申崚'));
+          dbg(`原始数据中王申崚的记录数:`, wangSlots.length);
+          if (wangSlots.length > 0) {
+            dbg('王申崚的原始记录示例:', wangSlots.slice(0, 2));
+          } else {
+            // 在原始 slots 中做姓名相似度扫描，帮助定位错别字或不可见字符问题
+            try {
+              const rawNames = Array.from(new Set((slotsData || []).map(s => utils.normalizeStudentName(
+                s.student_name || s.student || s.studentName || s.name || ''
+              )))).filter(Boolean);
+              const target = '王申崚';
+              const scored = rawNames
+                .map(n => ({ n, d: utils.editDistance(n, target) }))
+                .sort((a,b) => a.d - b.d)
+                .slice(0, 8);
+              dbg('时段表中与 王申崚 最接近的姓名候选(按编辑距离):', scored);
+            } catch (e) {
+              console.warn('相似姓名扫描失败:', e);
+            }
+          }
+        }
+        (slotsData || []).forEach(slot => {
+          // 先记录所有原始数据，特别关注王申崚
+          const rawCandidate = slot?.student_name ?? slot?.student ?? slot?.studentName ?? slot?.name ?? '';
+          if (!rawCandidate) {
+            dbg('[时段] 发现缺少学生姓名字段的记录，将尝试 external_id 反查：', slot);
+          }
+          if (rawCandidate && String(rawCandidate).includes('王申崚')) {
+            dbg(`[王申崚原始数据] 完整slot对象:`, slot);
+          }
+
+          // 兼容列名：weekday/day_of_week, start_time/start, end_time/end
+          let nameRaw = rawCandidate;
+          if (!nameRaw) {
+            const ext = slot.external_id ?? slot.student_id ?? slot.studentId ?? slot.sid;
+            if (ext) {
+              // 通过 external_id 在元信息里反查姓名
+              const match = Array.from(appState.studentsMeta.entries()).find(([,meta]) => String(meta.external_id||'') === String(ext));
+              if (match) nameRaw = match[0];
+            }
+          }
+          const name = utils.normalizeStudentName(nameRaw);
+          if (!name) return;
+          
+          // 特别调试王申崚的数据
+          if (nameRaw && (nameRaw.includes('王申崚') || name.includes('王申崚'))) {
+            dbg(`[特别调试] 原始姓名: "${nameRaw}", 标准化: "${name}"`);
+            dbg(`[特别调试] 原始slot:`, slot);
+          }
+          
+          const weekdayRaw = slot.weekday ?? slot.day_of_week ?? slot.dow;
+          const weekday = utils.normalizeWeekday(weekdayRaw);
+
+          const startTime = slot.start_time ?? slot.start; // 字符串 "HH:MM"
+          const endTime = slot.end_time ?? slot.end;       // 字符串 "HH:MM"
+          
+          dbg(`处理学生 ${name} 的时间段: 星期${weekday}, ${startTime}-${endTime}`);
+          
+          if (isFinite(weekday) && startTime && endTime) {
+            if (!appState.timeSlots.has(name)) {
+              appState.timeSlots.set(name, {});
+            }
+            const timeMap = appState.timeSlots.get(name);
+            if (!timeMap[weekday]) timeMap[weekday] = [];
+            timeMap[weekday].push({ 
+              start_time: startTime, 
+              end_time: endTime,
+              duration_minutes: slot.duration_minutes || 0
+            });
+            // 特别调试王申崚的时段添加
+            if (name.includes('王申崚')) {
+              dbg(`[特别调试] 成功添加 ${name} 的时段: 星期${weekday}, ${startTime}-${endTime}`);
+              dbg(`[特别调试] 当前 ${name} 的所有时段:`, appState.timeSlots.get(name));
+            }
+          } else {
+            dbg('忽略无效时段记录:', { nameRaw, name, weekdayRaw, weekday, startTime, endTime });
+            // 特别调试王申崚的无效记录
+            if (nameRaw && nameRaw.includes('王申崚')) {
+              dbg(`[特别调试] 王申崚的无效时段记录:`, { nameRaw, name, weekdayRaw, weekday, startTime, endTime, slot });
+            }
+          }
+        });
+
+        dbg('时段已装载，学生键数量:', appState.timeSlots.size, '示例键:', Array.from(appState.timeSlots.keys()).slice(0,10));
+        // 特别检查王申崚是否被正确加载
+        const wangSlots = appState.timeSlots.get('王申崚');
+        if (wangSlots) {
+          dbg('王申崚的时段数据已找到:', wangSlots);
+        } else {
+          dbg('王申崚的时段数据未找到，可能的键名:', utils.findSimilarStudentKeys('王申崚'));
+        }
+        
+  dbg('解析后的时间段配置:', appState.timeSlots);
+        
+        // 处理当前房间状态
+        const roomsData = roomsResult.data || [];
+        
+        // 分析数据并生成学生状态
+        analyzeStudentData(roomsData);
+        
+        // 更新排行榜
+        updateRanking();
+        
+        setConnectionStatus('online', '已连接');
+        
+      } catch (error) {
+        console.error('数据获取失败:', error);
+        setConnectionStatus('offline', '同步失败');
+      }
+    }
+
+  function analyzeStudentData(roomsData) {
+      appState.students.clear();
+      
+      // 从练琴日志分析每个学生的数据
+      const studentLogs = new Map();
+      
+      appState.practiceLogs.forEach(log => {
+        const studentName = utils.normalizeStudentName(log.student_name || log.student || log.studentName);
+        if (!studentName) return;
+        
+        if (!studentLogs.has(studentName)) {
+          studentLogs.set(studentName, []);
+        }
+        studentLogs.get(studentName).push(log);
+      });
+      
+      // 获取所有学生（包括有时间段配置但没有练琴日志的学生）
+      const allStudentNames = new Set();
+      
+      // 从练琴日志中获取学生名单
+      studentLogs.forEach((logs, studentName) => {
+        allStudentNames.add(studentName);
+      });
+      
+      // 从学生数据库中获取学生名单
+      appState.studentsMeta.forEach((meta, studentName) => {
+        allStudentNames.add(studentName);
+      });
+      
+      // 从时间段配置中获取学生名单
+      appState.timeSlots.forEach((slots, studentName) => {
+        allStudentNames.add(studentName);
+      });
+      
+      // 调试时段数据状态
+      dbg('=== 时段数据状态检查 ===');
+      dbg('timeSlots 总数:', appState.timeSlots.size);
+      dbg('timeSlots 所有键:', Array.from(appState.timeSlots.keys()));
+      dbg('王申崚的时段数据:', appState.timeSlots.get('王申崚'));
+      
+      // 处理每个学生的数据
+  dbg('所有学生名单:', Array.from(allStudentNames));
+      allStudentNames.forEach(studentName => {
+        const studentData = new StudentData(studentName);
+        const logs = studentLogs.get(studentName) || [];
+        processStudentLogs(studentData, logs);
+        
+  dbg(`学生 ${studentName} 的数据:`, {
+          todayMinutes: studentData.todayMinutes,
+          hasSchedule: hasScheduleToday(studentName),
+          timeSlots: appState.timeSlots.get(studentName)
+        });
+        
+        // 检查当前状态（从rooms表）
+        const currentRoom = roomsData.find(room => {
+          const occupant = utils.normalizeStudentName(room.occupant_student_name || room.occupant_student || room.occupant);
+          return occupant === studentName;
+        });
+        
+        if (currentRoom) {
+          studentData.currentStatus = getCurrentPracticeStatus(studentName);
+          studentData.currentRoom = currentRoom.name || currentRoom.room_name || '未知房间';
+          studentData.currentStartTime = currentRoom.register_time ? new Date(currentRoom.register_time) : null;
+        }
+        
+        appState.students.set(studentName, studentData);
+      });
+      
+  // 更新UI
+  updateStatistics();
+  updateViews();
+    }
+
+  /**
+   * 根据日志构建日区间并计算今日/近7天练琴分钟数（剔除休息时间与无效时间段）。
+   * 不修改传入日志；内部会根据星期几裁剪到对应的有效时间窗口（周1245: 08:00-19:00，周3: 08:00-19:30）。
+   */
+  function processStudentLogs(studentData, logs) {
+  // 不预先过滤日志，先按 assign/clear 配对，再将所得区间裁剪到有效窗口
+  // 这样可避免一端落在窗口外导致整段被丢弃的情况（如 07:59-08:20 或 18:50-19:10）
+  dbg(`学生 ${studentData.name}: 原始日志 ${logs.length} 条（将先配对后裁剪）`);
+
+  const sortedLogs = [...logs].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      
+      const today = new Date();
+      const todayKey = utils.getDateKey(today);
+      const dayIntervals = new Map(); // dateKey -> intervals
+      
+      let currentSessionStart = null;
+      
+      // 构建练琴区间
+      sortedLogs.forEach(log => {
+        const timestamp = new Date(log.timestamp);
+        const dateKey = utils.getDateKey(timestamp);
+        
+        if (!dayIntervals.has(dateKey)) {
+          dayIntervals.set(dateKey, []);
+        }
+        
+        if (log.action === 'assign') {
+          if (!currentSessionStart) {
+            currentSessionStart = timestamp;
+          }
+        } else if (log.action === 'clear' && currentSessionStart) {
+          // 记录一个完整的练琴区间
+          const startDay = utils.getDateKey(currentSessionStart);
+          const endDay = dateKey;
+          
+          if (startDay === endDay) {
+            // 同一天：裁剪到对应星期的有效时间窗口
+            const dayWindow = getEffectiveDayWindow(currentSessionStart);
+            const rawStart = utils.minutesFromDayStart(currentSessionStart);
+            const rawEnd = utils.minutesFromDayStart(timestamp);
+            const clampedStart = Math.max(rawStart, dayWindow.start);
+            const clampedEnd = Math.min(rawEnd, dayWindow.end);
+            if (clampedEnd > clampedStart) {
+              dayIntervals.get(dateKey).push({ start: clampedStart, end: clampedEnd });
+              dbg(`区间(同日) ${startDay} 原始 ${rawStart}-${rawEnd} 裁剪为 ${clampedStart}-${clampedEnd}`);
+            } else {
+              dbg(`丢弃区间(同日) ${startDay} 原始 ${rawStart}-${rawEnd}（与有效窗口无交集）`);
+            }
+          } else {
+            // 跨天处理：
+            // 第一天：max(start, 当天开始时间) -> 当天结束时间
+            const firstDayWindow = getEffectiveDayWindow(currentSessionStart);
+            const startMinutes = utils.minutesFromDayStart(currentSessionStart);
+            const dayStartLimit = firstDayWindow.start;
+            const dayEndLimit = firstDayWindow.end;
+            const firstDayStart = Math.max(startMinutes, dayStartLimit);
+            if (firstDayStart < dayEndLimit) {
+              if (!dayIntervals.has(startDay)) dayIntervals.set(startDay, []);
+              dayIntervals.get(startDay).push({ start: firstDayStart, end: dayEndLimit });
+              dbg(`区间(跨日-首日) ${startDay} 原始 ${startMinutes}-? 裁剪为 ${firstDayStart}-${dayEndLimit}`);
+            } else {
+              dbg(`丢弃区间(跨日-首日) ${startDay} 原始 ${startMinutes}-?（与有效窗口无交集）`);
+            }
+
+            // 第二天：当天开始时间 -> min(clear, 当天结束时间)
+            const secondDayWindow = getEffectiveDayWindow(timestamp);
+            const endMinutes = utils.minutesFromDayStart(timestamp);
+            const secondDayEnd = Math.min(endMinutes, secondDayWindow.end);
+            if (secondDayEnd > secondDayWindow.start) {
+              if (!dayIntervals.has(endDay)) dayIntervals.set(endDay, []);
+              dayIntervals.get(endDay).push({ start: secondDayWindow.start, end: secondDayEnd });
+              dbg(`区间(跨日-次日) ${endDay} 原始 ?-${endMinutes} 裁剪为 ${secondDayWindow.start}-${secondDayEnd}`);
+            } else {
+              dbg(`丢弃区间(跨日-次日) ${endDay} 原始 ?-${endMinutes}（与有效窗口无交集）`);
+            }
+          }
+          
+          currentSessionStart = null;
+          studentData.totalSessions++;
+        }
+      });
+      
+      // 如果还有未结束的会话，计算到现在或当日统计截止（21:30），不超过当天有效时间
+      if (currentSessionStart) {
+        const now = new Date();
+        const nowWindow = getEffectiveDayWindow(now);
+        const nowMinutes = utils.minutesFromDayStart(now);
+        
+        // 只要当前时间未早于开始窗口，就将会话结算到 min(当前时刻, 截止 21:30)
+        if (nowMinutes >= nowWindow.start) {
+          const startDay = utils.getDateKey(currentSessionStart);
+          const nowDay = utils.getDateKey(now);
+          
+          if (startDay === nowDay) {
+            const rawStart = utils.minutesFromDayStart(currentSessionStart);
+            const clampedStart = Math.max(rawStart, nowWindow.start);
+            const clampedEnd = Math.min(nowMinutes, nowWindow.end);
+            if (clampedEnd > clampedStart) {
+              if (!dayIntervals.has(nowDay)) {
+                dayIntervals.set(nowDay, []);
+              }
+              dayIntervals.get(nowDay).push({ start: clampedStart, end: clampedEnd });
+              dbg(`区间(未结束-同日) ${nowDay} 原始 ${rawStart}-${nowMinutes} 裁剪为 ${clampedStart}-${clampedEnd}`);
+            }
+          }
+        }
+        
+        studentData.totalSessions++;
+      }
+      
+      // 计算今日和本周的练琴时间
+      dayIntervals.forEach((intervals, dateKey) => {
+        const date = new Date(dateKey + 'T00:00:00');
+        const dayData = calculateDayPracticeTime(studentData.name, date, intervals);
+        
+        if (dateKey === todayKey) {
+          studentData.todayMinutes = dayData;
+          studentData.isPresent = dayData.in > 0;
+        }
+        
+        // 计算是否在本周范围内（过去7天）
+        const daysDiff = Math.floor((today - date) / (24 * 60 * 60 * 1000));
+        if (daysDiff >= 1 && daysDiff <= 7) {
+          studentData.weekMinutes.in += dayData.in;
+          studentData.weekMinutes.out += dayData.out;
+        }
+      });
+      
+      // 计算成就率和连续天数
+      studentData.achievementRate = calculateAchievementRate(studentData.name, studentData.todayMinutes.in);
+      studentData.weekStreak = calculateWeekStreak(studentData.name, dayIntervals);
+    }
+
+  /**
+   * 计算某日的“规定时间内”和“规定时间外”的分钟数。
+   * 会在剔除休息时间后再与学生个性化时段进行交集计算。
+   */
+  function calculateDayPracticeTime(studentName, date, intervals) {
+      // 获取当天的休息时间
+      const weekday = utils.getWeekday(date);
+      const breaks = weekday === 3 ? BREAK_SCHEDULE.wed : BREAK_SCHEDULE.monTueThuFri;
+      
+  dbg(`学生 ${studentName} ${date.toDateString()} (星期${weekday}) 原始练琴区间:`, intervals);
+  dbg('应用的休息时间配置:', breaks);
+      
+      // 先将区间裁剪到有效时间范围，避免整段丢弃
+      const validIntervals = intervals
+        .map(interval => ({
+          start: Math.max(interval.start, EFFECTIVE_DAY_WINDOW.start),
+          end: Math.min(interval.end, EFFECTIVE_DAY_WINDOW.end)
+        }))
+        .filter(iv => iv.end > iv.start);
+      
+      // 剔除休息时间
+      const practiceIntervals = subtractBreaks(validIntervals, breaks);
+      
+  dbg('剔除休息时间后的练琴区间:', practiceIntervals);
+      
+      // 获取学生的个性化时间窗口
+  const timeSlots = utils.getStudentTimeSlots(studentName);
+      // 将字符串形式的个性化时段转换为分钟区间，若无配置则使用默认窗口
+      const daySlots = (timeSlots && timeSlots[weekday] && timeSlots[weekday].length > 0)
+        ? timeSlots[weekday].map(slot => {
+            if (typeof slot.start === 'number' && typeof slot.end === 'number') return slot; // 已是数值窗口
+            const start = utils.parseTimeSlot(slot.start_time || slot.start);
+            const end = utils.parseTimeSlot(slot.end_time || slot.end);
+            return { start, end };
+          }).filter(w => Number.isFinite(w.start) && Number.isFinite(w.end) && w.end > w.start)
+        : [
+            typeof DEFAULT_SCHEDULE_IN.start === 'number' ? DEFAULT_SCHEDULE_IN : {
+              start: utils.parseTimeSlot(DEFAULT_SCHEDULE_IN.start_time || DEFAULT_SCHEDULE_IN.start || '08:00'),
+              end: utils.parseTimeSlot(DEFAULT_SCHEDULE_IN.end_time || DEFAULT_SCHEDULE_IN.end || '19:30')
+            }
+          ];
+      
+      // 分离段内和段外时间
+      const { inTime, outTime } = splitByTimeWindows(practiceIntervals, daySlots);
+      
+  dbg(`学生 ${studentName} 当日练琴时间统计: 规定时间内${inTime}分钟, 规定时间外${outTime}分钟`);
+      
+      return {
+        in: inTime,
+        out: outTime
+      };
+    }
+    
+    // 验证练琴时间是否在有效统计范围内（按星期几判断）
+    function isValidPracticeTime(timestamp) {
+      const date = new Date(timestamp);
+      const window = getEffectiveDayWindow(date);
+      const minutes = date.getHours() * 60 + date.getMinutes();
+      return minutes >= window.start && minutes <= window.end;
+    }
+
+    function subtractBreaks(intervals, breaks) {
+      let result = [...intervals];
+      
+      breaks.forEach(breakTime => {
+        result = result.flatMap(interval => {
+          if (interval.end <= breakTime.start || interval.start >= breakTime.end) {
+            return [interval];
+          }
+          
+          const parts = [];
+          if (interval.start < breakTime.start) {
+            parts.push({
+              start: interval.start,
+              end: Math.min(interval.end, breakTime.start)
+            });
+          }
+          if (interval.end > breakTime.end) {
+            parts.push({
+              start: Math.max(interval.start, breakTime.end),
+              end: interval.end
+            });
+          }
+          return parts;
+        });
+      });
+      
+      return result;
+    }
+
+  /**
+   * 将给定区间按窗口集合拆分为 in/out 两类分钟总和。
+   */
+  function splitByTimeWindows(intervals, windows) {
+      let inTime = 0;
+      let outTime = 0;
+      
+      intervals.forEach(interval => {
+        const duration = interval.end - interval.start;
+        
+        // 检查是否与任何时间窗口重叠
+        const isInWindow = windows.some(window => 
+          utils.isWithinTimeRange(interval.start, window) || 
+          utils.isWithinTimeRange(interval.end - 1, window) ||
+          (interval.start <= window.start && interval.end >= window.end)
+        );
+        
+        if (isInWindow) {
+          inTime += duration;
+        } else {
+          outTime += duration;
+        }
+      });
+      
+      return { inTime, outTime };
+    }
+
+  /**
+   * 获取当前时刻学生练琴状态：
+   * - 有效时间窗口之外一律 offline（周1245: 08:00-19:00，周3: 08:00-19:30）
+   * - 其余根据是否落入“规定时间段内”返回 practicing-in / practicing-out
+   */
+  function getCurrentPracticeStatus(studentName) {
+      const now = new Date();
+      const nowWindow = getEffectiveDayWindow(now);
+      const todayMinutes = utils.minutesFromDayStart(now);
+      
+      // 有效时间窗口外不记录练琴状态，直接返回offline
+  if (todayMinutes < nowWindow.start || todayMinutes > nowWindow.end) {
+        return 'offline';
+      }
+
+      // 复用 isCurrentlyScheduled，内部已处理个性化时段
+      const scheduled = isCurrentlyScheduled(studentName);
+      return scheduled ? 'practicing-in' : 'practicing-out';
+    }
+
+  /**
+   * 计算今日成就率：今日“规定时间内”分钟 / 今日“规定时间内”目标分钟（基于时段配置）。
+   */
+  function calculateAchievementRate(studentName, todayInMinutes) {
+      const today = new Date();
+      const weekday = utils.getWeekday(today);
+  const timeSlots = utils.getStudentTimeSlots(studentName);
+      
+      if (!timeSlots || !timeSlots[weekday]) return 0;
+      // 统一转换为分钟窗口
+      const windows = timeSlots[weekday]
+        .map(slot => {
+          if (typeof slot.start === 'number' && typeof slot.end === 'number') return slot;
+          const start = utils.parseTimeSlot(slot.start_time || slot.start);
+          const end = utils.parseTimeSlot(slot.end_time || slot.end);
+          return { start, end };
+        })
+        .filter(w => Number.isFinite(w.start) && Number.isFinite(w.end) && w.end > w.start);
+
+      const totalScheduled = windows.reduce((sum, w) => sum + (w.end - w.start), 0);
+      
+      return totalScheduled > 0 ? Math.min(100, Math.round((todayInMinutes / totalScheduled) * 100)) : 0;
+    }
+
+    function calculateWeekStreak(studentName, dayIntervals) {
+      const today = new Date();
+      let streak = 0;
+      
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const dateKey = utils.getDateKey(date);
+        
+        const intervals = dayIntervals.get(dateKey) || [];
+        const dayData = calculateDayPracticeTime(studentName, date, intervals);
+        
+        if (dayData.in > 0) {
+          streak++;
+        } else if (i === 0) {
+          break; // 今天没练，连续记录中断
+        }
+      }
+      
+      return streak;
+    }
+
+    function hasScheduleToday(studentName) {
+      const today = new Date();
+      const weekday = utils.getWeekday(today);
+  const timeSlots = utils.getStudentTimeSlots(studentName);
+      return timeSlots && timeSlots[weekday] && timeSlots[weekday].length > 0;
+    }
+
+  /** 检查当前时间是否在学生的练琴时段内（基于个性化时段配置） */
+    function isCurrentlyScheduled(studentName) {
+      const now = new Date();
+      const weekday = utils.getWeekday(now);
+      const currentTime = now.getHours() * 60 + now.getMinutes(); // 当前时间转换为分钟
+      
+  const timeSlots = utils.getStudentTimeSlots(studentName);
+      if (!timeSlots || !timeSlots[weekday]) {
+  dbg(`学生 ${studentName} 在星期${weekday}没有时间段配置`);
+        return false;
+      }
+      
+      const isScheduled = timeSlots[weekday].some(slot => {
+        // 支持两种格式：字符串 start_time/end_time 或数值 start/end
+        let startMinutes, endMinutes;
+        if (typeof slot.start === 'number' && typeof slot.end === 'number') {
+          startMinutes = slot.start; endMinutes = slot.end;
+        } else {
+          const start = utils.parseTimeSlot(slot.start_time || slot.start);
+          const end = utils.parseTimeSlot(slot.end_time || slot.end);
+          startMinutes = start; endMinutes = end;
+        }
+        const inRange = currentTime >= startMinutes && currentTime < endMinutes;
+        dbg(`学生 ${studentName} 时间段 ${startMinutes}-${endMinutes}，当前 ${currentTime}，inRange=${inRange}`);
+        return inRange;
+      });
+      
+  dbg(`学生 ${studentName} 当前是否应该练琴: ${isScheduled}`);
+      return isScheduled;
+    }
+
+    // ==== UI 渲染和交互 ====
+    function updateStatistics() { /* 精简版：不显示顶部统计，保留数据计算备用 */ }
+
+    const uiState = { 
+      view: 'home', // 'home', 'list', 'detail'
+      category: 'attendance', // 'attendance', 'absent', 'self-practice', 'not-practice'
+      clickedElement: null,
+      selectedStudent: null,
+  previousView: null, // 记录上一个视图，用于控制动画
+  rankingOrigin: null // 记录进入“完整排行榜”的来源（home 或 list）
+    };
+
+    function mapStudentToCardData(s) {
+      const meta = appState.studentsMeta.get(s.name) || {};
+      return {
+        name: s.name,
+        metaText: `${meta.grade || ''}${meta.grade ? ' · ' : ''}${meta.major || ''}`,
+        minutes: Math.round((s.todayMinutes.in + s.todayMinutes.out)),
+        status: s.currentStatus !== 'offline' ? 'active' : 'offline',
+      };
+    }
+
+  /**
+   * 首页分组统计：
+   * - attendance: 当前应练且当前正在练（实时 currentStatus）
+   * - absent: 当前应练但当前未练
+   * - selfPractice: 当前不应练但当前在练
+   * - notPractice: 当前不应练且当前未练
+   */
+  function getGroups() {
+      const all = Array.from(appState.students.values());
+      const now = new Date();
+      const currentTime = now.getHours() * 60 + now.getMinutes();
+      const weekday = now.getDay();
+      
+  dbg(`当前时间: ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')} (${currentTime}分钟), 星期${weekday}`);
+  dbg('所有学生数据:', all.map(s => ({ 
+        name: s.name, 
+        todayMinutes: s.todayMinutes, 
+        currentStatus: s.currentStatus 
+      })));
+  dbg('时间段配置:', Array.from(appState.timeSlots.entries()));
+      
+      // 获取当前时间段应该练琴的学生
+      const currentlyScheduled = all.filter(s => isCurrentlyScheduled(s.name));
+      
+  dbg('当前应该练琴的学生:', currentlyScheduled.map(s => s.name));
+      
+      // 分类逻辑：基于当前时间段和实时状态
+      // 出勤：当前时间段应该练琴且当前正在练琴的学生
+      const attendance = currentlyScheduled.filter(s => s.currentStatus !== 'offline');
+      
+      // 缺勤：当前时间段应该练琴但当前没有练琴的学生
+      const absent = currentlyScheduled.filter(s => s.currentStatus === 'offline');
+      
+      // 自主练琴：当前时间段不需要练琴但当前正在练琴的学生
+      const notScheduledNow = all.filter(s => !isCurrentlyScheduled(s.name));
+      const selfPractice = notScheduledNow.filter(s => s.currentStatus !== 'offline');
+      
+      // 未练琴：当前时间段不需要练琴且当前没有练琴的学生
+      const notPractice = notScheduledNow.filter(s => s.currentStatus === 'offline');
+      
+      // 当前应练琴人数（当前时间段应该练琴的学生）
+      const shouldPracticeNow = currentlyScheduled.length;
+      const totalCount = all.length;
+
+  dbg(`分类结果: 出勤${attendance.length}人, 缺勤${absent.length}人, 自主练琴${selfPractice.length}人, 未练琴${notPractice.length}人`);
+  dbg(`当前应练琴人数: ${shouldPracticeNow}, 总人数: ${totalCount}`);
+  dbg('详细分类:', {
+        attendance: attendance.map(s => ({ name: s.name, status: s.currentStatus })),
+        absent: absent.map(s => ({ name: s.name, status: s.currentStatus })),
+        selfPractice: selfPractice.map(s => ({ name: s.name, status: s.currentStatus })),
+        notPractice: notPractice.map(s => ({ name: s.name, status: s.currentStatus }))
+      });
+
+      return { attendance, absent, selfPractice, notPractice, shouldPracticeNow, totalCount, mapped: false };
+    }
+
+    function renderHomeBins() {
+      const groups = getGroups();
+      const { attendance, absent, selfPractice, notPractice, shouldPracticeNow, totalCount } = groups;
+      
+      // 更新日期显示
+      const today = new Date();
+      const dateStr = `${today.getMonth() + 1}月${today.getDate()}日`;
+      document.getElementById('currentDate').textContent = dateStr;
+      
+      // 根据当前选中的分类更新显示
+      const categoryData = {
+        'attendance': { 
+          data: attendance, 
+          label: '出勤人数占当前应练琴人数的比例', 
+          color: '#22c55e',
+          denominator: shouldPracticeNow
+        },
+        'absent': { 
+          data: absent, 
+          label: '缺勤人数占当前应练琴人数的比例', 
+          color: '#ef4444',
+          denominator: shouldPracticeNow
+        },
+        'self-practice': { 
+          data: selfPractice, 
+          label: '自主练琴人数占总人数的比例', 
+          color: '#f59e0b',
+          denominator: totalCount
+        },
+        'not-practice': { 
+          data: notPractice, 
+          label: '未练琴人数占总人数的比例', 
+          color: '#6b7280',
+          denominator: totalCount
+        }
+      };
+      
+      const currentCategory = categoryData[uiState.category];
+      const currentCount = currentCategory.data.length;
+      const denominatorCount = currentCategory.denominator;
+      const percentage = denominatorCount > 0 ? Math.round((currentCount / denominatorCount) * 100) : 0;
+      
+      // 更新百分比和人数
+      document.getElementById('progressPercentage').textContent = percentage;
+      document.getElementById('progressCount').textContent = currentCount;
+      document.getElementById('progressDescription').textContent = currentCategory.label;
+      
+      // 更新圆形进度条
+      const progressPath = document.getElementById('progressPath');
+      const circumference = 2 * Math.PI * 70; // 圆周长，半径为70
+      const offset = circumference - (percentage / 100) * circumference;
+      
+      // 设置圆形进度条样式
+      progressPath.style.strokeDasharray = circumference;
+      progressPath.style.strokeDashoffset = offset;
+      progressPath.style.stroke = currentCategory.color;
+
+      // 按钮状态提示：当该分类没人时，给出提示文案（仍允许点击，点击时将弹出提示，不跳页）
+      const detailsBtn = document.getElementById('viewDetailsBtn');
+      if (detailsBtn) {
+        if (currentCount === 0) {
+          detailsBtn.title = '当前分类暂无学生';
+          detailsBtn.setAttribute('aria-disabled', 'true');
+        } else {
+          detailsBtn.title = '查看详情';
+          detailsBtn.removeAttribute('aria-disabled');
+        }
+      }
+    }
+    
+    function renderUserAvatars(users) {
+      const container = document.getElementById('userAvatars');
+      const maxShow = 4;
+      const showUsers = users.slice(0, maxShow);
+      const remainingCount = Math.max(0, users.length - maxShow);
+      
+      let html = '';
+      showUsers.forEach(user => {
+        const initials = utils.getStudentInitials(user.name);
+        html += `<div class="user-avatar">${initials}</div>`;
+      });
+      
+      if (remainingCount > 0) {
+        html += `<div class="user-avatar more">+${remainingCount}</div>`;
+      }
+      
+      container.innerHTML = html;
+    }
+
+    function renderStudentList(category) {
+      const groups = getGroups();
+      const categoryMap = {
+        'attendance': groups.attendance,
+        'absent': groups.absent,
+        'self-practice': groups.selfPractice,
+        'not-practice': groups.notPractice
+      };
+      
+      const categoryLabels = {
+        'attendance': '出勤学生（规定时间内练琴）',
+        'absent': '缺勤学生（规定时间内未练琴）',
+        'self-practice': '自主练琴（规定时间外练琴）',
+        'not-practice': '未练琴（目前未练琴）'
+      };
+      
+      const list = categoryMap[category] || [];
+      const grid = document.getElementById('studentGrid');
+      const title = document.getElementById('listTitle');
+      title.textContent = categoryLabels[category];
+
+      const items = list.map(mapStudentToCardData);
+
+      const isMobile = window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
+      grid.innerHTML = items.map((s, index) => `
+        <div class="stu-card" data-name="${s.name}" style="${isMobile ? '' : `animation-delay: ${index * 50}ms;`}" onclick="openStudentDetail('${s.name}')">
+          <div class="stu-line1">
+            <span class="status-dot ${category}"></span>
+            <span class="stu-name">${s.name}</span>
+          </div>
+          <div class="stu-meta">${s.metaText || ''}</div>
+          <div class="stu-mins">${utils.formatDurationFull(Math.max(0, s.minutes))}</div>
+          <div class="stu-detail">今日总练习时长</div>
+        </div>
+      `).join('');
+    }
+
+    function updateViews() {
+      const home = document.getElementById('homeView');
+      const list = document.getElementById('listView');
+      const detail = document.getElementById('detailView');
+  const ranking = document.getElementById('rankingView');
+      
+      if (uiState.view === 'home') {
+        // 收起列表视图和详情视图
+        if (!list.hidden) {
+          list.classList.remove('expanding');
+          setTimeout(() => {
+            list.hidden = true;
+            home.hidden = false;
+          }, 400);
+        } else {
+          home.hidden = false;
+        }
+        if (ranking) {
+          ranking.classList.remove('expanding');
+          ranking.hidden = true;
+        }
+        if (detail) {
+          detail.classList.remove('active');
+          setTimeout(() => {
+            detail.hidden = true;
+          }, 400);
+        }
+        renderHomeBins();
+      } else if (uiState.view === 'list') {
+        // 展开列表视图
+        home.hidden = true;
+        if (ranking) {
+          ranking.classList.remove('expanding');
+          ranking.hidden = true;
+        }
+        if (detail) {
+          detail.classList.remove('active');
+          detail.hidden = true;
+        }
+        list.hidden = false;
+  stopWeekChartAutoRefresh();
+  stopCurrentDurationUpdate();
+        
+  // 只有从首页切换到列表时才播放展开动画（移动端跳过以提高响应）
+  const isMobile = window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
+  if (uiState.previousView === 'home' && !isMobile) {
+          // 设置展开起点为卡片中心
+          const overviewCard = document.querySelector('.overview-card');
+          if (overviewCard) {
+            const rect = overviewCard.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            
+            // 设置变换原点为卡片中心
+            list.style.transformOrigin = `${centerX}px ${centerY}px`;
+          }
+          
+          // 触发展开动画
+          requestAnimationFrame(() => {
+            list.classList.add('expanding');
+          });
+  } else {
+          // 从详情页返回，直接显示列表不播放动画
+          list.classList.add('expanding');
+        }
+        
+        renderStudentList(uiState.category);
+      } else if (uiState.view === 'detail') {
+        // 展开详情视图
+        home.hidden = true;
+        if (ranking) {
+          ranking.classList.remove('expanding');
+          ranking.hidden = true;
+        }
+        list.classList.remove('expanding');
+        list.hidden = true;
+        detail.hidden = false;
+        detail.classList.add('active');
+        renderStudentDetail(uiState.selectedStudent);
+  startWeekChartAutoRefresh();
+  startCurrentDurationUpdate();
+      } else if (uiState.view === 'ranking') {
+        // 展开完整排行榜
+        home.hidden = true;
+        list.hidden = true;
+        if (detail) {
+          detail.classList.remove('active');
+          detail.hidden = true;
+        }
+        if (ranking) {
+          dbg('进入 ranking 视图，开始渲染完整排行榜');
+          ranking.hidden = false;
+          ranking.classList.add('expanding'); // 添加展开样式
+          renderRankingFull();
+        } else { dbg('ranking 容器未找到'); }
+      }
+    }
+
+    function setupHomeInteractions() {
+      // 分类标签切换
+      const categoryTabs = document.querySelectorAll('.category-tab');
+      categoryTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          // 移除所有活跃状态
+          categoryTabs.forEach(t => t.classList.remove('active'));
+          // 添加当前活跃状态
+          tab.classList.add('active');
+          // 更新状态
+          uiState.category = tab.dataset.category;
+          // 重新渲染
+          renderHomeBins();
+        });
+      });
+
+      // 查看详情按钮
+  const viewDetailsBtn = document.getElementById('viewDetailsBtn');
+  const backBtn = document.getElementById('backBtn');
+  const detailBackBtn = document.getElementById('detailBackBtn');
+  const rankingDetailsBtn = document.getElementById('rankingDetailsBtn');
+  const rankingRulesBtn = document.getElementById('rankingRulesBtn');
+  const rankingBackBtn = document.getElementById('rankingBackBtn');
+
+      if (viewDetailsBtn) {
+        viewDetailsBtn.addEventListener('click', (e) => {
+          // 进入列表前判断当前分类是否有人
+          const groups = getGroups();
+          const map = {
+            'attendance': groups.attendance,
+            'absent': groups.absent,
+            'self-practice': groups.selfPractice,
+            'not-practice': groups.notPractice
+          };
+          const cur = (map[uiState.category] || []);
+          if (!cur.length) {
+            showToast('当前分类暂无学生');
+            return; // 不跳页
+          }
+          uiState.previousView = uiState.view;
+          uiState.view = 'list';
+          uiState.clickedElement = e.currentTarget;
+          updateViews();
+        });
+      } else { dbg('viewDetailsBtn 未找到，跳过绑定'); }
+
+      // 排行榜详情按钮 -> 进入完整排行榜
+    if (rankingDetailsBtn) {
+        rankingDetailsBtn.addEventListener('click', (e) => {
+      uiState.previousView = uiState.view;
+      uiState.rankingOrigin = uiState.view; // 进入排行榜前记录来源
+          uiState.view = 'ranking';
+          uiState.clickedElement = e.currentTarget;
+          updateViews();
+        });
+      }
+      // 排行规则详情 -> 打开规则说明模态
+      if (rankingRulesBtn) {
+        rankingRulesBtn.addEventListener('click', () => {
+          showLeaderboardRuleDoc();
+        });
+      }
+    if (rankingBackBtn) {
+        rankingBackBtn.addEventListener('click', () => {
+      // 优先回到进入排行榜时的来源；否则退回首页
+      const targetView = uiState.rankingOrigin || uiState.previousView || 'home';
+      uiState.previousView = uiState.view; // 记录当前作为上一个
+          uiState.view = targetView;
+      uiState.rankingOrigin = null; // 清除来源，避免后续循环
+          updateViews();
+        });
+      }
+      
+      if (backBtn) {
+        backBtn.addEventListener('click', () => { 
+          uiState.previousView = uiState.view;
+          uiState.view = 'home'; 
+          updateViews(); 
+        });
+      } else { dbg('backBtn 未找到，跳过绑定'); }
+
+  if (detailBackBtn) {
+        detailBackBtn.addEventListener('click', () => { 
+          // 根据previousView返回到正确的页面
+          const targetView = uiState.previousView || 'list';
+          uiState.previousView = uiState.view;
+          uiState.view = targetView;
+          updateViews(); 
+        });
+  } else { dbg('detailBackBtn 未找到，跳过绑定'); }
+
+      // 搜索功能
+      setupSearchFunction();
+    }
+
+    // 搜索功能设置
+    function setupSearchFunction() {
+      const searchInput = document.getElementById('studentSearchInput');
+      const searchResults = document.getElementById('searchResults');
+      
+      if (!searchInput || !searchResults) return;
+
+      let searchTimeout = null;
+
+      searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.trim();
+        
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+          performSearch(query);
+        }, 300);
+      });
+
+      searchInput.addEventListener('focus', () => {
+        if (searchInput.value.trim()) {
+          performSearch(searchInput.value.trim());
+        }
+      });
+
+      // 点击外部区域隐藏搜索结果
+      document.addEventListener('click', (e) => {
+        if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+          searchResults.style.display = 'none';
+        }
+      });
+    }
+
+    // 执行搜索
+    function performSearch(query) {
+      const searchResults = document.getElementById('searchResults');
+      
+      if (!query) {
+        searchResults.style.display = 'none';
+        return;
+      }
+
+      // 获取所有学生数据 - 从正确的字段获取
+      let allStudents = [];
+      if (appState.students && appState.students.size > 0) {
+        allStudents = Array.from(appState.students.values());
+      } else {
+        // 如果没有加载学生数据，尝试从分组中获取
+        const groups = getGroups();
+        allStudents = [
+          ...groups.attendance,
+          ...groups.absent, 
+          ...groups.selfPractice,
+          ...groups.notPractice
+        ];
+      }
+      
+      // 搜索匹配的学生
+      const matchedStudents = allStudents.filter(student => 
+        student && student.name && student.name.toLowerCase().includes(query.toLowerCase())
+      );
+
+      // 生成搜索结果HTML
+      if (matchedStudents.length === 0) {
+        searchResults.innerHTML = '<div class="search-no-results">未找到匹配的学生</div>';
+      } else {
+        searchResults.innerHTML = matchedStudents.slice(0, 5).map(student => 
+          `<div class="search-result-item" onclick="openStudentDetailFromSearch('${student.name}')">
+            ${student.name}
+          </div>`
+        ).join('');
+      }
+
+      searchResults.style.display = 'block';
+    }
+
+    // 从搜索结果打开学生详情
+    function openStudentDetailFromSearch(studentName) {
+      const searchInput = document.getElementById('studentSearchInput');
+      const searchResults = document.getElementById('searchResults');
+      
+      // 清空搜索框和隐藏结果
+      searchInput.value = '';
+      searchResults.style.display = 'none';
+      
+      // 设置前一个视图为首页（因为是从搜索进入的）
+      uiState.previousView = 'home';
+      uiState.view = 'detail';
+      uiState.selectedStudent = studentName;
+      updateViews();
+    }
+
+    // 打开学生详情页面
+    function openStudentDetail(studentName) {
+      uiState.previousView = uiState.view;
+      uiState.view = 'detail';
+      uiState.selectedStudent = studentName;
+      updateViews();
+    }
+
+    function openRankingView() {
+  uiState.previousView = uiState.view;
+  uiState.rankingOrigin = uiState.view; // 记录来源
+      uiState.view = 'ranking';
+      updateViews();
+    }
+
+  async function renderRankingFull() {
+      dbg('renderRankingFull() 调用');
+      const container = document.getElementById('rankingFullList');
+      if (!container) { dbg('rankingFullList 容器未找到'); return; }
+      // 周末不展示具体内容，显示说明
+      const __today = new Date();
+      if (!isWorkday(__today)) {
+        container.innerHTML = `
+          <div class="ranking-hero">
+            <div class="ranking-hero-sub">周末（周六/周日）不展示排行榜；维度三历史评分参考不包含周六周日。请在工作日查看。</div>
+          </div>`;
+        return;
+      }
+      let all = [];
+      try {
+        all = Array.from(appState.students?.values?.() || []);
+      } catch { all = []; }
+
+      dbg('获取学生数据:', { allCount: all.length });
+      dbg('appState.students 状态:', appState.students);
+      dbg('appState.studentsMeta 状态:', appState.studentsMeta);
+
+      // 若分析数据为空，尝试用 studentsMeta 构造占位项
+      if (!all.length) {
+        const metaEntries = Array.from(appState.studentsMeta?.entries?.() || []);
+        dbg('studentsMeta 条目数:', metaEntries.length);
+        if (!metaEntries.length) {
+          dbg('显示无数据提示');
+          container.innerHTML = `
+            <div class="ranking-hero">
+              <div class="ranking-hero-sub">暂无排行榜数据</div>
+            </div>`;
+          return;
+        }
+        all = metaEntries.map(([name, meta]) => ({ name, todayMinutes: { in: 0, out: 0 }, currentStatus: 'offline' }));
+        dbg('使用 studentsMeta 构造占位项:', all.length);
+      }
+
+      const items = [];
+      for (const student of all) {
+        try {
+          const s = await computeScore442(student);
+          items.push({ ...student, rankingScore: s.total, __442: s });
+        } catch (e) {
+          dbg('计算学生分数出错:', student.name, e);
+          items.push({ ...student, rankingScore: 0, __442: { total: 0, d1: 0, d2: 0, d3: 0 } });
+        }
+      }
+      items.sort((a, b) => b.rankingScore - a.rankingScore);
+
+      dbg('处理后的 items:', { itemsCount: items.length });
+
+      if (items.length === 0) {
+        dbg('items 为空，显示无数据提示');
+        container.innerHTML = `
+          <div class="ranking-hero">
+            <div class="ranking-hero-sub">暂无排行榜数据</div>
+          </div>`;
+        return;
+      }
+
+      // 生成 Top3
+      const top3 = items.slice(0, 3);
+      const rest = items.slice(3);
+
+  const top3HTML = `
+        <div class="ranking-hero">
+          <div class="top3-wrap">
+            ${top3.length > 0 ? (() => {
+              const createCard = (s, rank) => {
+                let initials;
+                try {
+                  initials = utils.getStudentInitials(s.name);
+                } catch (e) {
+                  dbg('getStudentInitials 出错:', s.name, e);
+                  initials = s.name.charAt(0) || '?';
+                }
+                const rankClass = rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : 'rank-3';
+                const positionClass = rank === 1 ? ' first-place' : rank === 2 ? ' second-place' : ' third-place';
+                return `
+                  <div class="top3-card${positionClass}" onclick="openStudentDetailFromRankingFull('${s.name}')">
+                    <div class="rank-badge ${rankClass}">${rank}</div>
+                    <div class="top3-name">${s.name}</div>
+                    <div class="top3-points">
+                      ${s.rankingScore.toFixed(0)}分
+                      <button class="score-detail-btn" onclick="event.stopPropagation(); showScoreDetail('${s.name}')" title="查看评分详情">?</button>
+                    </div>
+                  </div>
+                `;
+              };
+              
+              // 按照布局顺序：第二名、第一名、第三名
+              let html = '';
+              if (top3[1]) html += createCard(top3[1], 2); // 第二名在左侧
+              if (top3[0]) html += createCard(top3[0], 1); // 第一名在中间
+              if (top3[2]) html += createCard(top3[2], 3); // 第三名在右侧
+              return html;
+            })() : ''}
+          </div>
+        </div>`;
+
+      const rowsHTML = `
+        <div class="ranking-section">
+          <div class="ranking-rows">
+            ${rest.map((s, idx) => {
+              const rank = idx + 4;
+              let initials;
+              try {
+                initials = utils.getStudentInitials(s.name);
+              } catch (e) {
+                dbg('getStudentInitials 出错 (rest):', s.name, e);
+                initials = s.name.charAt(0) || '?';
+              }
+              return `
+                <div class="ranking-row" onclick="openStudentDetailFromRankingFull('${s.name}')">
+                  <div class="rank-num">${rank}</div>
+                  <div class="row-user">
+                    <div class="row-name">${s.name}</div>
+                  </div>
+                  <div class="row-points">
+                    ${s.rankingScore.toLocaleString(undefined, { maximumFractionDigits: 0 })}分
+                    <button class="score-detail-btn" onclick="event.stopPropagation(); showScoreDetail('${s.name}')" title="查看评分详情">?</button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>`;
+
+      container.innerHTML = top3HTML + rowsHTML;
+      dbg('HTML 已设置到容器，最终 HTML 长度:', (top3HTML + rowsHTML).length);
+      dbg('容器样式:', getComputedStyle(container).display, getComputedStyle(container).visibility);
+      dbg('容器父级 ranking 状态:', document.getElementById('rankingView'), document.getElementById('rankingView')?.hidden);
+    }
+
+    function openStudentDetailFromRankingFull(studentName) {
+  uiState.previousView = 'ranking'; // 详情返回优先回到排行榜
+      uiState.view = 'detail';
+      uiState.selectedStudent = studentName;
+      updateViews();
+    }
+
+    // 显示学生评分详情
+  async function showScoreDetail(studentName) {
+      const activeDate = getActiveLeaderboardDate();
+      const slotsMin = getTodaySlotsMinutes(studentName, activeDate);
+      const intervalsMs = getTodayPracticeIntervalsMs(studentName, activeDate);
+      const dayStartMs = toDayStart(activeDate);
+      const weekday0to6 = activeDate.getDay();
+      
+      // 计算三个维度的详细分数
+      const d1 = computeDim1Score(slotsMin, intervalsMs, dayStartMs);
+      const d2 = computeDim2Score(slotsMin, intervalsMs, dayStartMs, weekday0to6);
+      const d3res = computeDim3Score(
+        studentName,
+        activeDate,
+        d1.score + d2.score,
+        await buildPrevDayRankingMap(new Date(activeDate.getTime() - 24*60*60*1000))
+      );
+      
+      const totalScore = d1.score + d2.score + d3res.score;
+      
+      // 创建进度条
+      function createProgressBar(score, maxScore, className) {
+        const percentage = Math.min((score / maxScore) * 100, 100);
+        return `
+          <div class="score-bar">
+            <div class="score-fill ${className}" style="width: ${percentage}%"></div>
+          </div>
+        `;
+      }
+      
+      // 状态评估
+      const getD1Status = () => {
+        if (d1.score >= 35) return { text: '出勤优秀', color: '#2e7d32' };
+        if (d1.score >= 25) return { text: '基本达标', color: '#ef6c00' };
+        return { text: '需要改进', color: '#d32f2f' };
+      };
+      
+      const getD2Status = () => {
+        if (d2.score >= 35) return { text: '质量优秀', color: '#2e7d32' };
+        if (d2.score >= 25) return { text: '质量良好', color: '#ef6c00' };
+        return { text: '需优化', color: '#d32f2f' };
+      };
+      
+      const getD3Status = () => {
+        if (d3res.score >= 15) return { text: '成长优秀', color: '#2e7d32' };
+        if (d3res.score >= 10) return { text: '稳步成长', color: '#ef6c00' };
+        return { text: '待激活', color: '#888' };
+      };
+      
+      const d1Status = getD1Status();
+      const d2Status = getD2Status();
+      const d3Status = getD3Status();
+
+      // 小工具：分钟转 08:30 格式
+      const mmToHHMM = (m) => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+      const fmt = (n, d=1) => (Number.isFinite(n) ? (+n).toFixed(d) : '-');
+
+      // D1 明细列表
+      const d1List = (d1.breakdown?.slots || []).map(s => {
+        const time = `${mmToHHMM(s.start)}-${mmToHHMM(s.end)}`;
+        const parts = [];
+        parts.push(`${time} · ${s.status}（覆盖${fmt(s.coverage,1)}%）`);
+        if (s.lateMin > 0 || s.latePenalty > 0) parts.push(`迟到${s.lateMin}分 → 扣${fmt(s.latePenalty,2)}分`);
+        return `<li>${parts.join('；')}</li>`;
+      }).join('');
+
+      const d1Summary = (() => {
+        const b = d1.breakdown || {};
+        const items = [];
+        if (b.incompletePenalty > 0) items.push(`未完成扣分：${fmt(b.incompletePenalty,2)}`);
+        if (b.absent > 0) items.push(`缺席${b.absent}段，共扣：${fmt(b.absentPenalty,2)}`);
+        if (b.latePenalty > 0) items.push(`迟到合计扣分：${fmt(b.latePenalty,2)}`);
+        if (b.fullBonus > 0) items.push(`满勤加分：+${fmt(b.fullBonus,0)}`);
+        if (items.length === 0) items.push('无扣分项');
+        return items.join(' / ');
+      })();
+
+      // D2 明细列表
+      const d2List = (d2.breakdown?.intervals || []).map(iv => {
+        const time = `${mmToHHMM(iv.startMin)}-${mmToHHMM(iv.endMin)}（${iv.lengthMin}分）`;
+        const parts = [time];
+        if (iv.longPenalty > 0) parts.push(`超长${Math.max(0, iv.longOverMin)}分 → 扣${fmt(iv.longPenalty,2)}`);
+        if (iv.shortPenalty > 0) parts.push(`短时差${iv.shortDeficitMin}分 → 扣${fmt(iv.shortPenalty,2)}`);
+        if (iv.appliedTail && iv.tailPenalty > 0) parts.push(`拖尾${iv.tailMin}分 → 扣${fmt(iv.tailPenalty,2)}`);
+        if (!iv.appliedTail && iv.lowPenalty > 0) parts.push(`低效窗口${iv.lowOverlapMin}分 → 扣${fmt(iv.lowPenalty,2)}`);
+        const details = parts.length > 1 ? parts.slice(1).join('；') : '无扣分项';
+        return `<li>${parts[0]}：${details}</li>`;
+      }).join('');
+
+      const d2Summary = (() => {
+        const b = d2.breakdown || {};
+        const items = [];
+        if (b.longPenalty > 0) items.push(`超长：${fmt(b.longPenalty,2)}`);
+        if (b.shortPenalty > 0) items.push(`短时：${fmt(b.shortPenalty,2)}`);
+        if (b.tailPenalty > 0) items.push(`拖尾：${fmt(b.tailPenalty,2)}`);
+        if (b.windowPenalty > 0) items.push(`低效：${fmt(b.windowPenalty,2)}`);
+        if (items.length === 0) items.push('无扣分项');
+        return items.join(' / ');
+      })();
+
+      // D3 明细
+      const d3b = d3res.breakdown || {};
+      const d3List = `
+        <li>昨日排名：${d3b.yesterdayRank ? `第${d3b.yesterdayRank}名` : '无'} → +${fmt(d3b.rankPoints,0)}分</li>
+        <li>周进步：近7天${fmt(d3b.progressDetail?.cur7Total,1)} vs 前7天${fmt(d3b.progressDetail?.prev7Total,1)}（提升${d3b.progressDetail?.ratio ?? '-'}%${(d3b.progressDetail?.appliedRatio!=null && Math.abs((d3b.progressDetail?.appliedRatio) - ((d3b.progressDetail?.ratio)||0))>=0.1)?`，计分按${fmt(d3b.progressDetail.appliedRatio,1)}%`:''}${(d3b.progressDetail?.gatedByActiveDays)?`；数据不足（近7天有效${d3b.progressDetail?.curActiveDays||0}天、前7天有效${d3b.progressDetail?.prevActiveDays||0}天，需≥${d3b.progressDetail?.minActiveDaysRequired||0}天）`:''}） → +${fmt(d3b.progressPoints,0)}分</li>
+        <li>稳定性：标准差 ${fmt(d3b.consistencyStd,2)} → +${fmt(d3b.consistencyPoints,0)}分</li>
+        <li>今日活跃度：+${fmt(d3b.freshPoints,0)}分</li>
+        ${d3b.antiBonusPoints ? `<li>公平性奖励：+${fmt(d3b.antiBonusPoints,0)}分</li>` : ''}
+        ${d3b.freshnessMultiplier ? `<li>反霸榜：乘数 ×${fmt(d3b.freshnessMultiplier,2)}${d3b.antiNote?`（${d3b.antiNote}）`:''}</li>` : ''}
+      `;
+      
+      const content = `
+        <div class="lb-section">
+          <div class="lb-card lb-card--gradient" style="background:linear-gradient(135deg,#667eea,#764ba2);border:none;">
+            <div class="lb-kv"><strong>${studentName}</strong><span>442 综合评分详情</span></div>
+            <div style="margin-top:8px;font-size:30px;font-weight:800;">${totalScore.toFixed(1)}</div>
+            <div style="opacity:.9;font-size:11px;">总分 / 100</div>
+          </div>
+        </div>
+
+        <div class="lb-section">
+          <div class="lb-card lb-card--d1">
+            <div class="lb-kv"><h4 style="margin:0;">📅 维度一：出勤完成度 (40分)</h4><strong>${d1.score.toFixed(1)}分</strong></div>
+            ${createProgressBar(d1.score, 40, 'd1')}
+            <div class="lb-kv" style="margin-top:4px;"><span>${d1Status.text}</span><span style="color:#64748b;">概览：${d1Summary}</span></div>
+            <details class="lb-details" style="margin-top:6px;">
+              <summary>展开明细</summary>
+              <ul class="lb-list">${d1List || '<li>无时段记录</li>'}</ul>
+            </details>
+          </div>
+        </div>
+
+        <div class="lb-section">
+          <div class="lb-card lb-card--d2">
+            <div class="lb-kv"><h4 style="margin:0;">⚡ 维度二：练琴质量 (40分)</h4><strong>${d2.score.toFixed(1)}分</strong></div>
+            ${createProgressBar(d2.score, 40, 'd2')}
+            <div class="lb-kv" style="margin-top:4px;"><span>${d2Status.text}</span><span style="color:#64748b;">概览：${d2Summary}</span></div>
+            <details class="lb-details" style="margin-top:6px;">
+              <summary>展开明细</summary>
+              <ul class="lb-list">${d2List || '<li>无练习区间</li>'}</ul>
+            </details>
+          </div>
+        </div>
+
+        <div class="lb-section">
+          <div class="lb-card lb-card--d3">
+            <div class="lb-kv"><h4 style="margin:0;">🏆 维度三：历史表现 (20分)</h4><strong>${d3res.score.toFixed(1)}分</strong></div>
+            ${createProgressBar(d3res.score, 20, 'd3')}
+            <div class="lb-kv" style="margin-top:4px;"><span>${d3Status.text}</span></div>
+            <details class="lb-details" style="margin-top:6px;">
+              <summary>展开明细</summary>
+              <ul class="lb-list">${d3List}</ul>
+            </details>
+          </div>
+        </div>
+
+        <div class="lb-section">
+          <div class="lb-card">
+            <h4>💡 计算公式</h4>
+            <p>总分 = D1×40% + D2×40% + D3×20% = ${d1.score.toFixed(1)} + ${d2.score.toFixed(1)} + ${d3res.score.toFixed(1)} = <strong>${totalScore.toFixed(1)}</strong></p>
+          </div>
+        </div>
+      `;
+      
+      createScoreDetailModal(content, studentName);
+    }
+    
+    // 创建评分详情模态框
+    function createScoreDetailModal(content, title) {
+      // 移除现有模态框
+      const existing = document.querySelector('.score-detail-modal, .lb-modal');
+      if (existing) {
+        existing.remove();
+      }
+      
+      const modal = document.createElement('div');
+      modal.className = 'lb-modal';
+      modal.innerHTML = `
+        <div class="lb-dialog">
+          <div class="lb-dialog__header">
+            <div class="lb-dialog__title">${title || '详情'}</div>
+            <button class="lb-dialog__close" onclick="closeScoreDetailModal()" aria-label="关闭">&times;</button>
+          </div>
+          <div class="lb-dialog__body">
+            ${content}
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      
+      // 显示动画
+      requestAnimationFrame(() => {
+        modal.classList.add('show');
+      });
+      
+      // 点击背景关闭
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          closeScoreDetailModal();
+        }
+      });
+      
+      // ESC键关闭
+      const handleEsc = (e) => {
+        if (e.key === 'Escape') {
+          closeScoreDetailModal();
+          document.removeEventListener('keydown', handleEsc);
+        }
+      };
+      document.addEventListener('keydown', handleEsc);
+    }
+    
+    // 关闭评分详情模态框
+    function closeScoreDetailModal() {
+  const modal = document.querySelector('.lb-modal');
+      if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => {
+          modal.remove();
+        }, 200);
+      }
+    }
+
+    // ===== 排行规则详情（复刻旧系统样式与文案） =====
+    function showLeaderboardRuleDoc() {
+      ensureLBExtraStyles();
+      const content = `
+        <div class="lb-section">
+          <div class="lb-card lb-card--gradient" style="background:linear-gradient(135deg,#0ea5e9,#6366f1);border:none;">
+            <h4 style="margin:0 0 4px;font-size:18px;">442 测评体系</h4>
+            <p style="opacity:.95;">练琴质量综合评价模型 · 结构化 · 可解释 · 可持续激励 · 权重 40:40:20</p>
+          </div>
+        </div>
+
+        <div class="lb-section">
+          <div class="lb-section__title">一、核心理念 <span>Why 442?</span></div>
+          <div class="lb-grid lb-grid--4">
+            <div class="lb-card"><h4>🎯 客观性</h4><p>时间区间 + 覆盖率 + 有效分钟代替主观打分</p></div>
+            <div class="lb-card"><h4>⚖️ 均衡性</h4><p>出勤完成 / 质量效率 / 成长动力 三维并重</p></div>
+            <div class="lb-card"><h4>🔄 正循环</h4><p>奖励稳定投入与进步，而非极端刷时长</p></div>
+            <div class="lb-card"><h4>💎 透明化</h4><p>所有扣分加成都有来源，长期稳定进步</p></div>
+          </div>
+        </div>
+
+        <div class="lb-section">
+          <div class="lb-grid lb-grid--1">
+            <div class="lb-card">
+              <h4>📅 维度1 出勤完成 40%</h4>
+              <ul class="lb-list">
+                <li>覆盖≥60% 记完成；缺席=0</li>
+                <li>迟到宽限5分钟；设上限</li>
+                <li>全勤附加奖励</li>
+              </ul>
+            </div>
+            <div class="lb-card">
+              <h4>⚡ 维度2 质量效率 40%</h4>
+              <ul class="lb-list">
+                <li>单段30~120分钟最佳</li>
+                <li>过短/过长递减</li>
+                <li>低效时间段折减</li>
+              </ul>
+            </div>
+            <div class="lb-card">
+              <h4>🏆 维度3 成长加成 20%</h4>
+              <ul class="lb-list">
+                <li>昨日排名区间加成</li>
+                <li>周进步奖励</li>
+                <li>稳定性（需达到最小活跃门槛）</li>
+                <li>新鲜度与反霸榜乘子/公平性奖励</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="lb-section">
+          <div class="lb-card">
+            <h4>📐 计算方法</h4>
+            <p>总分 = 维度1×0.4 + 维度2×0.4 + 维度3×0.2；排序：总分 → 维度1 → 维度2 → 维度3 → 姓名。</p>
+          </div>
+        </div>
+
+        <div class="lb-section">
+          <div class="lb-grid lb-grid--2">
+            <div class="lb-card">
+              <h4>⚠️ 低效时段</h4>
+              <ul class="lb-list">
+                <li>工作日：午/晚餐固定低效区间</li>
+                <li>段内叠加计惩且有单段封顶</li>
+                <li>周末不设低效段</li>
+              </ul>
+            </div>
+            <div class="lb-card">
+              <h4>🛡️ 反霸榜</h4>
+              <ul class="lb-list">
+                <li>连续登顶≥3工作日：逐日衰减</li>
+                <li>≥5工作日：额外强衰减</li>
+                <li>距上次登顶≥2工作日：公平性奖励</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      `;
+      createScoreDetailModal(content, '排行规则详情');
+    }
+
+    function ensureLBExtraStyles(){
+      if(document.getElementById('lb-detail-extra-styles')) return;
+      const style=document.createElement('style');
+      style.id='lb-detail-extra-styles';
+      style.textContent=`/* 评分详情 & 442 说明扩展样式 */
+      .lb442-doc .metric-card{background:#ffffff;border:1px solid var(--border-color,#e2e8f0);border-radius:12px;padding:14px 16px;box-shadow:0 2px 6px rgba(0,0,0,.06);transition:.25s;}
+      .lb442-doc .metric-card:hover{box-shadow:0 6px 18px -4px rgba(0,0,0,.18);} 
+      .lb442-doc .metric-card h4{margin:0 0 6px;font-size:15px;font-weight:600;display:flex;align-items:center;gap:6px;}
+      .lb442-doc .metric-card ul{margin:6px 0 0;padding-left:18px;font-size:12px;line-height:1.6;}
+      .lb442-doc .formula-box{background:#ffffff;color:#1e293b;border:1px solid #e2e8f0;padding:10px 12px;border-radius:10px;font-size:13px;font-weight:600;}
+      .lb442-doc .lb442-section{position:relative;}
+      .lb442-doc .lb442-head{margin:0 0 18px;padding:0;border:none;}
+      .lb442-doc .lb-head-card{background:linear-gradient(135deg,#0d47a1,#1976d2 55%,#42a5f5);border:1px solid rgba(255,255,255,.25);border-radius:18px;padding:26px 24px 22px;position:relative;overflow:hidden;color:#fff;box-shadow:0 10px 28px -8px rgba(13,71,161,.55),0 4px 16px -4px rgba(0,0,0,.35);} 
+      .lb442-doc .lb-head-card:before{content:"";position:absolute;width:420px;height:420px;top:-160px;right:-120px;background:radial-gradient(circle at center,rgba(255,255,255,.35),transparent 60%);filter:blur(8px);opacity:.55;}
+      .lb442-doc .lb-head-card h2{margin:0;font-size:30px;font-weight:800;letter-spacing:.5px;line-height:1.15;background:linear-gradient(90deg,#fff,#e3f2fd);-webkit-background-clip:text;-webkit-text-fill-color:transparent;position:relative;}
+      .lb442-doc .lb-head-card .lb442-sub{margin:10px 0 14px;font-size:13px;line-height:1.55;max-width:600px;color:rgba(255,255,255,.9);} 
+      .lb442-doc .lb-head-card .lb442-tagline{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;letter-spacing:1px;padding:6px 14px;border-radius:30px;background:rgba(255,255,255,.15);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.35);} 
+      .lb442-doc .scard{background:linear-gradient(145deg,#e8f4fd,#f0f9ff);border:1px solid rgba(25,118,210,.25);border-radius:16px;padding:18px 18px 16px;margin:0 0 16px;position:relative;overflow:hidden;box-shadow:0 4px 14px -4px rgba(25,118,210,.25),0 2px 6px rgba(0,0,0,.06);}
+      .lb442-doc .core-concept{background:linear-gradient(135deg,#f8fafc,#f1f5f9);border:1px solid rgba(71,85,105,.15);border-radius:16px;padding:16px;margin:0 0 16px;box-shadow:0 3px 12px -2px rgba(71,85,105,.15);} 
+      .lb442-doc .core-concept h3{margin:0 0 14px;font-size:16px;font-weight:600;color:#1e293b;display:flex;align-items:center;gap:8px;}
+      .lb442-doc .core-concept h3 span{font-size:13px;color:#1976d2;font-weight:500;background:rgba(25,118,210,.15);padding:4px 10px;border-radius:12px;letter-spacing:.3px;}
+      .lb442-doc .concept-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;}
+      .lb442-doc .concept-card{display:flex;align-items:flex-start;gap:8px;background:rgba(255,255,255,.8);border:1px solid rgba(71,85,105,.12);border-radius:10px;padding:10px 12px;}
+      .lb442-doc .cc-icon{font-size:18px;line-height:1;margin-top:1px;}
+      .lb442-doc .cc-content h4{margin:0 0 4px;font-size:13px;font-weight:600;color:#1e293b;line-height:1.2;}
+      .lb442-doc .cc-content p{margin:0;font-size:11px;line-height:1.4;color:#64748b;}
+      .lb442-doc .scard h3{margin:0 0 10px;font-size:18px;font-weight:700;display:flex;align-items:center;gap:10px;line-height:1.25;position:relative;padding-left:10px;}
+      .lb442-doc .scard h3:before{content:"";position:absolute;left:0;top:4px;bottom:4px;width:4px;border-radius:4px;background:linear-gradient(180deg,#1976d2,#42a5f5);} 
+      .lb442-doc .scard h3 span{font-size:11px;font-weight:600;color:#1976d2;background:rgba(25,118,210,.18);padding:2px 8px;border-radius:20px;letter-spacing:.5px;}
+      .lb442-doc .examples{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:10px;}
+      .lb442-doc .examples .ex{background:linear-gradient(150deg,#fef3c7,#fef9e7);border:1px solid rgba(245,158,11,.3);padding:12px 12px 10px;border-radius:12px;font-size:12px;line-height:1.55;}
+      .lb442-doc .examples .ex .tag{display:inline-flex;align-items:center;font-size:10px;font-weight:600;padding:3px 8px;border-radius:20px;letter-spacing:.5px;margin-bottom:6px;}
+      .lb442-doc .examples .ex .tag.ok{background:rgba(16,185,129,.2);color:#047857;}
+      .lb442-doc .examples .ex .tag.warn{background:rgba(245,158,11,.25);color:#b45309;}
+      .lb442-doc .examples .ex .tag.info{background:rgba(59,130,246,.25);color:#1d4ed8;}
+      `;
+      document.head.appendChild(style);
+    }
+
+    // 渲染学生详情页面
+  async function renderStudentDetail(studentName) {
+      const student = appState.students.get(studentName);
+      if (!student) return;
+
+      const meta = appState.studentsMeta.get(studentName) || {};
+      
+      // 更新基本信息
+      document.getElementById('detailTitle').textContent = `${studentName} 详情`;
+      document.getElementById('studentName').textContent = studentName;
+      document.getElementById('studentGrade').textContent = meta.grade || '未知年级';
+      document.getElementById('studentMajor').textContent = meta.major || '未知专业';
+
+      // 更新当前状态
+      updateCurrentStatus(student);
+      
+      // 更新今日时间轴
+      updateTodayTimeline(studentName);
+      
+      // 更新历史七天总结
+      updateWeekHistory(studentName);
+
+      // 计算并显示今日 442 分
+      try {
+        const score = await computeScore442(student);
+        const badgeEl = document.getElementById('todayScoreBadge');
+        const valEl = document.getElementById('todayScoreValue');
+        if (valEl) valEl.textContent = Number.isFinite(score?.total) ? Math.round(score.total) : '--';
+        if (badgeEl) badgeEl.style.display = 'inline-flex';
+        const btn = document.getElementById('todayScoreDetailBtn');
+        if (btn) {
+          btn.onclick = () => { try { showScoreDetail(studentName); } catch {} };
+        }
+        // 绑定“查看周时段”按钮
+        const weekBtn = document.getElementById('viewWeekSlotsBtn');
+        if (weekBtn) {
+          weekBtn.onclick = () => showWeekSlots(studentName);
+        }
+      } catch (e) {
+        const valEl = document.getElementById('todayScoreValue');
+        if (valEl) valEl.textContent = '--';
+      }
+    }
+
+    // 展示学生每周1-5的练琴时间段（模态框）
+    function showWeekSlots(studentName) {
+  const norm = utils.normalizeStudentName(studentName);
+  dbg(`[周时段弹窗] 原始姓名='${studentName}' 标准化='${norm}'`);
+  const timeMap = utils.getStudentTimeSlots(studentName) || {};
+      // 将 weekday(1..7) 映射到名称，仅显示工作日 1-5
+      const days = [
+        { w: 1, label: '周一' },
+        { w: 2, label: '周二' },
+        { w: 3, label: '周三' },
+        { w: 4, label: '周四' },
+        { w: 5, label: '周五' }
+      ];
+
+      const toMin = (slot) => {
+        if (typeof slot?.start === 'number' && typeof slot?.end === 'number') return slot;
+        const s = utils.parseTimeSlot(slot?.start_time || slot?.start);
+        const e = utils.parseTimeSlot(slot?.end_time || slot?.end);
+        return { start: s, end: e };
+      };
+      const mm = (m) => Number.isFinite(m) ? `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}` : '--:--';
+      const fmtSlot = (slot) => `${mm(slot.start)} - ${mm(slot.end)}（${utils.formatDuration(slot.end - slot.start)}）`;
+
+      const sections = days.map(d => {
+        const raw = Array.isArray(timeMap[d.w]) ? timeMap[d.w] : [];
+        const slots = raw.map(toMin).filter(s => Number.isFinite(s.start) && Number.isFinite(s.end) && s.end > s.start)
+                          .sort((a,b) => a.start - b.start);
+        dbg(`[周时段弹窗] ${studentName} ${d.label}: 原始${raw.length}，有效${slots.length}`);
+        const list = slots.length
+          ? slots.map(s => `<li>${fmtSlot(s)}</li>`).join('')
+          : '<li class="text-muted">未配置</li>';
+        return `
+          <div class="lb-section">
+            <div class="lb-section__title">${d.label} <span>${slots.length ? `${slots.length} 段` : '无'}</span></div>
+            <div class="lb-card">
+              <ul class="lb-list">${list}</ul>
+            </div>
+          </div>`;
+      }).join('');
+
+  const totalSlots = days.reduce((sum,d)=> sum + ((timeMap[d.w]?.length)||0), 0);
+  const hasAny = totalSlots > 0;
+      const headerCard = `
+        <div class="lb-section">
+          <div class="lb-card lb-card--gradient" style="background:linear-gradient(135deg,#22c55e,#16a34a);border:none;">
+            <div class="lb-kv"><strong>${studentName}</strong><span>工作日练琴时间段</span></div>
+            <div style="margin-top:6px;font-size:12px;opacity:.9;">${hasAny ? `以下为周一到周五的配置时段（共 ${totalSlots} 段）` : '未配置个性化时段，系统将使用默认统计窗口'}</div>
+          </div>
+        </div>`;
+
+      createScoreDetailModal(headerCard + sections, '每周练琴时段');
+    }
+
+    // 更新当前状态信息
+    function updateCurrentStatus(student) {
+      const currentStartTime = document.getElementById('currentStartTime');
+      const currentDuration = document.getElementById('currentDuration');
+      const todayTotal = document.getElementById('todayTotal');
+      const currentRoom = document.getElementById('currentRoom');
+
+      // 当前练琴开始时间
+      if (student.currentStatus !== 'offline' && student.currentStartTime) {
+        currentStartTime.textContent = utils.formatTime(student.currentStartTime);
+      } else {
+        currentStartTime.textContent = '--';
+      }
+
+      // 当前时长（这次练琴的时长）
+      if (student.currentStatus !== 'offline' && student.currentStartTime) {
+        const now = new Date();
+        const currentSessionMinutes = Math.round((now - student.currentStartTime) / (1000 * 60));
+        currentDuration.textContent = utils.formatDuration(Math.max(0, currentSessionMinutes));
+      } else {
+        currentDuration.textContent = '--';
+      }
+
+      // 当前琴房
+      currentRoom.textContent = student.currentRoom || '--';
+
+      // 今日总计
+      const totalMinutes = student.todayMinutes.in + student.todayMinutes.out;
+      todayTotal.textContent = utils.formatDuration(totalMinutes);
+    }
+
+    // 更新今日时间轴
+    function updateTodayTimeline(studentName) {
+      const container = document.getElementById('todayTimeline');
+      const studentLogs = appState.practiceLogs.filter(log => {
+        const logStudentName = log.student_name || log.student || log.studentName;
+        return logStudentName === studentName;
+      });
+
+      const today = new Date();
+      const todayKey = utils.getDateKey(today);
+      
+      // 筛选今日日志
+      const todayLogs = studentLogs.filter(log => {
+        return utils.getDateKey(new Date(log.timestamp)) === todayKey;
+      });
+
+      if (todayLogs.length === 0) {
+        container.innerHTML = '<div class="timeline-empty">今日暂无练琴记录</div>';
+        return;
+      }
+
+      // 构建练琴会话
+      const sessions = buildPracticeSessions(todayLogs, studentName);
+      
+      let html = '';
+      sessions.forEach(session => {
+        const startTime = new Date(session.start).toLocaleTimeString('zh-CN', {
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        // 统一以当天有效窗口的结束时间（21:30）为上限，过线后显示为 21:30 并结算时长
+        const dayWindow = getEffectiveDayWindow(new Date(session.start));
+        const nowMs = Date.now();
+        const startMs = new Date(session.start).getTime();
+        const clampEndMs = session.end ? new Date(session.end).getTime() : Math.min(nowMs, new Date(new Date(session.start).setHours(0,0,0,0)).getTime() + (dayWindow.end*60*1000));
+        const endInWindowMs = Math.min(clampEndMs, new Date(new Date(session.start).setHours(0,0,0,0)).getTime() + (dayWindow.end*60*1000));
+        const endTime = (session.end || nowMs <= endInWindowMs)
+          ? new Date(endInWindowMs).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+          : '21:30';
+        const duration = Math.max(0, Math.round((endInWindowMs - startMs) / (1000 * 60)));
+        
+        const isInSchedule = isSessionInSchedule(session, studentName);
+        const scheduleClass = isInSchedule ? 'in-schedule' : 'out-schedule';
+        
+        html += `
+          <div class="timeline-item ${scheduleClass}">
+            <div class="timeline-time">${startTime} - ${endTime}</div>
+            <div class="timeline-duration">${utils.formatDuration(duration)}</div>
+            ${session.room ? `<div class="timeline-room">${session.room}</div>` : ''}
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+
+      // 添加点击事件：点击高亮，再次点击取消高亮
+      const timelineItems = container.querySelectorAll('.timeline-item');
+      timelineItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          // 切换选中状态
+          item.classList.toggle('selected');
+        });
+      });
+    }
+
+    // 构建练琴会话
+  function buildPracticeSessions(logs, studentName) {
+      const sessions = [];
+      let currentSession = null;
+
+      logs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+      logs.forEach(log => {
+    const action = (log.action || '').toLowerCase();
+    const isEnter = action === 'enter' || action === 'assign';
+    const isExit = action === 'exit' || action === 'clear';
+
+    if (isEnter) {
+          if (currentSession) {
+            // 结束上一个会话
+            sessions.push(currentSession);
+          }
+          currentSession = {
+            start: new Date(log.timestamp).getTime(),
+            room: log.room_name || log.room || log.roomName,
+            end: null
+          };
+    } else if (isExit && currentSession) {
+          currentSession.end = new Date(log.timestamp).getTime();
+          sessions.push(currentSession);
+          currentSession = null;
+        }
+      });
+
+      // 如果还有未结束的会话
+      if (currentSession) {
+        sessions.push(currentSession);
+      }
+
+      return sessions;
+    }
+
+    // 检查会话是否在规定时间段内
+    function isSessionInSchedule(session, studentName) {
+      const timeSlots = appState.timeSlots.get(studentName);
+      if (!timeSlots) return false;
+
+      const sessionDate = new Date(session.start);
+      const weekday = utils.getWeekday(sessionDate);
+      const daySlots = timeSlots[weekday];
+      
+      if (!daySlots || daySlots.length === 0) return false;
+
+      const sessionStartMinutes = utils.minutesFromDayStart(sessionDate);
+
+      return daySlots.some(slot => {
+        let start, end;
+        if (typeof slot.start === 'number' && typeof slot.end === 'number') {
+          start = slot.start; end = slot.end;
+        } else {
+          start = utils.parseTimeSlot(slot.start_time || slot.start);
+          end = utils.parseTimeSlot(slot.end_time || slot.end);
+        }
+        return Number.isFinite(start) && Number.isFinite(end) && sessionStartMinutes >= start && sessionStartMinutes < end;
+      });
+    }
+
+    // 更新历史七天总结
+    async function updateWeekHistory(studentName) {
+      console.log('updateWeekHistory called for:', studentName);
+      // 计算七天数据（优先使用后端备份）
+      const weekData = await calculateWeekData(studentName);
+      console.log('weekData:', weekData);
+
+      // 渲染条形图
+      renderWeekChart(weekData.dailyData);
+    }
+
+    // 计算七天数据
+    async function calculateWeekData(studentName) {
+      const dailyData = [];
+      const today = new Date();
+      let totalIn = 0;
+      let totalOut = 0;
+
+      // 预拉取后端 7 天汇总（已按 08:00-21:30 和休息时间计算）
+      const days = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        days.push(d);
+      }
+      let backendMap = new Map();
+      try {
+        backendMap = await fetchDailyPracticeSummaries(studentName, days[0], days[days.length - 1]);
+      } catch (e) { console.warn('fetchDailyPracticeSummaries failed, fallback to local:', e); }
+
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const iso = utils.toIsoDate(date);
+
+        let total = backendMap.get(iso);
+        let inMin = 0, outMin = 0;
+        if (typeof total !== 'number') {
+          // 回退：本地按 21:30 有效窗口 + 休息时间计算
+          const dayData = calculateDayData(studentName, date);
+          inMin = dayData.in; outMin = dayData.out; total = inMin + outMin;
+        } else {
+          // 后端已提供总分钟（不区分 in/out），按 out 存储以兼容现有渲染
+          inMin = 0; outMin = total;
+        }
+
+        dailyData.push({
+          date,
+          label: i === 0 ? '今天' : date.getMonth() + 1 + '/' + date.getDate(),
+          inMinutes: inMin,
+          outMinutes: outMin,
+          total
+        });
+
+        totalIn += inMin;
+        totalOut += outMin;
+      }
+
+      return { dailyData, totalIn, totalOut };
+    }
+
+    // 计算单日数据
+  function calculateDayData(studentName, date) {
+      const dateKey = utils.getDateKey(date);
+      
+      // 检查 practiceLogs 是否存在
+      if (!appState.practiceLogs || !Array.isArray(appState.practiceLogs)) {
+        console.warn('practiceLogs not available for calculateDayData');
+        return { in: 0, out: 0 };
+      }
+      
+      const studentLogs = appState.practiceLogs.filter(log => {
+        const logStudentName = log.student_name || log.student || log.studentName;
+        return logStudentName === studentName && utils.getDateKey(new Date(log.timestamp)) === dateKey;
+      });
+
+      if (studentLogs.length === 0) {
+        console.log(`No logs found for ${studentName} on ${dateKey}`);
+        return { in: 0, out: 0 };
+      }
+
+      console.log(`Found ${studentLogs.length} logs for ${studentName} on ${dateKey}`);
+
+      // 构建当天的练琴间隔
+      const sessions = buildPracticeSessions(studentLogs, studentName);
+      const dayWindow = getEffectiveDayWindow(date);
+      const intervals = sessions.map(session => {
+        const start = utils.minutesFromDayStart(new Date(session.start));
+        const end = session.end ? utils.minutesFromDayStart(new Date(session.end)) : utils.minutesFromDayStart(new Date());
+        // 裁剪到当天的有效时间窗口
+        return { start: Math.max(start, dayWindow.start), end: Math.min(end, dayWindow.end) };
+      }).filter(i => i.end > i.start);
+
+      // 仅统计总计分钟数（不区分段内/段外）
+      const weekday = utils.getWeekday(date);
+      const breaks = weekday === 3 ? BREAK_SCHEDULE.wed : BREAK_SCHEDULE.monTueThuFri;
+      const afterBreaks = subtractBreaks(intervals, breaks);
+      const total = afterBreaks.reduce((sum, iv) => sum + (iv.end - iv.start), 0);
+      return { in: 0, out: total };
+    }
+
+    // 渲染周练琴条形图
+    function renderWeekChart(dailyData) {
+      console.log('renderWeekChart called with:', dailyData);
+      const container = document.getElementById('weekChart');
+      console.log('weekChart container:', container);
+      if (!container) {
+        console.error('weekChart container not found!');
+        return;
+      }
+      
+      const maxTotal = Math.max(...dailyData.map(d => (d.total ?? (d.inMinutes + d.outMinutes))), 1);
+      console.log('maxTotal:', maxTotal);
+
+      let html = '';
+      dailyData.forEach((day, idx) => {
+        const total = day.total ?? (day.inMinutes + day.outMinutes);
+        const heightPercent = (total / maxTotal) * 100;
+        const totalHours = total > 0 ? utils.formatDurationShort(total) : '';
+        const dateKey = utils.getDateKey(day.date);
+        const isToday = idx === dailyData.length - 1; // 最后一根柱为“今天”
+        html += `
+          <div class="chart-bar" 
+               data-date="${dateKey}" 
+               data-total="${total}" 
+               data-istoday="${isToday}">
+            <div class="bar-container">
+              <div class="bar-fill" style="height: ${heightPercent}%"></div>
+              <div class="bar-value">${totalHours}</div>
+              <div class="bar-tooltip" role="tooltip">${day.label} · 总计 ${total} 分钟</div>
+            </div>
+            <div class="bar-label">${day.label}</div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+
+      // 交互：悬停显示 tooltip，点击可触发查看详细日数据（当前进入当天详情的最小交互示例：仅闪烁效果或复算刷新）
+      const bars = container.querySelectorAll('.chart-bar');
+      bars.forEach(bar => {
+        bar.addEventListener('mouseenter', () => bar.classList.add('show-tooltip'));
+        bar.addEventListener('mouseleave', () => bar.classList.remove('show-tooltip'));
+        bar.addEventListener('click', () => {
+          // 点击切换 tooltip 显示
+          bar.classList.toggle('show-tooltip');
+          // 点击今天柱：触发复算，保证实时
+          const isToday = bar.dataset.istoday === 'true';
+          if (isToday && uiState.view === 'detail' && uiState.selectedStudent) {
+            updateWeekHistory(uiState.selectedStudent);
+          }
+        });
+      });
+    }
+
+    // 实时刷新：详情页打开时，每分钟刷新“今天”柱状图以跟随进行中的会话
+    let weekChartTimer = null;
+    function startWeekChartAutoRefresh() {
+      if (weekChartTimer) return;
+      weekChartTimer = setInterval(() => {
+        if (uiState.view === 'detail' && uiState.selectedStudent) {
+          updateWeekHistory(uiState.selectedStudent);
+          // 保持时间轴与柱状图一致（含21:30截断）
+          updateTodayTimeline(uiState.selectedStudent);
+        }
+      }, 60 * 1000); // 每分钟刷新一次
+    }
+    function stopWeekChartAutoRefresh() {
+      if (weekChartTimer) {
+        clearInterval(weekChartTimer);
+        weekChartTimer = null;
+      }
+    }
+
+    // 实时更新当前时长
+    let currentDurationTimer = null;
+    function startCurrentDurationUpdate() {
+      if (currentDurationTimer) return;
+      currentDurationTimer = setInterval(() => {
+        if (uiState.view === 'detail' && uiState.selectedStudent) {
+          const student = appState.students.get(uiState.selectedStudent);
+          if (student && student.currentStatus !== 'offline' && student.currentStartTime) {
+            const currentDurationEl = document.getElementById('currentDuration');
+            const now = new Date();
+            const currentSessionMinutes = Math.round((now - student.currentStartTime) / (1000 * 60));
+            currentDurationEl.textContent = utils.formatDuration(Math.max(0, currentSessionMinutes));
+          }
+        }
+      }, 30 * 1000); // 每30秒更新一次
+    }
+    function stopCurrentDurationUpdate() {
+      if (currentDurationTimer) {
+        clearInterval(currentDurationTimer);
+        currentDurationTimer = null;
+      }
+    }
+
+    // ==== 442排行榜功能 ====
+    // 参考 index-4 的 442 评分规则，精简实现维度1/2（各40分），维度3暂置 0（后续可接历史数据）
+  const LB442_PARAMS = {
+      dim1: { // 段内完成 + 迟到/缺席 扣分 => 0~40
+        coverageCompleteThreshold: 0.6,
+        absentThreshold: 0.1, // 仅用于说明，精简版缺席判定为完全 0 覆盖
+        graceMinutes: 5,
+  minSlotsForFullBonus: 2, // 满勤奖励触发的最少时段数
+        P_incomplete: 40,
+        pLate: 0.4,
+        lateCap: 20,
+        pAbsent: 15,
+        fullBonus: 3
+  },
+      dim2: { // 质量效率扣分 => 0~40
+        longStartMin: 120,
+        longCapExtraMin: 120,
+        pLong: 0.25,
+        pWindow: 0.3,
+        windowCapPerSession: 18,
+        shortThreshold: 30,
+        pShort: 0.5,
+        tail: { p: 0.4, grace: 15, capMinutes: 30 }
+      },
+      dim3: { // 成长加成与反霸榜（20分权重槽位）
+        // 周进步与稳定性配置
+        progress: {
+          maxRatio: 0.5,       // 单周相对提升计分的上限（50%→满6分）
+          denomFloor: 80,      // 小分母防护：进步比率分母下限，避免利用极小的前周总分
+          minPrevTotal: 40,    // 基线门槛：前7个工作日总分低于该值不计周进步分
+          minActiveDaysPerWindow: 3 // 数据充足门槛：近/前各7个工作日内，得分>0的有效天数至少达到该值才计周进步
+        },
+        freshness: {
+          recentHours: 3,      // 近N小时内有日志才视为“今日活跃”
+          minTodayD12: 10      // 今日D1+D2 至少达到该分才给予“今日活跃度”+2分
+        },
+        antiDomination: {
+          decayAfterDays: 3,     // 连续登顶>=3个工作日开始衰减
+          maxConsecutiveDays: 5, // >=5个工作日登顶，额外强衰减
+          decayRate: 0.85,       // 每超出一天乘以该系数
+          breakPeriod: 2         // 距离上次登顶>=2个工作日，给一点新鲜奖励
+        },
+        freshBreakBonus: 1       // 新鲜奖励基础分（非乘子）
+      }
+    };
+
+    function toDayStart(date) {
+      const d = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+      return d.getTime();
+    }
+
+    function mergeIntervalsMs(arr) {
+      if (!arr || !arr.length) return [];
+      const sorted = arr.slice().sort((a, b) => a.start - b.start);
+      const res = [];
+      let cur = { ...sorted[0] };
+      for (let i = 1; i < sorted.length; i++) {
+        const x = sorted[i];
+        if (x.start <= cur.end) {
+          cur.end = Math.max(cur.end, x.end);
+        } else {
+          res.push(cur);
+          cur = { ...x };
+        }
+      }
+      res.push(cur);
+      return res;
+    }
+
+    // 低效窗口（按星期）：
+    // 一/二/四/五 => 12:00-13:00, 18:00-19:00；三 => 12:00-12:50, 12:50-13:20, 18:30-19:30；其余为空
+    function getDailyLowEffWindowsByWeekday(weekday0to6) {
+      if ([1, 2, 4, 5].includes(weekday0to6)) {
+        return [ { startMin: 12*60, endMin: 13*60 }, { startMin: 18*60, endMin: 19*60 } ];
+      }
+      if (weekday0to6 === 3) {
+        return [
+          { startMin: 12*60, endMin: 12*60 + 50 },
+          { startMin: 12*60 + 50, endMin: 13*60 + 20 },
+          { startMin: 18*60 + 30, endMin: 19*60 + 30 }
+        ];
+      }
+      return [];
+    }
+
+    // 维度1：段内完成 + 迟到/缺席（slots 以分钟表示，intervalsMs 为当天毫秒区间）
+    function computeDim1Score(slotsMin, intervalsMs, dayStartMs) {
+      const p = LB442_PARAMS.dim1;
+      if (!slotsMin || !slotsMin.length) {
+        return { score: 0, breakdown: { slots: [], completed: 0, totalSlots: 0, absent: 0, latePenalty: 0, incompletePenalty: 0, absentPenalty: 0, fullBonus: 0, raw: 0 } };
+      }
+      // 预合并练习区间
+      const merged = mergeIntervalsMs(intervalsMs);
+      let completed = 0, absent = 0, latePenalty = 0;
+      const slotsDetail = [];
+      for (const slot of slotsMin) {
+        const slotStartMs = dayStartMs + slot.start * 60 * 1000;
+        const slotEndMs = dayStartMs + slot.end * 60 * 1000;
+        const durMin = (slotEndMs - slotStartMs) / 60000;
+        if (durMin <= 0) continue;
+        // 覆盖分钟
+        let overlapMin = 0;
+        let firstStartMs = null;
+        for (const iv of merged) {
+          if (iv.end <= slotStartMs) continue;
+          if (iv.start >= slotEndMs) break;
+          const st = Math.max(iv.start, slotStartMs);
+          const ed = Math.min(iv.end, slotEndMs);
+          if (ed > st) {
+            overlapMin += (ed - st) / 60000;
+            if (firstStartMs === null) firstStartMs = st;
+          }
+        }
+        const coverage = durMin > 0 ? overlapMin / durMin : 0;
+        let status = '未完成';
+        if (coverage >= p.coverageCompleteThreshold) {
+          completed++;
+          status = '完成';
+        } else if (overlapMin === 0) {
+          absent++;
+          status = '缺席';
+        }
+        let lateMin = 0, thisLatePenalty = 0;
+        if (firstStartMs) {
+          // 迟到分钟：首个覆盖开始时间相对时段开始的延迟，减去宽限
+          lateMin = Math.max(0, Math.floor((firstStartMs - slotStartMs) / 60000 - p.graceMinutes));
+          if (lateMin > 0) {
+            thisLatePenalty = lateMin * p.pLate;
+            latePenalty += thisLatePenalty;
+          }
+        }
+        slotsDetail.push({
+          start: slot.start,
+          end: slot.end,
+          durMin,
+          overlapMin: +overlapMin.toFixed(1),
+          coverage: +((coverage) * 100).toFixed(1),
+          status,
+          lateMin,
+          latePenalty: +thisLatePenalty.toFixed(2)
+        });
+      }
+      latePenalty = Math.min(latePenalty, p.lateCap);
+      const slotCount = slotsMin.length;
+      const rate = slotCount ? (completed / slotCount) : 0;
+      const incompletePenalty = (1 - rate) * p.P_incomplete;
+      const absentPenalty = absent * p.pAbsent;
+      let raw = 100 - incompletePenalty - latePenalty - absentPenalty;
+      const gotFullBonus = (slotCount >= (p.minSlotsForFullBonus || 1) && rate === 1 && latePenalty === 0 && absent === 0);
+      if (gotFullBonus) raw += p.fullBonus;
+      raw = Math.max(0, Math.min(raw, 100));
+      const score = +(((raw) / 100) * 40).toFixed(2);
+      return { score, breakdown: {
+        slots: slotsDetail,
+        completed,
+        totalSlots: slotCount,
+        absent,
+        latePenalty: +latePenalty.toFixed(2),
+        incompletePenalty: +incompletePenalty.toFixed(2),
+        absentPenalty: +absentPenalty.toFixed(2),
+        fullBonus: gotFullBonus ? p.fullBonus : 0,
+        raw: +raw.toFixed(2)
+      } };
+    }
+
+    // 维度2：质量效率（长时/低效窗口/短时/拖尾）
+    function computeDim2Score(slotsMin, intervalsMs, dayStartMs, weekday0to6) {
+      const p = LB442_PARAMS.dim2;
+      if (!intervalsMs || !intervalsMs.length) {
+        return { score: 0, breakdown: { intervals: [], longPenalty: 0, windowPenalty: 0, shortPenalty: 0, tailPenalty: 0, totalPenalty: 0, raw: 100 } };
+      }
+      const merged = mergeIntervalsMs(intervalsMs);
+      const lowWins = getDailyLowEffWindowsByWeekday(weekday0to6);
+      const slotEnds = (slotsMin || []).map(s => s.end);
+      
+      let longPenalty = 0, windowPenalty = 0, shortPenalty = 0, tailPenalty = 0;
+      const intervalDetail = [];
+      
+      for (const iv of merged) {
+        const startMin = Math.floor((iv.start - dayStartMs) / 60000);
+        const endMin = Math.floor((iv.end - dayStartMs) / 60000);
+        if (endMin <= startMin) continue;
+        const L = endMin - startMin;
+        
+        // 1. 超长扣分（总是应用）
+        let thisLongPenalty = 0;
+        if (L > p.longStartMin) {
+          const over = Math.min(L - p.longStartMin, p.longCapExtraMin);
+          thisLongPenalty = over * p.pLong;
+          longPenalty += thisLongPenalty;
+        }
+        
+        // 2. 短时扣分（1-30分钟才扣分，避免误触记录被过度扣分）
+        let thisShortPenalty = 0;
+        if (L < p.shortThreshold && L > 1) {
+          thisShortPenalty = (p.shortThreshold - L) * p.pShort;
+          shortPenalty += thisShortPenalty;
+        }
+        
+        // 3. 低效窗口 vs 拖尾扣分：只应用其中之一（优先拖尾）
+        let appliedTailPenalty = false;
+        let thisTailPenalty = 0, thisWindowPenalty = 0, overlapLow = 0, tailMin = 0;
+        
+        // 检查是否有拖尾扣分
+        for (const se of slotEnds) {
+          if (startMin < se && endMin > se + p.tail.grace) {
+            const tail = Math.min(endMin - (se + p.tail.grace), p.tail.capMinutes);
+            tailMin = tail;
+            thisTailPenalty = tail * p.tail.p;
+            tailPenalty += thisTailPenalty;
+            appliedTailPenalty = true;
+            break; // 一个区间只计算一次拖尾
+          }
+        }
+        
+        // 如果没有拖尾扣分，才检查低效窗口扣分
+        if (!appliedTailPenalty) {
+          overlapLow = 0;
+          for (const w of lowWins) {
+            if (endMin <= w.startMin || startMin >= w.endMin) continue;
+            overlapLow += Math.min(endMin, w.endMin) - Math.max(startMin, w.startMin);
+          }
+          if (overlapLow > 0) {
+            thisWindowPenalty = Math.min(overlapLow * p.pWindow, p.windowCapPerSession);
+            windowPenalty += thisWindowPenalty;
+          }
+        }
+
+        intervalDetail.push({
+          startMin, endMin, lengthMin: L,
+          longOverMin: Math.max(0, L - p.longStartMin), longPenalty: +thisLongPenalty.toFixed(2),
+          shortDeficitMin: L < p.shortThreshold ? (p.shortThreshold - L) : 0, shortPenalty: +thisShortPenalty.toFixed(2),
+          lowOverlapMin: overlapLow, lowPenalty: +thisWindowPenalty.toFixed(2),
+          tailMin, tailPenalty: +thisTailPenalty.toFixed(2),
+          appliedTail: appliedTailPenalty,
+          intervalPenalty: +(thisLongPenalty + thisShortPenalty + (appliedTailPenalty ? thisTailPenalty : thisWindowPenalty)).toFixed(2)
+        });
+      }
+      
+      const totalPenalty = longPenalty + windowPenalty + shortPenalty + tailPenalty;
+      let raw = 100 - totalPenalty;
+      raw = Math.max(0, Math.min(raw, 100));
+      const score = +((raw / 100) * 40).toFixed(2);
+      return { score, breakdown: {
+        intervals: intervalDetail,
+        longPenalty: +longPenalty.toFixed(2),
+        windowPenalty: +windowPenalty.toFixed(2),
+        shortPenalty: +shortPenalty.toFixed(2),
+        tailPenalty: +tailPenalty.toFixed(2),
+        totalPenalty: +totalPenalty.toFixed(2),
+        raw: +raw.toFixed(2)
+      } };
+    }
+
+    function getTodaySlotsMinutes(studentName, today) {
+      const weekday1to7 = utils.getWeekday(today); // 1..7，周一=1，周日=7
+      const ts = appState.timeSlots.get(studentName);
+      const list = (ts && ts[weekday1to7]) ? ts[weekday1to7] : [];
+      // 现有结构：[{start_time, end_time}]（字符串 HH:MM）或 {start, end}（分钟）
+      return (list || []).map(s => {
+        const startRaw = (s.start !== undefined) ? s.start : (s.start_time || s.start);
+        const endRaw = (s.end !== undefined) ? s.end : (s.end_time || s.end);
+        const start = (typeof startRaw === 'number') ? startRaw : utils.parseTimeSlot(startRaw);
+        const end = (typeof endRaw === 'number') ? endRaw : utils.parseTimeSlot(endRaw);
+        return { start, end };
+      }).filter(x => Number.isFinite(x.start) && Number.isFinite(x.end) && x.end > x.start);
+    }
+
+    function getTodayPracticeIntervalsMs(studentName, today) {
+      const dateKey = utils.getDateKey(today);
+      const logs = (appState.practiceLogs || []).filter(log => {
+        const nm = log.student_name || log.student || log.studentName;
+        if (nm !== studentName) return false;
+        const dKey = utils.getDateKey(new Date(log.timestamp));
+        return dKey === dateKey;
+      }).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+      const intervals = [];
+      let curStart = null;
+      logs.forEach(log => {
+        const action = String(log.action || '').toLowerCase();
+        const isEnter = action === 'enter' || action === 'assign';
+        const isExit = action === 'exit' || action === 'clear';
+        if (isEnter) {
+          if (curStart == null) curStart = new Date(log.timestamp).getTime();
+        } else if (isExit) {
+          if (curStart != null) {
+            const end = new Date(log.timestamp).getTime();
+            if (end > curStart) intervals.push({ start: curStart, end });
+            curStart = null;
+          }
+        }
+      });
+      if (curStart != null) {
+        const now = Date.now();
+        if (now > curStart) intervals.push({ start: curStart, end: now });
+      }
+      return intervals;
+    }
+
+    function getActiveLeaderboardDate() {
+      const now = new Date();
+      if (now.getHours() < 8) return new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    }
+
+    async function ensureDailyLeaderboard(date){
+      const key = formatDateKey(date);
+      if(appState.dailyLeaderboards.has(key)) return appState.dailyLeaderboards.get(key);
+      // 尝试从后端读取备份
+      const backend = await fetchDailyLeaderboardMap(date);
+      if (backend) { appState.dailyLeaderboards.set(key, backend); return backend; }
+      // 回退：本地现算
+      const map = new Map();
+      const arr = Array.from(appState.students.values()).map(stu => {
+        const dayStartMs = toDayStart(date);
+        const slotsMin = getTodaySlotsMinutes(stu.name, date);
+        const intervalsMs = getTodayPracticeIntervalsMs(stu.name, date);
+        const d1 = computeDim1Score(slotsMin, intervalsMs, dayStartMs);
+        const d2 = computeDim2Score(slotsMin, intervalsMs, dayStartMs, date.getDay());
+        return { name: stu.name, score: d1.score + d2.score };
+      }).sort((a, b) => b.score - a.score);
+      arr.forEach((x, idx) => map.set(x.name, idx + 1));
+      appState.dailyLeaderboards.set(key, map);
+      return map;
+    }
+
+    async function buildPrevDayRankingMap(date) {
+      return await ensureDailyLeaderboard(date);
+    }
+
+    // ==== 反霸榜辅助：简易历史缓存（仅工作日向后追溯最多14天） ====
+    const __rankTopCache = new Map(); // key: dateKey => [top1Name]
+
+    function formatDateKey(d){
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    function isWorkday(d){
+      const wd = d.getDay();
+      return wd>=1 && wd<=5;
+    }
+
+    // 工作日辅助
+    function nearestWorkdayOnOrBefore(date){
+      const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      while(!isWorkday(d)) d.setDate(d.getDate()-1);
+      return d;
+    }
+    function previousWorkday(date){
+      const d = new Date(date.getFullYear(), date.getMonth(), date.getDate()-1);
+      return nearestWorkdayOnOrBefore(d);
+    }
+    function getLastNWorkdayDates(endDate, n){
+      const arr=[]; let d = nearestWorkdayOnOrBefore(endDate);
+      while(arr.length < n){ if(isWorkday(d)) arr.push(new Date(d.getFullYear(), d.getMonth(), d.getDate())); d.setDate(d.getDate()-1); }
+      return arr.reverse();
+    }
+
+    function getTopNameForDate(date){
+      const key = formatDateKey(date);
+      if(__rankTopCache.has(key)) return __rankTopCache.get(key);
+      // 计算该日所有学生的 D1+D2 分，取 Top1
+      const arr = Array.from(appState.students.values()).map(stu => {
+        const dayStartMs = toDayStart(date);
+        const slotsMin = getTodaySlotsMinutes(stu.name, date);
+        const intervalsMs = getTodayPracticeIntervalsMs(stu.name, date);
+        const d1 = computeDim1Score(slotsMin, intervalsMs, dayStartMs);
+        const d2 = computeDim2Score(slotsMin, intervalsMs, dayStartMs, date.getDay());
+        return { name: stu.name, score: d1.score + d2.score };
+      }).sort((a,b)=>b.score-a.score);
+      const top = arr[0]?.name || null;
+      __rankTopCache.set(key, top);
+      return top;
+    }
+
+    function getConsecutiveTopWorkdaysUpTo(date, studentName){
+      // 从给定日期向前按工作日统计连续登顶数
+      let cnt = 0;
+      let d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      for(let i=0;i<14;i++){
+        if(!isWorkday(d)) { d.setDate(d.getDate()-1); continue; }
+        const top = getTopNameForDate(d);
+        if(top === studentName){ cnt++; } else { break; }
+        d.setDate(d.getDate()-1);
+      }
+      return cnt;
+    }
+
+    function getWorkdaysSinceLastTop(date, studentName){
+      // 从前一工作日起向前找上次登顶的工作日距离
+      let days = 0;
+      let d = new Date(date.getFullYear(), date.getMonth(), date.getDate()-1);
+      for(let i=0;i<30;i++){
+        if(!isWorkday(d)) { d.setDate(d.getDate()-1); continue; }
+        const top = getTopNameForDate(d);
+        if(top === studentName) return days; // 找到
+        days++;
+        d.setDate(d.getDate()-1);
+      }
+      return days; // 没找到则认为很久未登顶
+    }
+    function getDailyD12Score(studentName, date) {
+      // 计算指定日期的 D1+D2 总分
+      try {
+        const dayStartMs = toDayStart(date);
+        const weekday0to6 = date.getDay();
+        const slotsMin = getTodaySlotsMinutes(studentName, date);
+        const intervalsMs = getTodayPracticeIntervalsMs(studentName, date);
+        const d1 = computeDim1Score(slotsMin, intervalsMs, dayStartMs);
+        const d2 = computeDim2Score(slotsMin, intervalsMs, dayStartMs, weekday0to6);
+        return d1.score + d2.score;
+      } catch { return 0; }
+    }
+
+    function getLastNDaysD12Scores(studentName, endDate, n) {
+      const out = [];
+      for (let i = n - 1; i >= 0; i--) {
+        const d = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate() - i);
+        out.push(getDailyD12Score(studentName, d));
+      }
+      return out;
+    }
+
+    function computeDim3Score(studentName, activeDate, todayD12, prevDayRankMap) {
+      // sFresh：仅“今日活跃度”分；antiBonus：反霸榜的公平性奖励，独立于今日活跃度
+      let sRank = 0, sProgress = 0, sConsistency = 0, sFresh = 0, antiBonus = 0;
+      // 昨日排行：1名8分、2-3名6分、4-5名4分、6-10名2分
+      const pr = prevDayRankMap?.get(studentName);
+      if (pr === 1) sRank = 8; else if (pr && pr <= 3) sRank = 6; else if (pr && pr <= 5) sRank = 4; else if (pr && pr <= 10) sRank = 2;
+      
+  // 周进步：近7个工作日 vs 前7个工作日（排除周六周日），最多6分，上限50%提升
+  const endWorkday = nearestWorkdayOnOrBefore(activeDate);
+  const curDates = getLastNWorkdayDates(endWorkday, 7);
+  const cur7 = curDates.map(d => getDailyD12Score(studentName, d));
+  const prevWindowEnd = previousWorkday(curDates[0]);
+  const prevDates = getLastNWorkdayDates(prevWindowEnd, 7);
+  const prev7 = prevDates.map(d => getDailyD12Score(studentName, d));
+      const sum = a => a.reduce((x, y) => x + y, 0);
+      const sCur = sum(cur7), sPrev = sum(prev7);
+      // 小分母/基线保护：前周极低时不计或以下限分母计算提升占比
+      let appliedProgressRatio = 0;
+      const p3 = LB442_PARAMS.dim3;
+      // 数据充足门槛：两个窗口各自有效天数（>0分）要达到阈值
+      const curActiveDays = cur7.filter(v => v > 0).length;
+      const prevActiveDays = prev7.filter(v => v > 0).length;
+      const passActiveDaysGate = (curActiveDays >= p3.progress.minActiveDaysPerWindow) && (prevActiveDays >= p3.progress.minActiveDaysPerWindow);
+      if (passActiveDaysGate && sPrev >= p3.progress.minPrevTotal && sCur > sPrev) {
+        const denom = Math.max(sPrev, p3.progress.denomFloor);
+        appliedProgressRatio = Math.min(p3.progress.maxRatio, Math.max(0, (sCur - sPrev) / denom));
+        sProgress = Math.min(6, Math.round(appliedProgressRatio * 12));
+      }
+      
+      // 稳定性：近7天 D1+D2 分数标准差越小分越高，0-4分
+      const mean = sCur / 7;
+      const variance = cur7.reduce((acc, v) => acc + Math.pow(v - mean, 2), 0) / 7;
+      const std = Math.sqrt(variance);
+      // 最低活跃门槛：近7天至少3天>0 或 7天总分≥40，否则不授予稳定性分
+      const activeDays = cur7.filter(v => v > 0).length;
+      const passStabilityGate = (activeDays >= 3) || (sCur >= 40);
+      if (passStabilityGate) {
+        if (std <= 5) sConsistency = 4; else if (std <= 10) sConsistency = 3; else if (std <= 15) sConsistency = 2; else if (std <= 25) sConsistency = 1;
+      } else {
+        sConsistency = 0;
+      }
+      
+      // 今日活跃度：活跃日是今天且近N小时内有日志，且今日 D1+D2 达到基线
+      const now = new Date();
+      if (utils.getDateKey(activeDate) === utils.getDateKey(now)) {
+        const dateKey = utils.getDateKey(now);
+        const logs = (appState.practiceLogs || []).filter(l => (l.student_name || l.student || l.studentName) === studentName && utils.getDateKey(new Date(l.timestamp)) === dateKey);
+        const cutoff = now.getTime() - (p3.freshness.recentHours * 60 * 60 * 1000);
+        const hasRecent = logs.some(l => new Date(l.timestamp).getTime() >= cutoff);
+        if (hasRecent && todayD12 >= p3.freshness.minTodayD12) sFresh = 2;
+      }
+
+      // 反霸榜机制（基于工作日 Top1 连续天数与距上次登顶天数）
+      // 反霸榜（乘子与公平性奖励）
+      // 乘子仅作用基础分（不含公平性奖励）；公平性奖励不受乘子影响
+      // 注：大多数未近期登顶者会获得 +freshBreakBonus 的常驻鼓励，用于抑制单人长期垄断带来的相对劣势
+      const p3_anti = LB442_PARAMS.dim3;
+      let freshnessMultiplier = 1;
+      let antiNote = null;
+      try {
+  const prevWorkday = previousWorkday(activeDate);
+        const consec = getConsecutiveTopWorkdaysUpTo(prevWorkday, studentName);
+        const daysSince = getWorkdaysSinceLastTop(activeDate, studentName);
+        if (consec >= p3_anti.antiDomination.decayAfterDays) {
+          const excess = consec - p3_anti.antiDomination.decayAfterDays;
+          freshnessMultiplier = Math.pow(p3_anti.antiDomination.decayRate, Math.max(0, excess));
+          if (consec >= p3_anti.antiDomination.maxConsecutiveDays) {
+            freshnessMultiplier *= 0.5; // 额外强衰减
+          }
+          antiNote = `连续登顶${consec}个工作日，应用衰减×${freshnessMultiplier.toFixed(2)}`;
+        } else if (daysSince >= p3_anti.antiDomination.breakPeriod) {
+          // 给未近期登顶者轻微公平性奖励（不计入今日活跃度）
+          antiBonus += p3_anti.freshBreakBonus;
+          antiNote = `距上次登顶${daysSince}个工作日，获得公平性奖励+${p3_anti.freshBreakBonus}`;
+        }
+      } catch (e) { /* 忽略反霸榜异常 */ }
+
+      let totalBase = sRank + sProgress + sConsistency + sFresh;
+      let total = totalBase * freshnessMultiplier + antiBonus;
+      total = Math.max(0, Math.min(20, total));
+      return {
+        score: total,
+        breakdown: {
+          yesterdayRank: pr ?? null,
+          rankPoints: sRank,
+          progressPoints: sProgress,
+          // ratioDisplay 用原始分母 sPrev 便于理解；ratioApplied 用防护后的分母用于计分
+          progressDetail: {
+            cur7Total: sCur,
+            prev7Total: sPrev,
+            ratio: sPrev > 0 ? +(((sCur - sPrev) / sPrev) * 100).toFixed(1) : null,
+            appliedRatio: +(appliedProgressRatio * 100).toFixed(1),
+            curActiveDays,
+            prevActiveDays,
+            minActiveDaysRequired: p3.progress.minActiveDaysPerWindow,
+            gatedByActiveDays: !(curActiveDays >= p3.progress.minActiveDaysPerWindow && prevActiveDays >= p3.progress.minActiveDaysPerWindow)
+          },
+          consistencyPoints: sConsistency,
+          consistencyStd: +std.toFixed(2),
+          freshPoints: sFresh,
+          antiBonusPoints: antiBonus,
+          freshnessMultiplier: +freshnessMultiplier.toFixed(2),
+          antiNote: antiNote
+        }
+      };
+    }
+
+    async function computeScore442(student) {
+      const activeDate = getActiveLeaderboardDate();
+      const dayStartMs = toDayStart(activeDate);
+      const weekday0to6 = activeDate.getDay();
+      const slotsMin = getTodaySlotsMinutes(student.name, activeDate);
+      const intervalsMs = getTodayPracticeIntervalsMs(student.name, activeDate);
+      const d1 = computeDim1Score(slotsMin, intervalsMs, dayStartMs);
+      const d2 = computeDim2Score(slotsMin, intervalsMs, dayStartMs, weekday0to6);
+  const prevDay = previousWorkday(activeDate);
+      const prevDayRankMap = await buildPrevDayRankingMap(prevDay);
+      const d3 = computeDim3Score(student.name, activeDate, d1.score + d2.score, prevDayRankMap);
+  const total = +(Math.max(0, Math.min(100, d1.score + d2.score + d3.score))).toFixed(2);
+  return { total, d1: d1.score, d2: d2.score, d3: d3.score };
+    }
+
+  async function updateRanking() {
+      const rankingList = document.getElementById('rankingList');
+      if (!rankingList) return;
+
+      // 周末不展示排行榜，显示说明
+      const __today = new Date();
+      if (!isWorkday(__today)) {
+        rankingList.innerHTML = `
+          <div class="ranking-hero" style="margin:0 0 8px;">
+            <div class="ranking-hero-sub">周末（周六/周日）不展示排行榜；维度三历史评分参考不包含周六周日。</div>
+          </div>
+        `;
+        return;
+      }
+
+      // 获取所有学生数据并计算排行榜分数
+      const students = [];
+      for (const student of Array.from(appState.students.values())) {
+        const s = await computeScore442(student);
+        students.push({ ...student, rankingScore: s.total, __442: s });
+      }
+
+      // 按分数排序
+      students.sort((a, b) => b.rankingScore - a.rankingScore);
+
+      // 只显示前3名
+      const topStudents = students.slice(0, 3);
+
+      // 生成排行榜HTML
+      rankingList.innerHTML = topStudents.map((student, index) => {
+        const position = index + 1;
+        const meta = appState.studentsMeta.get(student.name) || {};
+        const score = student.rankingScore;
+        
+        return `
+          <div class="ranking-item" onclick="openStudentDetailFromRanking('${student.name}')">
+            <div class="ranking-position rank-${position}">${position}</div>
+            <div class="ranking-student-info">
+              <div class="ranking-student-name">${student.name}</div>
+              <div class="ranking-student-meta">${meta.major || '未知专业'} · ${meta.grade || '未知年级'}</div>
+            </div>
+            <div class="ranking-score">
+              <div class="ranking-score-value">${score.toFixed(0)}</div>
+              <div class="ranking-score-label">总分</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // 如果没有数据，显示占位内容
+      if (topStudents.length === 0) {
+        rankingList.innerHTML = `
+          <div style="text-align: center; padding: 32px; color: #656d76;">
+            <div style="margin-bottom: 8px;">📊</div>
+            <div>暂无排行榜数据</div>
+          </div>
+        `;
+      }
+    }
+
+    // 从排行榜打开学生详情
+    function openStudentDetailFromRanking(studentName) {
+  // 从首页小榜进入详情：标记返回到首页
+  uiState.previousView = 'home';
+      uiState.view = 'detail';
+      uiState.selectedStudent = studentName;
+      updateViews();
+    }
+
+    function getFilteredStudents() {
+      let students = Array.from(appState.students.values());
+      
+      // 按搜索查询过滤
+      if (appState.searchQuery) {
+        const query = appState.searchQuery.toLowerCase();
+        students = students.filter(student => {
+          const meta = appState.studentsMeta.get(student.name) || {};
+          return student.name.toLowerCase().includes(query) ||
+                 (meta.major && meta.major.toLowerCase().includes(query)) ||
+                 (meta.grade && meta.grade.toLowerCase().includes(query));
+        });
+      }
+      
+      // 按筛选条件过滤
+      switch (appState.currentFilter) {
+        case 'practicing':
+          students = students.filter(s => s.currentStatus !== 'offline');
+          break;
+        case 'active-today':
+          students = students.filter(s => s.isPresent);
+          break;
+        case 'violin':
+          students = students.filter(s => {
+            const meta = appState.studentsMeta.get(s.name) || {};
+            return meta.major && meta.major.includes('小提琴');
+          });
+          break;
+        case 'piano':
+          students = students.filter(s => {
+            const meta = appState.studentsMeta.get(s.name) || {};
+            return meta.major && meta.major.includes('钢琴');
+          });
+          break;
+        case 'other':
+          students = students.filter(s => {
+            const meta = appState.studentsMeta.get(s.name) || {};
+            return meta.major && !meta.major.includes('小提琴') && !meta.major.includes('钢琴');
+          });
+          break;
+      }
+      
+      // 排序：正在练琴的优先，然后按今日总时长降序
+      students.sort((a, b) => {
+        if (a.currentStatus !== 'offline' && b.currentStatus === 'offline') return -1;
+        if (a.currentStatus === 'offline' && b.currentStatus !== 'offline') return 1;
+        return (b.todayMinutes.in + b.todayMinutes.out) - (a.todayMinutes.in + a.todayMinutes.out);
+      });
+      
+      return students;
+    }
+
+    function createStudentCard(student) {
+      const meta = appState.studentsMeta.get(student.name) || {};
+      const initials = utils.getStudentInitials(student.name);
+      
+      const statusInfo = getStatusInfo(student);
+      const badges = generateBadges(student);
+      
+      return `
+        <div class="student-card" data-student-name="${student.name}">
+          <div class="student-header">
+            <div class="student-info">
+              <div class="student-avatar">${initials}</div>
+              <div class="student-details">
+                <h3>${student.name}</h3>
+                <div class="student-meta">${meta.major || '未知专业'} · ${meta.grade || '未知年级'}</div>
+              </div>
+            </div>
+            <div class="student-status ${statusInfo.class}">
+              <span class="material-icons">${statusInfo.icon}</span>
+              ${statusInfo.text}
+            </div>
+          </div>
+          
+          <div class="student-body">
+            <div class="progress-section">
+              <div class="progress-header">
+                <span class="progress-label">今日完成度</span>
+                <span class="progress-value">${student.achievementRate}%</span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill" style="width: ${Math.min(100, student.achievementRate)}%"></div>
+              </div>
+            </div>
+            
+            <div class="stats-grid">
+              <div class="stat-item">
+                <div class="stat-item-value">${utils.formatDuration(student.todayMinutes.in)}</div>
+                <div class="stat-item-label">今日段内时长</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-item-value">${utils.formatDuration(student.todayMinutes.out)}</div>
+                <div class="stat-item-label">今日段外时长</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-item-value">${student.weekStreak}</div>
+                <div class="stat-item-label">连续天数</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-item-value">${student.totalSessions}</div>
+                <div class="stat-item-label">本周练习次数</div>
+              </div>
+            </div>
+            
+            <div class="achievement-badges">
+              ${badges.join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function getStatusInfo(student) {
+      switch (student.currentStatus) {
+        case 'practicing-in':
+          return {
+            class: 'practicing-in',
+            icon: 'music_note',
+            text: '正在练琴（段内）'
+          };
+        case 'practicing-out':
+          return {
+            class: 'practicing-out',
+            icon: 'music_note',
+            text: '正在练琴（段外）'
+          };
+        default:
+          return {
+            class: 'offline',
+            icon: 'pause_circle',
+            text: '未在练琴'
+          };
+      }
+    }
+
+    function generateBadges(student) {
+      const badges = [];
+      
+      if (student.weekStreak >= 7) {
+        badges.push('<span class="badge streak">本周全勤</span>');
+      } else if (student.weekStreak >= 3) {
+        badges.push('<span class="badge streak">连续练习</span>');
+      }
+      
+      if (student.achievementRate >= 100) {
+        badges.push('<span class="badge target">目标达成</span>');
+      } else if (student.achievementRate >= 80) {
+        badges.push('<span class="badge target">接近目标</span>');
+      }
+      
+      const weekTotal = student.weekMinutes.in + student.weekMinutes.out;
+      const todayTotal = student.todayMinutes.in + student.todayMinutes.out;
+      if (weekTotal > 0 && todayTotal > weekTotal / 7 * 1.5) {
+        badges.push('<span class="badge improvement">今日超常</span>');
+      }
+      
+      return badges;
+    }
+
+    function openStudentModal(studentName) {
+      const student = appState.students.get(studentName);
+      if (!student) return;
+      
+      const meta = appState.studentsMeta.get(studentName) || {};
+      
+      document.getElementById('modalTitle').textContent = `${studentName} 的练琴数据`;
+      
+      const modalContent = `
+        <div style="margin-bottom: 24px;">
+          <h3 style="margin-bottom: 12px; color: var(--on-surface-variant);">基本信息</h3>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+            <div><strong>专业：</strong>${meta.major || '未知'}</div>
+            <div><strong>年级：</strong>${meta.grade || '未知'}</div>
+            <div><strong>学籍号：</strong>${meta.external_id || '未设置'}</div>
+          </div>
+        </div>
+        
+        <div style="margin-bottom: 24px;">
+          <h3 style="margin-bottom: 12px; color: var(--on-surface-variant);">当前状态</h3>
+          <div style="padding: 16px; background: #f8f9fa; border-radius: 8px;">
+            ${generateCurrentStatusHTML(student)}
+          </div>
+        </div>
+        
+        <div style="margin-bottom: 24px;">
+          <h3 style="margin-bottom: 12px; color: var(--on-surface-variant);">今日练习统计</h3>
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+            <div style="text-align: center; padding: 16px; background: #f8f9fa; border-radius: 8px;">
+              <div style="font-size: 24px; font-weight: 700; color: var(--primary); margin-bottom: 8px;">
+                ${utils.formatDuration(student.todayMinutes.in)}
+              </div>
+              <div style="color: var(--on-surface-variant);">段内练习时长</div>
+            </div>
+            <div style="text-align: center; padding: 16px; background: #f8f9fa; border-radius: 8px;">
+              <div style="font-size: 24px; font-weight: 700; color: var(--warning); margin-bottom: 8px;">
+                ${utils.formatDuration(student.todayMinutes.out)}
+              </div>
+              <div style="color: var(--on-surface-variant);">段外练习时长</div>
+            </div>
+          </div>
+        </div>
+        
+        <div style="margin-bottom: 24px;">
+          <h3 style="margin-bottom: 12px; color: var(--on-surface-variant);">本周数据</h3>
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+            <div style="text-align: center; padding: 16px; background: #f8f9fa; border-radius: 8px;">
+              <div style="font-size: 20px; font-weight: 700; color: var(--primary); margin-bottom: 8px;">
+                ${utils.formatDuration(student.weekMinutes.in)}
+              </div>
+              <div style="color: var(--on-surface-variant);">本周段内总时长</div>
+            </div>
+            <div style="text-align: center; padding: 16px; background: #f8f9fa; border-radius: 8px;">
+              <div style="font-size: 20px; font-weight: 700; color: var(--warning); margin-bottom: 8px;">
+                ${utils.formatDuration(student.weekMinutes.out)}
+              </div>
+              <div style="color: var(--on-surface-variant);">本周段外总时长</div>
+            </div>
+          </div>
+        </div>
+        
+        <div>
+          <h3 style="margin-bottom: 12px; color: var(--on-surface-variant);">成就徽章</h3>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            ${generateBadges(student).join('')}
+          </div>
+        </div>
+      `;
+      
+      document.getElementById('modalContent').innerHTML = modalContent;
+      document.getElementById('modalOverlay').style.display = 'flex';
+    }
+
+    function generateCurrentStatusHTML(student) {
+      if (student.currentStatus === 'offline') {
+        return '<div style="color: var(--on-surface-variant);">当前未在练琴</div>';
+      }
+      
+      const statusText = student.currentStatus === 'practicing-in' ? '时间段内练琴' : '时间段外练琴';
+      const roomText = student.currentRoom ? ` · ${student.currentRoom}` : '';
+      const timeText = student.currentStartTime ? ` · 开始于 ${utils.formatTime(student.currentStartTime)}` : '';
+      
+      return `
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span class="material-icons" style="color: var(--${student.currentStatus === 'practicing-in' ? 'success' : 'warning'});">music_note</span>
+          <div>
+            <div style="font-weight: 500;">${statusText}</div>
+            <div style="color: var(--on-surface-variant); font-size: 14px;">${roomText}${timeText}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function closeModal() {
+      document.getElementById('modalOverlay').style.display = 'none';
+    }
+
+    // ==== 事件监听器 ====
+    function setupEventListeners() {
+      // 搜索功能
+      const searchInput = document.getElementById('searchInput');
+      searchInput.addEventListener('input', (e) => {
+        appState.searchQuery = e.target.value.trim();
+        renderStudentCards();
+      });
+      
+      // 筛选功能
+      document.querySelectorAll('.filter-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          document.querySelector('.filter-chip.active')?.classList.remove('active');
+          chip.classList.add('active');
+          appState.currentFilter = chip.dataset.filter;
+          renderStudentCards();
+        });
+      });
+      
+      // 模态框关闭
+      document.getElementById('modalOverlay').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) {
+          closeModal();
+        }
+      });
+    }
+
+  // ==== 实时更新 ====
+    function setupRealtime() {
+      if (!isConnected) return;
+      
+      realtimeChannel = supabaseClient.channel('practice-tracker-google')
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'rooms' 
+        }, () => {
+          fetchAllData();
+        })
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'practice_logs' 
+        }, () => {
+          fetchAllData();
+        })
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'student_database' 
+        }, () => {
+          fetchAllData();
+        })
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'student_time_slots' 
+        }, () => {
+          fetchAllData();
+        })
+        .subscribe(status => {
+          if (status === 'SUBSCRIBED') {
+            setConnectionStatus('online', '实时连接');
+          } else {
+            setConnectionStatus('syncing', '连接中...');
+          }
+        });
+    }
+
+    // ==== 应用初始化 ====
+    async function initializeApp() {
+      dbg('=== 应用初始化开始 ===');
+      try {
+        // 不再依赖顶部交互
+        dbg('初始化 Supabase...');
+        const connected = await initializeSupabase();
+        dbg('Supabase 连接结果:', connected);
+        if (connected) {
+          dbg('开始获取数据...');
+          await fetchAllData();
+          dbg('设置实时监听...');
+          setupRealtime();
+        }
+    setupHomeInteractions();
+    updateViews();
+      } catch (error) {
+        console.error('应用初始化失败:', error);
+        setConnectionStatus('offline', '初始化失败');
+      }
+    }
+
+    // 启动应用
+    document.addEventListener('DOMContentLoaded', initializeApp);
+
+    // 全局函数供HTML调用
+    window.closeModal = closeModal;
+    window.openStudentDetail = openStudentDetail;
+  window.openRankingView = openRankingView;
+  window.openStudentDetailFromRankingFull = openStudentDetailFromRankingFull;
+  </script>
+</body>
+</html>
+
+  <!-- 轻量提示容器 -->
+  <div id="lbToast" class="lb-toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
