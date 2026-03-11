@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>练琴基线监控 Dashboard</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #222636;
+    --border: #2e3347;
+    --accent: #6c8ef5;
+    --accent2: #5dd6a8;
+    --warn: #f5a623;
+    --focus: #fff4ce; /* 浅黄色（关注） */
+    --danger: #f56c6c;
+    --text: #e8eaf0;
+    --text2: #8b90a7;
+    --text3: #555c7a;
+    --cold: #a78bfa;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    padding: 24px;
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .header-left h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+
+  .header-left p {
+    font-size: 13px;
+    color: var(--text2);
+    margin-top: 4px;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(93, 214, 168, 0.1);
+    border: 1px solid rgba(93, 214, 168, 0.25);
+    color: var(--accent2);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 20px;
+  }
+
+  .live-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent2);
+    animation: pulse 1.8s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  .last-update {
+    font-size: 12px;
+    color: var(--text3);
+  }
+
+  .refresh-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    font-size: 13px;
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .refresh-btn:hover { color: var(--text); border-color: var(--accent); }
+
+  /* ── Config Panel ── */
+  .config-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    display: flex;
+    gap: 16px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .config-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .config-group label {
+    font-size: 11px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+
+  .config-group input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 13px;
+    padding: 7px 12px;
+    border-radius: var(--radius-sm);
+    width: 280px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .config-group input:focus { border-color: var(--accent); }
+
+  .connect-btn {
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 20px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: opacity 0.2s;
+    white-space: nowrap;
+  }
+
+  .connect-btn:hover { opacity: 0.85; }
+
+  /* ── Summary Cards ── */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+
+  .summary-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+  }
+
+  .summary-card .label {
+    font-size: 11px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .summary-card .value {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .summary-card .sub {
+    font-size: 12px;
+    color: var(--text2);
+    margin-top: 4px;
+  }
+
+  .val-blue  { color: var(--accent); }
+  .val-green { color: var(--accent2); }
+  .val-warn  { color: var(--warn); }
+  .val-purple{ color: var(--cold); }
+
+  /* ── Toolbar ── */
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .search-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 13px;
+    padding: 7px 14px;
+    border-radius: var(--radius-sm);
+    width: 220px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .search-box:focus { border-color: var(--accent); }
+
+  .filter-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    font-size: 12px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .filter-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  .sort-select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    outline: none;
+    margin-left: auto;
+  }
+
+  /* ── Table ── */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  thead th {
+    background: var(--surface2);
+    color: var(--text3);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+    cursor: pointer;
+  }
+
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+
+  td {
+    padding: 13px 16px;
+    vertical-align: middle;
+  }
+
+  .student-name {
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .student-meta {
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 2px;
+  }
+
+  /* Alpha bar */
+  .alpha-cell { min-width: 100px; text-align: center; }
+  thead th.alpha-cell { text-align: center; }
+
+  .alpha-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .alpha-bar-bg {
+    flex: 1;
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .alpha-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.6s ease;
+  }
+
+  .alpha-val {
+    font-size: 12px;
+    font-weight: 700;
+    min-width: 36px;
+    text-align: right;
+  }
+
+  /* Status badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 12px;
+    white-space: nowrap;
+  }
+
+  .badge-cold {
+    background: rgba(167, 139, 250, 0.12);
+    color: var(--cold);
+    border: 1px solid rgba(167, 139, 250, 0.25);
+  }
+
+  .badge-normal {
+    background: rgba(93, 214, 168, 0.1);
+    color: var(--accent2);
+    border: 1px solid rgba(93, 214, 168, 0.2);
+  }
+
+  .badge-warn {
+    background: rgba(245, 166, 35, 0.1);
+    color: var(--warn);
+    border: 1px solid rgba(245, 166, 35, 0.2);
+  }
+
+  .badge-focus {
+    background: rgba(255, 244, 206, 0.12);
+    color: #7a5f00;
+    border: 1px solid rgba(250, 214, 102, 0.2);
+  }
+
+  .badge-attention {
+    background: rgba(245, 108, 108, 0.08);
+    color: var(--danger);
+    border: 1px solid rgba(245, 108, 108, 0.18);
+  }
+
+  /* Weekday mini chart */
+  .weekday-chart {
+    display: flex;
+    gap: 3px;
+    align-items: flex-end;
+    height: 28px;
+  }
+
+  .wd-bar {
+    width: 10px;
+    border-radius: 2px 2px 0 0;
+    background: var(--accent);
+    opacity: 0.7;
+    transition: opacity 0.2s;
+    min-height: 2px;
+  }
+
+  .wd-bar:hover { opacity: 1; }
+
+  /* Outlier rate */
+  .outlier-rate {
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .rate-ok   { color: var(--accent2); }
+  .rate-warn { color: var(--focus); }
+  .rate-bad  { color: var(--danger); }
+
+  /* Detail drawer */
+  .drawer-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+  }
+
+  .drawer-overlay.open {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .drawer {
+    position: fixed;
+    top: 0; right: 0;
+    width: min(480px, 100vw);
+    height: 100vh;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    z-index: 101;
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+    overflow-y: auto;
+    padding: 28px 24px;
+  }
+
+  .drawer.open { transform: translateX(0); }
+
+  .drawer-close {
+    position: absolute;
+    top: 20px; right: 20px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .drawer-close:hover { color: var(--text); border-color: var(--accent); }
+
+  .drawer h2 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    padding-right: 40px;
+  }
+
+  .drawer-meta {
+    font-size: 12px;
+    color: var(--text2);
+    margin-bottom: 24px;
+  }
+
+  .drawer-section {
+    margin-bottom: 24px;
+  }
+
+  .drawer-section h3 {
+    font-size: 11px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .stat-item {
+    background: var(--surface2);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+  }
+
+  .stat-item .s-label {
+    font-size: 11px;
+    color: var(--text3);
+    margin-bottom: 4px;
+  }
+
+  .stat-item .s-value {
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  /* Weekday detail chart */
+  .wd-detail {
+    display: flex;
+    gap: 6px;
+    align-items: flex-end;
+    height: 80px;
+    margin-top: 8px;
+  }
+
+  .wd-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    height: 100%;
+    justify-content: flex-end;
+  }
+
+  .wd-col-bar {
+    width: 100%;
+    border-radius: 3px 3px 0 0;
+    background: var(--accent);
+    opacity: 0.75;
+    min-height: 3px;
+    transition: height 0.5s ease;
+  }
+
+  .wd-col-label {
+    font-size: 10px;
+    color: var(--text3);
+    white-space: nowrap;
+  }
+
+  .wd-col-val {
+    font-size: 10px;
+    color: var(--text2);
+    font-weight: 600;
+  }
+
+  /* Empty / Loading */
+  .state-box {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text3);
+  }
+
+  .state-box .icon { font-size: 40px; margin-bottom: 12px; }
+  .state-box p { font-size: 14px; }
+  .state-box .hint { font-size: 12px; margin-top: 6px; color: var(--text3); }
+
+  .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 12px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Error banner */
+  .error-banner {
+    background: rgba(245, 108, 108, 0.1);
+    border: 1px solid rgba(245, 108, 108, 0.3);
+    color: var(--danger);
+    border-radius: var(--radius-sm);
+    padding: 10px 16px;
+    font-size: 13px;
+    margin-bottom: 16px;
+    display: none;
+  }
+
+  /* Help modal */
+  .help-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; z-index: 300; }
+  .help-box { position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%); width: min(820px, 96vw); max-height: 80vh; overflow:auto; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; z-index: 310; display:none; }
+  .help-box h3 { margin-bottom: 8px; }
+  .help-close { position: absolute; right: 12px; top: 12px; background: var(--surface2); border: 1px solid var(--border); color: var(--text2); width: 32px; height: 32px; border-radius: 6px; cursor: pointer; }
+
+  .error-banner.show { display: block; }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    body { padding: 16px; }
+    .config-group input { width: 100%; }
+    table { font-size: 12px; }
+    td, th { padding: 10px 12px; }
+    .alpha-cell { min-width: 100px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <h1>🎹 练琴基线监控</h1>
+    <p>实时追踪每位学生的个人练琴基线模型数据</p>
+  </div>
+  <div class="header-right">
+    <span class="last-update" id="lastUpdate">尚未连接</span>
+    <div class="live-badge" id="liveBadge" style="display:none">
+      <div class="live-dot"></div> LIVE
+    </div>
+    <button class="refresh-btn" onclick="loadData()">↻ 刷新</button>
+    <button class="refresh-btn" onclick="showHelp()">指标说明</button>
+    <button class="refresh-btn" onclick="showStudent('姜若煊')">调试：姜若煊</button>
+  </div>
+</div>
+
+<!-- Config -->
+<div class="config-panel">
+  <div class="config-group">
+    <label>Supabase URL</label>
+    <input type="text" id="supabaseUrl" placeholder="https://xxxx.supabase.co" />
+  </div>
+  <div class="config-group">
+    <label>Anon Key</label>
+    <input type="password" id="supabaseKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." />
+  </div>
+  <button class="connect-btn" onclick="connect()">连接并加载</button>
+</div>
+
+<!-- Error -->
+<div class="error-banner" id="errorBanner"></div>
+
+<!-- Summary -->
+<div class="summary-grid" id="summaryGrid">
+  <div class="summary-card">
+    <div class="label">总学生数</div>
+    <div class="value val-blue" id="s-total">—</div>
+    <div class="sub">已建立基线</div>
+  </div>
+  <div class="summary-card">
+    <div class="label">冷启动中</div>
+    <div class="value val-purple" id="s-cold">—</div>
+    <div class="sub">记录 &lt; 10 条</div>
+  </div>
+  <div class="summary-card">
+    <div class="label">平均 α 系数</div>
+    <div class="value val-green" id="s-alpha">—</div>
+    <div class="sub">有效时间比例</div>
+  </div>
+  <div class="summary-card">
+    <div class="label">平均练琴时长</div>
+    <div class="value val-blue" id="s-duration">—</div>
+    <div class="sub">分钟 / 次（清洗后）</div>
+  </div>
+  <div class="summary-card">
+    <div class="label">综合评分</div>
+    <div class="value val-green" id="s-composite">—</div>
+    <div class="sub">0-100（置信度加权）</div>
+  </div>
+  <!-- 原始分 (raw) 已移除，因其与综合分重复 -->
+  <div class="summary-card">
+    <div class="label">高异常率学生</div>
+    <div class="value val-warn" id="s-outlier">—</div>
+    <div class="sub">异常率 ≥ 40%</div>
+  </div>
+</div>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <input class="search-box" type="text" id="searchBox" placeholder="🔍 搜索学生姓名..." oninput="renderTable()" />
+  <button class="filter-btn active" data-filter="all" onclick="setFilter('all', this)">全部</button>
+  <button class="filter-btn" data-filter="cold" onclick="setFilter('cold', this)">冷启动</button>
+  <button class="filter-btn" data-filter="normal" onclick="setFilter('normal', this)">已建模</button>
+  <button class="filter-btn" data-filter="warn" onclick="setFilter('warn', this)">⚠️ 异常率高</button>
+  <select class="sort-select" id="sortSelect" onchange="renderTable()">
+    <option value="composite_desc">综合评分 ↓</option>
+    <option value="composite_asc">综合评分 ↑</option>
+    <option value="alpha_desc">α 系数 ↓</option>
+    <option value="alpha_asc">α 系数 ↑</option>
+    <option value="duration_desc">时长 ↓</option>
+    <option value="duration_asc">时长 ↑</option>
+    <option value="records_desc">记录数 ↓</option>
+    <option value="outlier_desc">异常率 ↓</option>
+    <option value="name_asc">姓名 A→Z</option>
+  </select>
+</div>
+
+<!-- Table -->
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>学生</th>
+        <th>状态</th>
+        <th>综合评分</th>
+        <th class="alpha-cell">α 系数</th>
+        <th>均值时长</th>
+        <th>标准差</th>
+        <th>记录数</th>
+        <th>异常率</th>
+        <th>星期分布</th>
+        <th>最后更新</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody">
+      <tr>
+        <td colspan="9">
+          <div class="state-box">
+            <div class="icon">🔌</div>
+            <p>请输入 Supabase 连接信息后点击「连接并加载」</p>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Drawer -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  <h2 id="drawerName">—</h2>
+  <div class="drawer-meta" id="drawerMeta">—</div>
+
+  <div class="drawer-section">
+    <h3>核心指标</h3>
+    <div class="stat-grid" id="drawerStats"></div>
+  </div>
+
+  <div class="drawer-section">
+    <h3>星期练琴分布（平均分钟）</h3>
+    <div class="wd-detail" id="drawerWeekday"></div>
+  </div>
+
+  <div class="drawer-section">
+    <h3>α 系数说明</h3>
+    <div id="drawerAlphaExplain" style="font-size:13px;color:var(--text2);line-height:1.7;"></div>
+  </div>
+</div>
+
+<!-- Help modal -->
+<div class="help-overlay" id="helpOverlay" onclick="hideHelp()"></div>
+<div class="help-box" id="helpBox" role="dialog" aria-modal="true">
+  <button class="help-close" onclick="hideHelp()">✕</button>
+  <h2>指标说明（通俗版）</h2>
+  <p style="color:var(--text2);margin-bottom:12px">下面用普通语言解释 Dashboard 中的重要指标，便于教师和家长理解每个数字代表的含义。</p>
+  <h3>综合评分（Composite）</h3>
+  <p style="color:var(--text2)">把多项信息合并成一个 0-100 的分数，越高表示该学生最近表现越好。它综合了长期基线、近期趋势、连续进步和累积量，同时会降低异常数据的影响。</p>
+
+  <!-- 原始分说明已移除，因不在界面展示 -->
+
+  <h3>基线进步</h3>
+  <p style="color:var(--text2)">衡量当前平均时长相比早期平均时长的变化。正向增长说明比以前练得更久或更稳定。</p>
+
+  <h3>趋势</h3>
+  <p style="color:var(--text2)">基于近几次快照的回归斜率，反映近期分数是上升还是下降。</p>
+
+  <h3>势头</h3>
+  <p style="color:var(--text2)">统计连续多周进步的长度，连续进步越多，势头得分越高。</p>
+
+  <h3>积累</h3>
+  <p style="color:var(--text2)">考虑有效练琴次数与质量（时长）后的长期累积贡献。记录越多且每次练得越久，积累得分越高。</p>
+
+  <h3>异常率 / 短时率</h3>
+  <p style="color:var(--text2)">异常率表示记录被判为异常（如极短或极长）的比例；短时率表示小于短时阈值（例如 &lt;20 分）的比例。异常率过高会显著降低综合评分。</p>
+
+  <h3>置信度</h3>
+  <p style="color:var(--text2)">表示该分数可靠程度。记录越多、数据越新且异常率越低，置信度越高。</p>
+
+  <p style="color:var(--text3);margin-top:10px">如需更技术化的解释（公式、权重和阈值），请告诉我，我会给出带数学表达的详细说明。</p>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────
+const SB_DEFAULT_URL = 'https://waesizzoqodntrlvrwhw.supabase.co';
+const SB_DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhZXNpenpvcW9kbnRybHZyd2h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc4MjIyOTYsImV4cCI6MjA3MzM5ODI5Nn0.kE5gSV68q1nLo4z2IqgwqfTBVqNOJw5qs08f6r0SQH0';
+
+let supabaseUrl = SB_DEFAULT_URL;
+let supabaseKey = SB_DEFAULT_KEY;
+let allData = [];
+let currentFilter = 'all';
+let autoRefreshTimer = null;
+
+const WEEKDAY_LABELS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const WEEKDAY_ZH     = ['周一','周二','周三','周四','周五','周六','周日'];
+
+// ── Persist config ─────────────────────────────────────
+window.addEventListener('load', () => {
+  const savedUrl = localStorage.getItem('sb_url') || SB_DEFAULT_URL;
+  const savedKey = localStorage.getItem('sb_key') || SB_DEFAULT_KEY;
+  document.getElementById('supabaseUrl').value = savedUrl;
+  document.getElementById('supabaseKey').value = savedKey;
+});
+
+// ── Connect ────────────────────────────────────────────
+async function connect() {
+  supabaseUrl = (document.getElementById('supabaseUrl').value.trim() || SB_DEFAULT_URL).replace(/\/$/, '');
+  supabaseKey = document.getElementById('supabaseKey').value.trim() || SB_DEFAULT_KEY;
+
+  localStorage.setItem('sb_url', supabaseUrl);
+  localStorage.setItem('sb_key', supabaseKey);
+
+  await loadData();
+
+  // Auto-refresh every 30s
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+  autoRefreshTimer = setInterval(loadData, 30000);
+  document.getElementById('liveBadge').style.display = 'flex';
+}
+
+// ── Fetch ──────────────────────────────────────────────
+async function loadData() {
+  if (!supabaseUrl || !supabaseKey) return;
+
+  showLoading();
+  hideError();
+
+  try {
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/student_baseline?select=student_name,student_major,student_grade,alpha,mean_duration,std_duration,record_count,outlier_rate,short_session_rate,weekday_pattern,last_updated,composite_score,raw_score,baseline_score,trend_score,momentum_score,accum_score,score_confidence,personal_best,growth_velocity,weeks_improving&order=composite_score.desc`,
+      {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      }
+    );
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || `HTTP ${res.status}`);
+    }
+
+    allData = await res.json();
+    // Debug: log first student's score_confidence to verify backend value (0.9 -> 90%)
+    if (allData && allData.length > 0) {
+      console.log('[DEBUG] first student score_confidence (raw):', allData[0].score_confidence);
+      console.log('[DEBUG] first student (full):', allData[0]);
+    } else {
+      console.log('[DEBUG] no data returned from student_baseline');
+    }
+    // 指定学生快速验证
+    const studentNameToCheck = '姜若煊';
+    const jr = allData.find(s => (s.student_name||'') === studentNameToCheck);
+    if (jr) {
+      console.log(`[DEBUG] ${studentNameToCheck} score_confidence (raw):`, jr.score_confidence);
+      console.log(`[DEBUG] ${studentNameToCheck} full:`, jr);
+    } else {
+      console.log(`[DEBUG] ${studentNameToCheck} not found in returned data`);
+    }
+    updateSummary();
+    renderTable();
+    document.getElementById('lastUpdate').textContent =
+      '更新于 ' + new Date().toLocaleTimeString('zh-CN');
+    hideError();
+  } catch (e) {
+    showError('连接失败：' + e.message);
+    showEmpty('连接失败，请检查 URL 和 Key');
+  }
+}
+
+// ── Summary ────────────────────────────────────────────
+function updateSummary() {
+  const total   = allData.length;
+  const cold    = allData.filter(d => d.is_cold_start).length;
+  const alphas  = allData.map(d => d.alpha).filter(Boolean);
+  const avgAlpha = alphas.length ? (alphas.reduce((a,b)=>a+b,0)/alphas.length) : 0;
+  const durations = allData.map(d => d.mean_duration).filter(Boolean);
+  const avgDur  = durations.length ? (durations.reduce((a,b)=>a+b,0)/durations.length) : 0;
+  const highOutlier = allData.filter(d => (d.outlier_rate||0) >= 0.4).length;
+
+  document.getElementById('s-total').textContent   = total;
+  document.getElementById('s-cold').textContent    = cold;
+  document.getElementById('s-alpha').textContent   = avgAlpha.toFixed(2);
+  document.getElementById('s-duration').textContent= Math.round(avgDur);
+  document.getElementById('s-outlier').textContent = highOutlier;
+
+    // 综合评分平均值（显示为 0-100）
+    const composites = allData.map(d => d.composite_score).filter(v => v !== undefined && v !== null);
+    const avgComposite = composites.length ? (composites.reduce((a,b)=>a+b,0)/composites.length) : 0;
+    document.getElementById('s-composite').textContent = composites.length ? Math.round(avgComposite) : '—';
+
+    // 原始分 (raw) 不再展示在摘要卡
+}
+
+// ── Filter & Sort ──────────────────────────────────────
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable();
+}
+
+function getFiltered() {
+  const q = document.getElementById('searchBox').value.toLowerCase();
+  return allData.filter(d => {
+    const nameMatch = (d.student_name||'').toLowerCase().includes(q);
+    if (!nameMatch) return false;
+    if (currentFilter === 'cold')   return d.is_cold_start;
+    if (currentFilter === 'normal') return !d.is_cold_start;
+    if (currentFilter === 'warn')   return (d.outlier_rate||0) > 0.2;
+    return true;
+  });
+}
+
+function getSorted(data) {
+  const s = document.getElementById('sortSelect').value;
+  return [...data].sort((a, b) => {
+    switch(s) {
+      case 'composite_desc': return (b.composite_score||0) - (a.composite_score||0);
+      case 'composite_asc':  return (a.composite_score||0) - (b.composite_score||0);
+      case 'alpha_desc':    return (b.alpha||0) - (a.alpha||0);
+      case 'alpha_asc':     return (a.alpha||0) - (b.alpha||0);
+      case 'duration_desc': return (b.mean_duration||0) - (a.mean_duration||0);
+      case 'duration_asc':  return (a.mean_duration||0) - (b.mean_duration||0);
+      case 'records_desc':  return (b.record_count||0) - (a.record_count||0);
+      case 'outlier_desc':  return (b.outlier_rate||0) - (a.outlier_rate||0);
+      case 'name_asc':      return (a.student_name||'').localeCompare(b.student_name||'');
+      default: return 0;
+    }
+  });
+}
+
+// ── Render Table ───────────────────────────────────────
+function renderTable() {
+  const data = getSorted(getFiltered());
+  const tbody = document.getElementById('tableBody');
+
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="9">
+      <div class="state-box">
+        <div class="icon">🔍</div>
+        <p>没有符合条件的学生数据</p>
+      </div>
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = data.map(d => {
+    const alpha       = d.alpha ?? 0.8;
+    const alphaColor  = alphaToColor(alpha);
+    const isCold      = d.is_cold_start;
+    const outlierRate = d.outlier_rate ?? 0;
+    const outlierPct  = (outlierRate * 100).toFixed(1);
+    // 异常率颜色阈值：>=40% 黄，>60% 红
+    const outlierClass = outlierRate >= 0.6 ? 'rate-bad' : outlierRate >= 0.4 ? 'rate-warn' : 'rate-ok';
+    const meanDur     = d.mean_duration ? Math.round(d.mean_duration) + ' 分' : '—';
+    const stdDur      = d.std_duration  ? Math.round(d.std_duration)  + ' 分' : '—';
+    const lastUp      = d.last_updated  ? formatRelTime(d.last_updated) : '—';
+    const wdChart     = renderWeekdayMini(d.weekday_pattern);
+
+    // 综合评分显示
+    const composite = (d.composite_score !== undefined && d.composite_score !== null) ? d.composite_score : null;
+    const confPct = Math.round((d.score_confidence || 0) * 100);
+    const scoreColor = composite !== null ? alphaToColor((composite || 0) / 100) : 'var(--text3)';
+    const scoreHtml = composite !== null
+      ? `<div style="display:flex;align-items:center;gap:8px"><div style="width:44px;height:28px;background:${scoreColor};border-radius:6px;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700">${composite}</div><div style="font-size:12px;color:var(--text3)">置信度 ${confPct}%</div></div>`
+      : '—';
+
+    const badge = isCold
+      ? `<span class="badge badge-cold">❄️ 冷启动</span>`
+      : outlierRate >= 0.6
+        ? `<span class="badge badge-attention">⚠️ 注意</span>`
+        : outlierRate >= 0.4
+          ? `<span class="badge badge-focus">⚠️ 关注</span>`
+          : `<span class="badge badge-normal">✓ 已建模</span>`;
+
+    return `<tr onclick="openDrawer(${JSON.stringify(d).replace(/\"/g,'&quot;')})">
+      <td>
+        <div class="student-name">${esc(d.student_name)}</div>
+        <div class="student-meta">${esc(d.student_major||'')} · ${esc(d.student_grade||'')}</div>
+      </td>
+      <td>${badge}</td>
+      <td>${scoreHtml}</td>
+      <td class="alpha-cell" style="text-align:center;color:${alphaColor};font-weight:700">${alpha.toFixed(2)}</td>
+      <td>${meanDur}</td>
+      <td>${stdDur}</td>
+      <td>${d.record_count ?? 0}</td>
+      <td><span class="outlier-rate ${outlierClass}">${outlierPct}%</span></td>
+      <td>${wdChart}</td>
+      <td style="color:var(--text3);font-size:12px">${lastUp}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Weekday mini chart ─────────────────────────────────
+// ── Weekday mini chart（表格里的迷你柱状图）─────────────────────────────────
+function renderWeekdayMini(pattern) {
+  if (!pattern) return '<span style="color:var(--text3);font-size:11px">暂无</span>';
+  // key 是 "1"~"7"，1=周一 ... 7=周日，只显示周一到周五
+  const vals = ['1','2','3','4','5'].map(k => pattern[k] || 0);
+  const max  = Math.max(...vals, 1);
+  return `<div class="weekday-chart">` +
+    vals.map((v, i) => {
+      const h = Math.max(2, Math.round((v / max) * 26));
+      return `<div class="wd-bar" style="height:${h}px" title="${WEEKDAY_ZH[i]}: ${v}次"></div>`;
+    }).join('') +
+  `</div>`;
+}
+
+// ── Drawer 里的星期详情图 ──────────────────────────────────────────────────
+function openDrawer(d) {
+  document.getElementById('drawerName').textContent  = d.student_name || '—';
+  document.getElementById('drawerMeta').textContent  =
+    `${d.student_major || '未知专业'} · ${d.student_grade || '未知年级'} · 记录 ${d.record_count ?? 0} 条`;
+
+  // Stats grid
+  const alpha      = d.alpha ?? 0.8;
+  const alphaColor = alphaToColor(alpha);
+  const compositeVal = d.composite_score ?? null;
+  const compositeConf = Math.round((d.score_confidence||0) * 100);
+  const compositeColor = compositeVal !== null ? alphaToColor((compositeVal||0)/100) : 'var(--text2)';
+
+  document.getElementById('drawerStats').innerHTML = `
+    <div class="stat-item">
+      <div class="s-label">综合评分</div>
+      <div class="s-value" style="color:${compositeColor}">${compositeVal !== null ? compositeVal : '—'} <span style="font-size:12px;color:var(--text3);font-weight:600">${compositeVal!==null?('('+compositeConf+'%)'):''}</span></div>
+    </div>
+    <!-- 原始分 (raw) 在详情中不展示 -->
+    <div class="stat-item">
+      <div class="s-label">基线进步</div>
+      <div class="s-value" style="color:var(--accent2)">${d.baseline_score !== undefined && d.baseline_score !== null ? (Math.round(d.baseline_score*100)) : '—'}</div>
+    </div>
+    <div class="stat-item">
+      <div class="s-label">趋势</div>
+      <div class="s-value" style="color:var(--warn)">${d.trend_score !== undefined && d.trend_score !== null ? (Math.round(d.trend_score*100)) : '—'}</div>
+    </div>
+    <div class="stat-item">
+      <div class="s-label">势头</div>
+      <div class="s-value" style="color:var(--cold)">${d.momentum_score !== undefined && d.momentum_score !== null ? (Math.round(d.momentum_score*100)) : '—'}</div>
+    </div>
+    <div class="stat-item">
+      <div class="s-label">积累</div>
+      <div class="s-value" style="color:var(--text2)">${d.accum_score !== undefined && d.accum_score !== null ? (Math.round(d.accum_score*100)) : '—'}</div>
+    </div>
+    <div class="stat-item">
+      <div class="s-label">个人最高</div>
+      <div class="s-value" style="color:var(--text2)">${d.personal_best !== undefined && d.personal_best !== null ? d.personal_best : '—'}</div>
+    </div>
+    <div class="stat-item">
+      <div class="s-label">增长速度</div>
+      <div class="s-value" style="color:var(--text3)">${d.growth_velocity !== undefined && d.growth_velocity !== null ? d.growth_velocity.toFixed(3) : '—'}</div>
+    </div>
+    <div class="stat-item">
+      <div class="s-label">连续进步周数</div>
+      <div class="s-value" style="color:var(--text3)">${d.weeks_improving !== undefined && d.weeks_improving !== null ? d.weeks_improving : '—'}</div>
+    </div>
+    <div class="stat-item">
+      <div class="s-label">均值时长</div>
+      <div class="s-value" style="color:var(--text3)">${d.mean_duration !== undefined && d.mean_duration !== null ? (Number(d.mean_duration).toFixed(1) + ' 分钟') : '—'}</div>
+    </div>
+    <div class="stat-item">
+      <div class="s-label">标准差</div>
+      <div class="s-value" style="color:var(--text3)">${d.std_duration !== undefined && d.std_duration !== null ? (Number(d.std_duration).toFixed(1) + ' 分钟') : '—'}</div>
+    </div>
+    <div class="stat-item">
+      <div class="s-label">记录数</div>
+      <div class="s-value" style="color:var(--text3)">${d.record_count !== undefined && d.record_count !== null ? d.record_count : '—'}</div>
+    </div>
+    <div class="stat-item">
+      <div class="s-label">异常率</div>
+      <div class="s-value" style="color:${(d.outlier_rate||0) >= 0.6 ? 'var(--danger)' : (d.outlier_rate||0) >= 0.4 ? 'var(--focus)' : 'var(--accent2)'}">
+        ${((d.outlier_rate||0) * 100).toFixed(0)}%
+      </div>
+    </div>
+    <div class="stat-item">
+      <div class="s-label">数据置信度</div>
+      <div class="s-value" style="color:${(d.score_confidence||0) > 0.8 ? 'var(--accent2)' : (d.score_confidence||0) >= 0.4 ? 'var(--focus)' : 'var(--danger)'}">
+        ${((d.score_confidence||0) * 100).toFixed(0)}%
+      </div>
+    </div>
+    <div class="stat-item">
+      <div class="s-label">模型状态</div>
+      <div class="s-value" style="font-size:14px;color:${d.is_cold_start?'var(--cold)':'var(--accent2)'}">
+        ${d.is_cold_start ? '❄️ 冷启动' : '✓ 已建模'}
+      </div>
+    </div>
+  `;
+
+  // Weekday detail — key 用数字字符串 "1"~"7"
+  const pattern = d.weekday_pattern || {};
+  const keys    = ['1','2','3','4','5','6','7'];
+  const vals    = keys.map(k => pattern[k] || 0);
+  const max     = Math.max(...vals, 1);
+  document.getElementById('drawerWeekday').innerHTML = keys.map((k, i) => {
+    const v = vals[i];
+    const h = Math.max(4, Math.round((v / max) * 68));
+    return `<div class="wd-col">
+      <div class="wd-col-val">${v || '—'}</div>
+      <div class="wd-col-bar" style="height:${h}px"></div>
+      <div class="wd-col-label">${WEEKDAY_ZH[i]}</div>
+    </div>`;
+  }).join('');
+
+  // Alpha explain
+  const effectivePct = (alpha * 100).toFixed(0);
+  document.getElementById('drawerAlphaExplain').innerHTML =
+    `α = <strong style="color:${alphaColor}">${alpha.toFixed(3)}</strong>，
+    意味着该学生每次练琴记录中，约 <strong>${effectivePct}%</strong> 被计为有效练琴时间。<br><br>
+    α 由以下因素综合计算：<br>
+    · 准备时间修正（固定 −8%）<br>
+    · 时长分段修正（均值越长扣除越多）<br>
+    · 个人异常率修正（异常率 × −5%）<br>
+    ${d.is_cold_start ? '· <span style="color:var(--cold)">冷启动中：已混入同专业/年级群体均值</span>' : ''}
+    <br><br>
+    <span style="color:var(--text3);font-size:12px">最后更新：${d.last_updated ? new Date(d.last_updated).toLocaleString('zh-CN') : '—'}</span>`;
+
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('drawerOverlay').classList.add('open');
+}
+
+function closeDrawer() {
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('drawerOverlay').classList.remove('open');
+}
+
+// ── Helpers ────────────────────────────────────────────
+function alphaToColor(a) {
+  if (a >= 0.85) return '#5dd6a8';
+  if (a >= 0.75) return '#6c8ef5';
+  if (a >= 0.65) return '#f5a623';
+  return '#f56c6c';
+}
+
+function formatRelTime(ts) {
+  const diff = (Date.now() - new Date(ts)) / 1000;
+  if (diff < 60)   return '刚刚';
+  if (diff < 3600) return Math.floor(diff/60) + ' 分钟前';
+  if (diff < 86400)return Math.floor(diff/3600) + ' 小时前';
+  return Math.floor(diff/86400) + ' 天前';
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function showLoading() {
+  document.getElementById('tableBody').innerHTML = `<tr><td colspan="9">
+    <div class="state-box">
+      <div class="spinner"></div>
+      <p>正在加载数据...</p>
+    </div>
+  </td></tr>`;
+}
+
+// Help modal handlers
+function showHelp() {
+  document.getElementById('helpOverlay').style.display = 'block';
+  document.getElementById('helpBox').style.display = 'block';
+}
+function hideHelp() {
+  document.getElementById('helpOverlay').style.display = 'none';
+  document.getElementById('helpBox').style.display = 'none';
+}
+
+// Debug helper: find student by name and open drawer + log
+function showStudent(name) {
+  if (!allData || !allData.length) {
+    console.warn('数据尚未加载，请先点击 刷新');
+    return;
+  }
+  const found = allData.find(s => (s.student_name||'') === name);
+  if (!found) {
+    console.warn('未找到学生：', name);
+    alert('未在当前数据中找到：' + name);
+    return;
+  }
+  console.log('[DEBUG] student data for', name, found);
+  openDrawer(found);
+}
+
+function showEmpty(msg) {
+  document.getElementById('tableBody').innerHTML = `<tr><td colspan="9">
+    <div class="state-box">
+      <div class="icon">⚠️</div>
+      <p>${msg}</p>
+    </div>
+  </td></tr>`;
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorBanner');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+function hideError() {
+  document.getElementById('errorBanner').classList.remove('show');
+}
+
+// Keyboard shortcut: Esc closes drawer
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeDrawer();
+});
+</script>
+</body>
+</html>

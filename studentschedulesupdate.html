@@ -1,0 +1,2290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>青岛耶胡迪梅纽因学校-学生课表录入系统</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<style>
+/* ===== 主题变量 ===== */
+:root {
+  --primary-color:#007AFF;
+  --primary-hover:#0056CC;
+  --secondary-color:#5856D6;
+  --success-color:#34C759;
+  --warning-color:#FF9500;
+  --danger-color:#FF3B30;
+  --text-primary:#1D1D1F;
+  --text-secondary:#666;
+  --bg:#F2F2F7;
+  --white:#FFF;
+  --border:#D1D1D6;
+  --radius:12px;
+  --radius-sm:8px;
+  --shadow:0 4px 16px rgba(0,0,0,.12);
+  --transition:.25s cubic-bezier(.25,.46,.45,.94);
+  --practice-bg:#FFEBD6;
+  --practice-mix-bg:#FFD49F;
+  --rest-bg:#5f6368;
+}
+/* ===== 基础布局 ===== */
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Helvetica,Arial,sans-serif;
+  background:linear-gradient(135deg,#F2F2F7,#E5E5EA);
+  min-height:100vh;
+  padding:18px;
+  color:var(--text-primary);
+  line-height:1.5;
+}
+.container{
+  max-width:1500px;margin:0 auto;background:var(--white);
+  border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;
+  animation:fade .5s ease;
+}
+@keyframes fade{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+/* ===== 头部 ===== */
+.header{
+  background:linear-gradient(135deg,var(--primary-color),var(--secondary-color));
+  padding:40px 30px;color:#fff;position:relative;
+}
+.header:before{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(45deg,rgba(255,255,255,.15),rgba(255,255,255,.05));
+  pointer-events:none;
+}
+.header h1{font-size:2.2rem;margin-bottom:8px;font-weight:700;letter-spacing:-.02em;}
+.header p{opacity:.9;font-size:1rem}
+
+/* ===== 控件区 ===== */
+.controls{padding:26px 30px;border-bottom:1px solid var(--border);background:#fafafa}
+.control-row{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-bottom:16px;}
+.control-row:last-child{margin-bottom:0}
+.control-row label{font-weight:600;color:var(--text-primary);min-width:90px;font-size:.9rem}
+select,input[type=file]{
+  padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  font-size:.9rem;background:#fff;min-width:200px;transition:var(--transition)
+}
+select:focus,input[type=file]:focus{outline:none;border-color:var(--primary-color);box-shadow:0 0 0 3px rgba(0,122,255,.15)}
+input[type=file]::file-selector-button{
+  background:var(--primary-color);border:none;color:#fff;padding:6px 14px;border-radius:6px;
+  cursor:pointer;font-weight:600;transition:var(--transition)
+}
+input[type=file]::file-selector-button:hover{background:var(--primary-hover)}
+button{
+  padding:10px 18px;border:none;border-radius:var(--radius-sm);cursor:pointer;
+  font-size:.85rem;font-weight:600;color:#fff;background:var(--primary-color);
+  position:relative;overflow:hidden;transition:var(--transition)
+}
+button:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.15)}
+button:active{transform:translateY(0)}
+.btn-success{background:var(--success-color)}
+.btn-warning{background:var(--warning-color)}
+.btn-danger{background:var(--danger-color)}
+.btn-info{background:var(--secondary-color)}
+.note-box{
+  background:rgba(0,122,255,.08);border:1px solid rgba(0,122,255,.15);
+  padding:12px 14px;border-radius:10px;font-size:.8rem;color:var(--text-secondary);line-height:1.4
+}
+
+/* ===== 当前学生信息 ===== */
+.current-student{margin:24px 30px 0;padding:18px 24px;border:1px solid rgba(0,122,255,.15);
+  background:linear-gradient(135deg,rgba(0,122,255,.05),rgba(88,86,214,.05));border-radius:var(--radius);}
+.student-info{display:flex;flex-wrap:wrap;gap:28px;font-size:.9rem}
+.student-info span.value{font-weight:600;color:var(--primary-color)}
+
+/* ===== 课表 ===== */
+.schedule-wrapper{padding:24px 30px;overflow:auto;}
+table#schedule{border-collapse:separate;border-spacing:0;min-width:1100px;width:100%;font-size:.78rem;}
+#schedule th,#schedule td{
+  border:1px solid var(--border);padding:6px 4px;text-align:center;vertical-align:middle;
+  background:#fff;position:relative;transition:var(--transition);min-width:130px;
+  white-space:pre-wrap;line-height:1.2;
+}
+#schedule th{background:linear-gradient(135deg,#F0F4F8,#E4E9EF);font-weight:700;font-size:.75rem;color:#333;}
+#schedule th.time-col{background:linear-gradient(135deg,#E3F2FD,#BBDEFB);color:#1565C0}
+#schedule td.time-col{background:#F5F9FC;font-weight:600;color:#1565C0}
+
+.cell.practice-only{background:linear-gradient(135deg,#E8F5E8,#C8E6C9) !important;color:#1B5E20;font-weight:600}
+.cell.practice-mixed{background:linear-gradient(135deg,#FFE9D6,#FFC999) !important;color:#6D3B00;font-weight:600}
+.cell.rest{background:linear-gradient(135deg,#6C757D,#495057)!important;color:#fff;font-weight:600;cursor:not-allowed}
+.cell.major-course{background:linear-gradient(135deg,#E3F2FD,#BBDEFB) !important;color:#0D47A1;font-weight:600}
+.cell.selected-outline{box-shadow:0 0 0 2px var(--primary-color) inset}
+.cell:hover:not(.rest){background:#F0F8FF;cursor:pointer}
+.cell.hidden{visibility:hidden !important;pointer-events:none !important}
+
+.corner-badge{
+  position:absolute;top:2px;right:3px;font-size:.7rem;pointer-events:none;
+  background:rgba(0,0,0,.35);color:#fff;padding:1px 4px;border-radius:4px
+}
+.legend{display:flex;flex-wrap:wrap;gap:18px;margin:12px 30px 0;padding:10px 14px;
+  background:#fff;border:1px solid var(--border);border-radius:10px;font-size:.75rem;color:#555}
+.legend-item{display:flex;align-items:center;gap:6px}
+.legend-color{width:22px;height:18px;border-radius:4px;border:1px solid var(--border)}
+.lc-rest{background:#6C757D}
+.lc-pr{background:#E8F5E8}
+.lc-mix{background:#FFE9D6}
+.lc-def{background:#F0F8FF}
+
+/* ===== 通知 ===== */
+.notify{
+  position:fixed;top:20px;right:20px;padding:14px 18px;border-radius:10px;
+  color:#fff;font-size:.8rem;font-weight:600;z-index:9999;
+  box-shadow:0 8px 32px rgba(0,0,0,.2);transform:translateX(120%);
+  transition:var(--transition);max-width:300px;white-space:pre-wrap;
+}
+.notify.show{transform:translateX(0)}
+.notify-success{background:linear-gradient(135deg,#34C759,#30D158)}
+.notify-error{background:linear-gradient(135deg,#FF3B30,#FF453A)}
+.notify-warning{background:linear-gradient(135deg,#FF9500,#FF9F0A)}
+.notify-info{background:linear-gradient(135deg,#007AFF,#5856D6)}
+
+/* ===== 响应式 ===== */
+@media (max-width:920px){
+  table#schedule{min-width:900px}
+  .student-info{flex-direction:column;gap:8px}
+}
+@media (max-width:640px){
+  .controls{padding:18px}
+  .control-row{flex-direction:column;align-items:flex-start}
+  select,input[type=file],button{width:100%}
+  .legend{margin:10px 18px}
+  .schedule-wrapper{padding:18px}
+}
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>青岛耶胡迪梅纽因学校-学生课表录入系统</h1>
+      <p>自动解析原始多学生课表 Excel/CSV，精准匹配到交互课表</p>
+    </div>
+
+    <div class="controls">
+      <div class="control-row">
+        <label>导入文件</label>
+        <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" multiple />
+        <select id="importMode">
+          <option value="merge">叠加导入（默认）</option>
+          <option value="replace">清空替换</option>
+        </select>
+        <button class="btn-info" id="btnImport">开始解析</button>
+        <button class="btn-warning" id="btnClearAll">清空全部</button>
+        <span style="font-size:0.8rem;color:#666;margin-left:10px;">支持Excel(.xlsx/.xls)和CSV(.csv)格式</span>
+      </div>
+
+      <div class="control-row">
+        <label>视图模式</label>
+        <select id="viewMode">
+          <option value="student">学生课表</option>
+          <option value="teacher">老师课表</option>
+        </select>
+        <button class="btn-info" id="btnRefreshTeachers">刷新老师数据</button>
+        <!-- 快速首字母搜索 -->
+        <input id="quickInitial" placeholder="智能搜索 (支持中文/拼音/首字母)" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);min-width:220px;font-size:0.85rem" />
+      </div>
+
+      <div class="control-row" id="studentControls">
+        <label>学生选择</label>
+        <select id="studentSelect"><option value="">请选择学生</option></select>
+        <button id="btnPrev">上一个</button>
+        <button id="btnNext">下一个</button>
+        <button class="btn-danger" id="btnClearCurrent">清空当前练琴标记</button>
+        <label style="margin-left:8px;">过滤</label>
+        <select id="filterMode">
+          <option value="all">全部显示</option>
+          <option value="practice">仅练琴标记</option>
+          <option value="course">仅课程文字</option>
+        </select>
+      </div>
+
+      <div class="control-row" id="teacherControls" style="display:none;">
+        <label>老师选择</label>
+        <select id="teacherSelect"><option value="">请选择老师</option></select>
+        <button id="btnTeacherPrev">上一个</button>
+        <button id="btnTeacherNext">下一个</button>
+        <span style="margin-left:20px;color:var(--text-secondary);font-size:0.85rem;" id="teacherInfo"></span>
+      </div>
+
+      <div class="control-row">
+        <label>导出</label>
+        <select id="exportFormat">
+          <option value="excel">导出Excel</option>
+          <option value="csv">导出CSV</option>
+        </select>
+        <button class="btn-success" id="btnExportExcel">开始导出</button>
+      </div>
+
+      <div class="control-row" id="supabaseRow">
+        <label>云端同步</label>
+        <button class="btn-info" id="btnSupabaseConfig" title="配置 Supabase 连接信息">⚙ 配置 Supabase</button>
+        <button class="btn-success" id="btnSyncSchedules" title="将所有学生完整课表同步到 student_schedules">☁ 同步完整课表</button>
+        <button class="btn-success" id="btnSyncPractice" title="将所有学生练琴时间段同步到 student_time_slots" style="background:#16a34a;">🎹 同步练琴时段</button>
+        <span id="syncStatus" style="font-size:0.8rem;color:#666;margin-left:8px;"></span>
+      </div>
+
+      <!-- Supabase 配置弹窗 -->
+      <div id="supabaseModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:none;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:14px;padding:28px;width:480px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.2);">
+          <h3 style="margin-bottom:16px;font-size:1.1rem;">⚙ Supabase 连接配置</h3>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <div>
+              <label style="font-size:.85rem;font-weight:600;color:#444;display:block;margin-bottom:4px;">Project URL</label>
+              <input id="sbUrl" placeholder="https://xxxx.supabase.co" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:.9rem;" />
+            </div>
+            <div>
+              <label style="font-size:.85rem;font-weight:600;color:#444;display:block;margin-bottom:4px;">anon public Key</label>
+              <input id="sbKey" placeholder="eyJhbGci..." type="password" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:.9rem;" />
+            </div>
+            <div>
+              <label style="font-size:.85rem;font-weight:600;color:#444;display:block;margin-bottom:4px;">数据表名称（默认 student_schedules）</label>
+              <input id="sbTable" value="student_schedules" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:.9rem;" />
+            </div>
+            <div style="font-size:.78rem;color:#888;background:#f5f5f5;padding:10px;border-radius:8px;line-height:1.6;">
+              在 Supabase 控制台 → Settings → API 中获取以上信息。<br>
+              配置保存在本地浏览器中，不会上传。
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px;">
+              <button onclick="document.getElementById('supabaseModal').style.display='none'" style="padding:9px 18px;background:#eee;color:#333;border:none;border-radius:8px;cursor:pointer;font-weight:600;">取消</button>
+              <button onclick="saveSupabaseConfig()" style="padding:9px 18px;background:#007AFF;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">保存配置</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="note-box">
+        功能说明：<br>
+        • 可一次导入多个 Excel 或 CSV 文件；<br>
+        • 系统会自动识别学生并生成对应课表；<br>
+        • 支持普通课表和时间段表两种导入格式；<br>
+        • 可点击或拖拽，批量标记练琴时间；<br>
+        • 可按学生或老师快速查看课表；<br>
+        • 支持中文、拼音首字母搜索，并可导出 Excel / CSV。
+      </div>
+    </div>
+
+    <div class="current-student" id="currentStudent" style="display:none;">
+      <div class="student-info">
+        <div>姓名：<span class="value" id="infoName"></span></div>
+        <div>年级：<span class="value" id="infoGrade"></span></div>
+        <div>专业/备注：<span class="value" id="infoMajor"></span></div>
+        <div>练琴标记段数：<span class="value" id="infoPracticeCount">0</span></div>
+      </div>
+    </div>
+
+    <div class="current-student" id="currentTeacher" style="display:none;">
+      <div class="student-info">
+        <div>老师姓名：<span class="value" id="teacherName"></span></div>
+        <div>教授课程：<span class="value" id="teacherCourses"></span></div>
+        <div>学生数量：<span class="value" id="teacherStudentCount">0</span></div>
+        <div>总课时数：<span class="value" id="teacherTotalHours">0</span></div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><span class="legend-color lc-def"></span>可点击时段</div>
+      <div class="legend-item"><span class="legend-color lc-pr"></span>练琴</div>
+      <div class="legend-item"><span class="legend-color lc-mix"></span>练琴+文字</div>
+      <div class="legend-item"><span class="legend-color" style="background:#E3F2FD"></span>主修课</div>
+      <div class="legend-item"><span class="legend-color lc-rest"></span>休息/午餐等</div>
+    </div>
+
+    <div class="schedule-wrapper">
+      <table id="schedule">
+        <thead><tr id="theadRow"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+/* ================= 数据模型与全局状态 ================= */
+const state = {
+  students: [],            // [{id,name,grade,major, cells:{ [slotKey]: {day,time,text,practice,rest}}}]
+  // slotKey: timeRange string e.g. "08:00-08:45"
+  timeAxis: [],            // 动态或固定时间段数组
+  dayNames: ['周一','周二','周三','周四','周五'],
+  currentIndex: -1,
+  filterMode: 'all',
+  viewMode: 'student',     // 'student' 或 'teacher'
+  teachers: [],            // [{name, courses, students: [{student, schedule}]}]
+  currentTeacherIndex: -1
+};
+
+// 固定普通日与周三特殊时间段
+const NORMAL_SLOTS=[
+  '08:00-08:50','09:00-09:50','10:00-10:50','11:00-11:50','11:50-13:00',
+  '13:00-13:50','14:00-14:50','14:50-15:10','15:10-16:00','16:10-17:00','17:10-18:00'
+];
+const WED_SLOTS=[
+  '08:00-08:50','09:00-09:50','10:00-10:50','11:00-11:50','11:50-13:20',
+  '13:30-14:20','14:30-15:20','15:20-15:40','15:40-16:30','16:40-17:30','17:40-18:30'
+];
+if(state.timeAxis.length===0){ state.timeAxis=[...NORMAL_SLOTS]; }
+
+/* ================= 拼音映射（完整版） ================= */
+const pinyinMap={'靳':'jin','蓝':'lan','熙':'xi','邓':'deng','涵':'han','周':'zhou','静':'jing','远':'yuan','冯':'feng','瑞':'rui','夕':'xi','吕':'lv','金':'jin','昂':'ang','徐':'xu','涬':'shuang','宸':'chen','窦':'dou','璟':'jing','华':'hua','林':'lin','晏':'yan','熹':'xi','段':'duan','鉴':'jian','叶':'ye','蔚':'wei','刘':'liu','泽':'ze','文':'wen','潘':'pan','瑾':'jin','熠':'yi','李':'li','博':'bo','恩':'en','王':'wang','奕':'yi','然':'ran','韩':'han','昀':'yun','桦':'hua','孔':'kong','璇':'xuan','臧':'zang','昱':'yu','棋':'qi','蔺':'lin','轩':'xuan','宋':'song','梓':'zi','暄':'xuan','田':'tian','子':'zi','萱':'xuan','张':'zhang','依':'yi','陈':'chen','思':'si','彤':'tong','杨':'yang','雨':'yu','桐':'tong','赵':'zhao','欣':'xin','怡':'yi','马':'ma','晨':'chen','曦':'xi','高':'gao','梦':'meng','琪':'qi','郑':'zheng','诗':'shi','吴':'wu','佳':'jia','何':'he','朱':'zhu','心':'xin','语':'yu','胡':'hu','若':'ruo','汐':'xi','许':'xu','瑶':'yao','罗':'luo','雅':'ya','钟':'zhong','嫣':'yan','谢':'xie','苏':'su','琳':'lin','江':'jiang','孙':'sun','袁':'yuan','汪':'wang','曹':'cao','姚':'yao','沈':'shen','卢':'lu','韦':'wei','董':'dong','傅':'fu','程':'cheng','丁':'ding','石':'shi','任':'ren','邹':'zou','龙':'long','史':'shi','方':'fang','夏':'xia','侯':'hou','邱':'qiu','尹':'yin','黎':'li','汤':'tang','易':'yi','常':'chang','武':'wu','乔':'qiao','贺':'he','赖':'lai','龚':'gong','庞':'pang','樊':'fan','兰':'lan','殷':'yin','施':'shi','陶':'tao','翁':'weng','安':'an','倪':'ni','严':'yan','牛':'niu','温':'wen','芦':'lu','季':'ji','俞':'yu','章':'zhang','鲁':'lu','葛':'ge','伍':'wu','申':'shen','尤':'you','毕':'bi','聂':'nie','丛':'cong','焦':'jiao','向':'xiang','柯':'ke','岳':'yue','湘':'xiang','悦':'yue','玮':'wei','管':'guan','哲':'zhe','婷':'ting','释':'shi','言':'yan','祝':'zhu','宝':'bao','彭':'peng','美':'mei','淇':'qi','康':'kang','群':'qun','耿':'geng','幄':'wo','千':'qian','瑜':'yu','又':'you','雯':'wen','俊':'jun','杰':'jie','劲':'jin','豪':'hao','笙':'sheng','权':'quan','薛':'xue','宜':'yi','陆':'lu','曜':'yao','嶙':'lin','馨':'xin','裕':'yu','昕':'xin','沐':'mu','唐':'tang','君':'jun','盛':'sheng','硕':'shuo','晗':'han','如':'ru','牧':'mu','风':'feng','晞':'xi','伊':'yi','清':'qing','妃':'fei','月':'yue','祺':'qi','蒲':'pu','柏':'bai','羽':'yu','冠':'guan','成':'cheng','颜':'yan','亦':'yi','沅':'yuan','承':'cheng','秦':'qin','铂':'bo','筵':'yan','慧':'hui','作':'zuo','翰':'han','上':'shang','之':'zhi','路':'lu','瓒':'zan','著':'zhu','睿':'rui','籽':'zi','丞':'cheng','妍':'yan','栩':'xu','乐':'le','逸':'yi','诚':'cheng','钰':'yu','洁':'jie','媛':'yuan','鋆':'yun','谨':'jin','畅':'chang','茹':'ru','沂':'yi','婉':'wan','荷':'he','洋':'yang','明':'ming','多':'duo','郗':'xi','传':'chuan','平':'ping','世':'shi','元':'yuan','汇':'hui','沙':'sha','皓':'hao','家':'jia','楠':'nan','官':'guan','柘':'zhe','希':'xi','溥':'pu','尚':'shang','凌':'ling','翾':'xuan','姜':'jiang','煊':'xuan','琬':'wan','迪':'di','昍':'xuan','沁':'qin','祎':'yi','珈':'jia','政':'zheng','阳':'yang','以':'yi','骞':'qian','乙':'yi','铮':'zheng','商':'shang','天':'tian','赐':'ci','晟':'sheng','峰':'feng','邵':'shao','颢':'hao','浩':'hao','余':'yu','浡':'bo','瀚':'han','峻':'jun','于':'yu','钲':'zheng','埼':'qi','苏':'su','彦':'yan','炳':'bing','岐':'qi','璠':'fan','白':'bai','咏':'yong','玎':'ding','庄':'zhuang','笛':'di','薪':'xin','米':'mi','琪':'qi','存':'cun','和':'he','笑':'xiao','欧':'ou','翰':'han','喆':'zhe','庭':'ting','彰':'zhang','邰':'tai','蔡':'cai','屹':'yi','潆':'ying','潞':'lu','修':'xiu','冉':'ran','光':'guang','翼':'yi','珺':'jun','闻':'wen','治':'zhi','玥':'yue','婧':'jing','婍':'qi','植':'zhi','寅':'yin','井':'jing','溪':'xi','紫':'zi','航':'hang','显':'xian','翔':'xiang','景':'jing','园':'yuan','羿':'yi','达':'da','正':'zheng','潼':'tong','嘉':'jia','崚':'ling','汉':'han','冼':'xian','昊':'hao','敬':'jing','尔':'er','卓':'zhuo','帅':'shuai','志':'zhi','可':'ke','钧':'jun','鉴':'jian','笙':'sheng','权':'quan','显':'xian','翔':'xiang','晏':'yan','熹':'xi','释':'shi','言':'yan','森':'sen','贤':'xian','柳':'liu','恩':'en','奕':'yi','潼':'tong','嘉':'jia','怡':'yi','金':'jin','昂':'ang','瑾':'jin','熠':'yi','美':'mei','淇':'qi','千':'qian','瑜':'yu','子':'zi','轩':'xuan','志':'zhi','昊':'hao','萱':'xuan','申':'shen','崚':'ling','梓':'zi','康':'kang','岳':'yue','汉':'han','昊':'hao','熹':'xi','又':'you','安':'an','涬':'shuang','宸':'chen','宜':'yi','艺':'yi','卓':'zhuo','然':'ran','蔚':'wei','蓝':'lan','敬':'jing','轩':'xuan','昱':'yu','棋':'qi','尔':'er','涵':'han','雯':'wen','婷':'ting','卓':'zhuo','群':'qun','子':'zi','帅':'shuai','子':'zi','依':'yi','博':'bo','玮':'wei','欣':'xin','怡':'yi','静':'jing','远':'yuan','宝':'bao','怡':'yi','常':'chang','欣':'xin','洋':'yang','婉':'wan','茹':'ru','明':'ming','多':'duo','杰':'jie','欣':'xin','荷':'he','千':'qian','皓':'hao','汇':'hui','泽':'ze','传':'chuan','平':'ping','世':'shi','元':'yuan','冠':'guan','源':'yuan','米':'mi','琪':'qi','单':'dan','若':'ruo','溪':'xi','恩':'en','和':'he','金':'jin','黄':'huang','可':'ke','欣':'xin','孔':'kong','梓':'zi','语':'yu','存':'cun','浩':'hao','嘉':'jia','荷':'he','雨':'yu','笛':'di','子':'zi','轩':'xuan','薪':'xin','瑜':'yu','梓':'zi','宸':'chen','承':'cheng','熹':'xi','子':'zi','墨':'mo','塘':'tang','欣':'xin','妍':'yan','笑':'xiao','欧':'ou','祎':'yi','玥':'yue','婧':'jing','婍':'qi','植':'zhi','元':'yuan','浩':'hao','元':'yuan','梓':'zi','寅':'yin','依':'yi','诺':'nuo','钧':'jun','屹':'yi','博':'bo','闻':'wen','庭':'ting','彰':'zhang','潆':'ying','潞':'lu','熠':'yi','宸':'chen','天':'tian','翼':'yi','治':'zhi','钧':'jun','林':'lin','熠':'yi','梓':'zi','峰':'feng','修':'xiu','冉':'ran','珺':'jun','翰':'han','喆':'zhe','米':'mi','阳':'yang','光':'guang','栩':'xu','乐':'le','安':'an','慧':'hui','冠':'guan','华':'hua','若':'ruo','昕':'xin','雨':'yu','熙':'xi','金':'jin','沂':'yi','以':'yi','诺':'nuo','钰':'yu','沐':'mu','曦':'xi','牧':'mu','风':'feng','欣':'xin','妍':'yan','沅':'yuan','承':'cheng','籽':'zi','丞':'cheng','谨':'jin','畅':'chang','作':'zuo','翰':'han','文':'wen','盛':'sheng','路':'lu','雨':'yu','瓒':'zan','亦':'yi','宸':'chen','逸':'yi','诚':'cheng','子':'zi','清':'qing','柏':'bai','羽':'yu','铂':'bo','筵':'yan','曜':'yao','嶙':'lin','轩':'xuan','子':'zi','茹':'ru','嘉':'jia','君':'jun','洁':'jie','媛':'yuan','月':'yue','祺':'qi','淇':'qi','晗':'han','如':'ru','上':'shang','恩':'en','雅':'ya','晞':'xi','一':'yi','妃':'fei','怡':'yi','文':'wen','魏':'wei','伊':'yi','萱':'xuan','易':'yi','成':'cheng','晟':'sheng','嘉':'jia','家':'jia','硕':'shuo','佳':'jia','馨':'xin','语':'yu','著':'zhu','睿':'rui','诗':'shi','悦':'yue','依':'yi','宸':'chen','子':'zi','鋆':'yun','涵':'han','之':'zhi','裕':'yu','达':'da'};
+
+/* ================= 智能拼音搜索功能 ================= */
+function matchPinyin(name, searchTerm) {
+  if (!searchTerm) return true;
+  const searchLower = searchTerm.toLowerCase().trim();
+  const nameLower = name.toLowerCase();
+  
+  // 直接匹配中文
+  if (nameLower.includes(searchLower)) return true;
+  
+  // 🔥 新增：处理空格分隔的多关键词搜索
+  const keywords = searchLower.split(/\s+/).filter(k => k.length > 0);
+  if (keywords.length > 1) {
+    return matchMultipleKeywords(name, keywords);
+  }
+  
+  // 单关键词的原有逻辑
+  const nameChars = name.split('');
+  const firstLetters = nameChars.map(char => {
+    const py = pinyinMap[char];
+    return py ? py.charAt(0) : char.toLowerCase();
+  });
+  
+  // 如果搜索词只有一个字母，只匹配第一个字的首字母
+  if (searchLower.length === 1) {
+    return firstLetters[0] === searchLower;
+  }
+  
+  // 多字母搜索时的连续首字母匹配
+  const firstLettersStr = firstLetters.join('');
+  
+  // 1. 完整的首字母匹配（如 "彭美岐" -> "pmq"）
+  if (firstLettersStr === searchLower) return true;
+  
+  // 2. 从开头开始的部分匹配（如 "彭美岐" -> "pm"）
+  if (firstLettersStr.startsWith(searchLower)) return true;
+  
+  // 3. 连续子串匹配（如 "彭美岐" -> "mq" 匹配 "美岐"）
+  if (searchLower.length >= 2 && firstLettersStr.includes(searchLower)) return true;
+  
+  // 4. 全拼音匹配（如果有 toPinyin 函数）
+  if (typeof toPinyin === 'function') {
+    const pinyin = toPinyin(name).toLowerCase();
+    if (pinyin.includes(searchLower)) return true;
+  }
+  
+  return false;
+}
+
+// 🔥 更新：多关键词匹配函数（完整版）
+function matchMultipleKeywords(name, keywords) {
+  const nameLower = name.toLowerCase();
+  const nameChars = name.split('');
+  const firstLetters = nameChars.map(char => {
+    const py = pinyinMap[char];
+    return py ? py.charAt(0) : char.toLowerCase();
+  });
+  const firstLettersStr = firstLetters.join('');
+  
+  // 方案1：每个关键词都必须单独匹配（AND 逻辑）
+  const allMatch = keywords.every(keyword => {
+    // 1. 直接中文匹配
+    if (nameLower.includes(keyword)) return true;
+    
+    // 2. 单字母首字母匹配
+    if (keyword.length === 1) {
+      return firstLetters.includes(keyword);
+    }
+    
+    // 3. 多字母连续匹配
+    if (keyword.length >= 2) {
+      return firstLettersStr.includes(keyword);
+    }
+    
+    return false;
+  });
+  
+  if (allMatch) return true;
+  
+  // 方案2：智能首字母组合匹配
+  // 例如：["p", "m"] 匹配 "彭美岐" 的连续首字母 "pm"
+  const isAllSingleLetters = keywords.every(k => k.length === 1);
+  if (isAllSingleLetters) {
+    return matchSmartKeywords(name, keywords);
+  }
+  
+  // 方案3：组合关键词匹配
+  // 例如：["p", "mei"] 匹配 "彭美岐" 的 "p" + "美"
+  return matchCombinedKeywords(name, keywords, firstLetters, nameLower);
+}
+
+// 🔥 新增：组合关键词匹配
+function matchCombinedKeywords(name, keywords, firstLetters, nameLower) {
+  // 尝试不同的匹配组合
+  for (let i = 0; i < keywords.length; i++) {
+    const keyword = keywords[i];
+    let matched = false;
+    
+    // 检查当前关键词是否能匹配
+    if (keyword.length === 1) {
+      // 单字母：检查首字母
+      matched = firstLetters.includes(keyword);
+    } else {
+      // 多字母：检查中文或拼音
+      matched = nameLower.includes(keyword) || 
+                firstLetters.join('').includes(keyword);
+    }
+    
+    if (!matched) return false;
+  }
+  
+  return true;
+}
+
+// 🔥 新增：智能关键词匹配（支持首字母组合）
+function matchSmartKeywords(name, keywords) {
+  const nameChars = name.split('');
+  const firstLetters = nameChars.map(char => {
+    const py = pinyinMap[char];
+    return py ? py.charAt(0) : char.toLowerCase();
+  });
+  
+  // 尝试将关键词组合匹配到连续的首字母
+  // 例如：["p", "m"] 匹配 "彭美岐" 的 "p" 和 "m"
+  if (keywords.length <= nameChars.length) {
+    // 检查是否存在连续的首字母匹配
+    for (let i = 0; i <= firstLetters.length - keywords.length; i++) {
+      let match = true;
+      for (let j = 0; j < keywords.length; j++) {
+        if (firstLetters[i + j] !== keywords[j]) {
+          match = false;
+          break;
+        }
+      }
+      if (match) return true;
+    }
+    
+    // 🔥 关键改进：支持非连续但按顺序的首字母匹配
+    // 例如：["p", "q"] 可以匹配 "彭美岐" 的 "p"(彭) 和 "q"(岐)
+    let keywordIndex = 0;
+    for (let i = 0; i < firstLetters.length && keywordIndex < keywords.length; i++) {
+      if (firstLetters[i] === keywords[keywordIndex]) {
+        keywordIndex++;
+      }
+    }
+    if (keywordIndex === keywords.length) return true;
+  }
+  
+  return false;
+}
+
+// 解析时间字符串为分钟
+function toMinutes(hm){ const [h,m]=hm.split(':').map(Number); return h*60+m; }
+function parseRange(r){ const [a,b]=r.split('-'); return {s:toMinutes(a),e:toMinutes(b)}; }
+
+// 将任意范围映射到固定索引（最大重叠，返回 -1 表示失败）
+function mapToSlotIndex(raw){
+  const norm=normalizeTimeRange(raw);
+  if(!norm) return -1;
+  const {s:rs,e:re}=parseRange(norm);
+  let best=-1,bestScore=-1,bestMeta=null;
+  NORMAL_SLOTS.forEach((slot,i)=>{
+    const {s,e}=parseRange(slot);
+    const overlap=Math.max(0,Math.min(re,e)-Math.max(rs,s));
+    if(overlap<=0) return;
+    let score=overlap*1000;
+    const startAlign = (rs===s); const endAlign=(re===e);
+    if(startAlign) score+=500;
+    if(endAlign) score+=200;
+    if(startAlign && endAlign) score+=300;
+    const startGap=Math.abs(rs-s);
+    // 记录 tie-break 信息
+    if(score>bestScore || (score===bestScore && bestMeta && startGap<bestMeta.startGap)){
+      bestScore=score; best=i; bestMeta={startGap,overlap};
+    }
+  });
+  if(best===-1){
+    console.warn('[MapWarn] 无法映射时间段', raw);
+  } else {
+    console.warn('[MapInfo]', raw,'->', NORMAL_SLOTS[best]);
+  }
+  return best;
+}
+
+// 休息 / 不可选关键词
+const REST_KEYWORDS = ['课间操','Coffee Time','午餐','Lunch','午间音乐会','晚餐','Dinner','间点','休息'];
+
+// 练琴关键词
+const PRACTICE_KEYWORDS = ['练琴','practice session','practice','练习','个人练习'];
+
+// 主修课关键词 (乐器/专业课程)
+const MAJOR_COURSE_KEYWORDS = [
+  // 钢琴相关
+  '钢琴', 'piano', '钢琴课', '钢琴个课', '钢琴小课', '钢琴大课',
+  // 小提琴相关  
+  '小提琴', 'violin', '小提琴课', '小提琴个课', '小提琴小课', '小提琴大课',
+  // 大提琴相关
+  '大提琴', 'cello', '大提琴课', '大提琴个课', '大提琴小课', '大提琴大课',
+  // 其他弦乐
+  '中提琴', 'viola', '低音提琴', 'double bass', '竖琴', 'harp', '吉他', 'guitar',
+  // 中国民族弦乐
+  '古筝', '二胡', '琵琶', '古琴', '扬琴', '中阮', '柳琴', '三弦',
+  // 管乐
+  '长笛', 'flute', '单簧管', 'clarinet', '双簧管', 'oboe', '大管', 'bassoon',
+  '萨克斯', 'saxophone', '小号', 'trumpet', '圆号', 'horn', '长号', 'trombone', '大号', 'tuba',
+  // 中国民族管乐
+  '笛子', '箫', '唢呐', '葫芦丝', '巴乌',
+  // 打击乐
+  '打击乐', 'percussion', '架子鼓', 'drum', '马林巴', 'marimba', '定音鼓', 'timpani',
+  // 键盘乐器
+  '手风琴', '电子琴', '管风琴',
+  // 声乐
+  '声乐', 'vocal', '美声', '民族', '流行', '合唱', 'choir', '歌唱',
+  // 作曲理论
+  '作曲', 'composition', '和声', 'harmony', '复调', 'counterpoint', '曲式', 'analysis',
+  '视唱练耳', 'solfege', '乐理', 'theory', '音乐史', 'history', '配器', '指挥'
+  , '主修课', '主修', 'major', '1to1 major', '1to1'
+];
+
+// 老师姓名关键词 (常见老师称谓)
+const TEACHER_KEYWORDS = [
+  '老师', 'teacher', '教授', 'professor', '讲师', 'lecturer', '导师', 'mentor'
+];
+
+/* ================== 工具函数 =================== */
+
+// 规范化时间范围（08:00-08:45）并返回对象
+function normalizeTimeRange(raw){
+  if(!raw) return null;
+  let s = (''+raw).replace(/：/g,':').trim();
+  
+  // 处理单独的时间（如"08:00"），尝试推断结束时间
+  if(/^\d{1,2}:\d{2}$/.test(s)) {
+    const [h, m] = s.split(':').map(Number);
+    const endH = h;
+    const endM = m + 50; // 默认50分钟课程
+    if (endM >= 60) {
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}-${String(endH + 1).padStart(2,'0')}:${String(endM - 60).padStart(2,'0')}`;
+    } else {
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}-${String(endH).padStart(2,'0')}:${String(endM).padStart(2,'0')}`;
+    }
+  }
+  
+  // 可能包含换行，如 "练琴\nPractice Session" -> 实际时间在第一列已给出，不在 cell text
+  // 我们只在第一列取时间，不做多余拆分
+  // 标准匹配
+  let m = s.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
+  if(!m) return null;
+  const pad = t => {
+    let [h,mi] = t.split(':').map(n=>parseInt(n,10));
+    return `${String(h).padStart(2,'0')}:${String(mi).padStart(2,'0')}`;
+  };
+  let start = pad(m[1]), end = pad(m[2]);
+  return `${start}-${end}`;
+}
+
+// 比较开始时间排序
+function timeSorter(a,b){
+  const getStart = t => parseInt(t.slice(0,2))*60+parseInt(t.slice(3,5));
+  return getStart(a)-getStart(b);
+}
+
+// 判断是否休息/午餐
+function isRestText(txt){
+  if(!txt) return false;
+  const low = txt.toLowerCase();
+  return REST_KEYWORDS.some(k=> low.includes(k.toLowerCase()));
+}
+
+// 判断是否练琴
+function isPracticeText(txt){
+  if(!txt) return false;
+  const low = txt.toLowerCase();
+  return PRACTICE_KEYWORDS.some(k=> low.includes(k.toLowerCase()));
+}
+
+// 判断是否主修课
+function isMajorCourse(txt){
+  if(!txt) return false;
+  const low = txt.toLowerCase();
+  return MAJOR_COURSE_KEYWORDS.some(k=> low.includes(k.toLowerCase()));
+}
+
+// 提取老师姓名 (统一版本，多分隔符鲁棒识别)
+function extractTeacherName(txt){
+  if(!txt) return null;
+  const raw = String(txt);
+  // 拆多行，逐行尝试（截图显示为多行：主修课-姓名 / 1to1 Major -Name / 时间）
+  const lines = raw.split(/\n+/).map(l=>l.trim()).filter(Boolean);
+
+  // 内部尝试函数（返回 null 或 姓名）
+  function attempt(line){
+    if(!line) return null;
+    let text = line.replace(/\s+/g,' ').trim();
+    if(!text) return null;
+
+    // 直接匹配用户给的主要格式: 主修课-王博扬 / 主修-张三
+    let m = text.match(/^(主修课|主修)\s*[-–—－:：|\/]\s*([一-龯]{2,6})$/);
+    if(m){ return m[2]; }
+
+    // 英文行: 1to1 Major -Wang boyang  (只取中文优先；若无中文再取英文首词)
+    // 先保证它包含 1to1 或 major
+    if(/1to1/i.test(text) || /major/i.test(text)){
+      // Pattern: 1to1 Major -Wang boyang
+      let en = text.match(/1to1\s*major\s*[-–—－:：|\/]\s*([A-Za-z]+)(?:\s+[A-Za-z]+)?/i);
+      if(en){ return en[1]; }
+    }
+
+    // 通用分隔符: 课程 / 主修关键词 在左 + 中文姓名在右
+    const sepRegex = /\s*[-–—－:：|\/]\s*/;
+    const segParts = text.split(sepRegex);
+    if(segParts.length === 2){
+      const left = segParts[0].trim();
+      const right = segParts[1].trim();
+      if(isMajorCourse(left) && /^[一-龯]{2,6}$/.test(right)) { return right; }
+      if(/^[一-龯]{2,6}$/.test(left) && isMajorCourse(right)) { return left; }
+    }
+
+    // 课程+空格+姓名
+    for(const k of MAJOR_COURSE_KEYWORDS){
+      const re1 = new RegExp(`${k}\\s*([一-龯]{2,6})$`,'i');
+      m = text.match(re1); if(m){ return m[1]; }
+    }
+    // 课程紧贴姓名
+    for(const k of MAJOR_COURSE_KEYWORDS){
+      const re2 = new RegExp(`${k}([一-龯]{2,6})$`,'i');
+      m = text.match(re2); if(m){ return m[1]; }
+    }
+    // 姓名+课程
+    let m3 = text.match(/^([一-龯]{2,6})\s*(.+)$/); if(m3 && isMajorCourse(m3[2])) { return m3[1]; }
+    // 括号
+    for(const k of MAJOR_COURSE_KEYWORDS){
+      const re3 = new RegExp(`${k}[课]?\s*[\(（]([一-龯]{2,6})[\)）]`,'i');
+      m = text.match(re3); if(m){ return m[1]; }
+    }
+    // 称谓
+    let m4 = text.match(/([一-龯]{2,6})(老师|教授|讲师|导师)/); if(m4){ return m4[1]; }
+    return null;
+  }
+
+  // 逐行优先（中文行优先）
+  const chineseLineFirst = [...lines].sort((a,b)=>(/[一-龯]/.test(b)?1:0)-(/[一-龯]/.test(a)?1:0));
+  for(const line of chineseLineFirst){
+    const r = attempt(line);
+    if(r) return r;
+  }
+
+  // 退回：把全部行合并再试一次
+  const merged = lines.join(' ');
+  const r2 = attempt(merged);
+  if(r2) return r2;
+  return null;
+}
+
+// 提取课程类型
+function extractCourseType(txt){
+  if(!txt) return null;
+  const low = txt.toLowerCase();
+  
+  for(const keyword of MAJOR_COURSE_KEYWORDS){
+    if(low.includes(keyword.toLowerCase())){
+      return keyword;
+    }
+  }
+  return null;
+}
+
+// 去除全空行
+function rowIsBlank(arr){
+  if(!arr) return true;
+  return arr.every(c => (c===null || c===undefined || String(c).trim()===''));
+}
+
+// 通知
+function notify(msg,type='info',timeout=2800){
+  const div=document.createElement('div');
+  div.className=`notify notify-${type}`;
+  div.textContent=msg;
+  document.body.appendChild(div);
+  setTimeout(()=>div.classList.add('show'),20);
+  setTimeout(()=>{
+    div.classList.remove('show');
+    setTimeout(()=>div.remove(),300);
+  },timeout);
+}
+
+// 保存到本地
+function saveLocal(){
+  const toStore = JSON.stringify({
+    students: state.students,
+    timeAxis: state.timeAxis,
+    teachers: state.teachers
+  });
+  localStorage.setItem('schedule_refactor_v1', toStore);
+}
+
+// 读取本地
+function loadLocal(){
+  const raw = localStorage.getItem('schedule_refactor_v1');
+  if(!raw) return;
+  try{
+    const parsed = JSON.parse(raw);
+    if(parsed && parsed.students){
+      state.students = parsed.students;
+      state.timeAxis = parsed.timeAxis || [];
+      state.teachers = parsed.teachers || [];
+      rebuildTableHead();
+    }
+  }catch(e){ console.warn('本地数据读取失败',e); }
+}
+
+// 构建老师课表数据
+function buildTeacherSchedules(){
+  const teachersMap = new Map();
+  
+  console.log('开始构建老师课表，学生数量:', state.students.length);
+  
+  // 遍历所有学生的课程
+  state.students.forEach(student => {
+    console.log(`检查学生: ${student.name}, 课程数量:`, Object.keys(student.cells).length);
+    
+    Object.values(student.cells).forEach(cell => {
+      if(!cell.text || cell.practice || cell.rest) return;
+      
+      // 检查是否是主修课 - 优先使用已标记的majorCourse字段
+      const isMajor = cell.majorCourse || isMajorCourse(cell.text);
+      if(isMajor){
+        console.log(`发现主修课: "${cell.text}"`);
+        
+        const teacherName = extractTeacherName(cell.text);
+        const courseType = extractCourseType(cell.text);
+        
+        console.log(`  老师识别结果: ${teacherName || '未识别'}`);
+        console.log(`  课程类型: ${courseType || '未识别'}`);
+        
+        if(teacherName){
+          if(!teachersMap.has(teacherName)){
+            teachersMap.set(teacherName, {
+              name: teacherName,
+              courses: new Set(),
+              students: []
+            });
+            console.log(`  新增老师: ${teacherName}`);
+          }
+          
+          const teacher = teachersMap.get(teacherName);
+          if(courseType) teacher.courses.add(courseType);
+          
+          // 检查学生是否已存在
+          let studentEntry = teacher.students.find(s => s.student.id === student.id);
+          if(!studentEntry){
+            studentEntry = {
+              student: student,
+              schedule: []
+            };
+            teacher.students.push(studentEntry);
+          }
+          
+          // 添加课程时间
+          studentEntry.schedule.push({
+            slotIndex: cell.slotIndex,
+            day: cell.day,
+            time: cell.time,
+            text: cell.text,
+            courseType: courseType
+          });
+        }
+      }
+    });
+  });
+  
+  // 转换为数组并排序
+  state.teachers = Array.from(teachersMap.values()).map(teacher => ({
+    ...teacher,
+    courses: Array.from(teacher.courses)
+  })).sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+  
+  console.log('构建老师课表完成:', state.teachers.length, '位老师');
+  if(state.teachers.length > 0){
+    console.log('识别的老师列表:', state.teachers.map(t => `${t.name}(${t.courses.join('/')}, ${t.students.length}人)`));
+  }
+}
+
+/* ================== CSV 解析功能 =================== */
+
+/**
+ * 解析CSV文件内容
+ * 支持常见的CSV格式：逗号分隔、引号包围、转义等
+ */
+function parseCSV(csvText) {
+  const rows = [];
+  const lines = csvText.split(/\r?\n/);
+  
+  for (let line of lines) {
+    if (!line.trim()) continue;
+    
+    const row = [];
+    let current = '';
+    let inQuotes = false;
+    let i = 0;
+    
+    while (i < line.length) {
+      const char = line[i];
+      
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          // 转义的引号
+          current += '"';
+          i += 2;
+        } else {
+          // 开始或结束引号
+          inQuotes = !inQuotes;
+          i++;
+        }
+      } else if (char === ',' && !inQuotes) {
+        // 字段分隔符
+        row.push(current.trim());
+        current = '';
+        i++;
+      } else {
+        current += char;
+        i++;
+      }
+    }
+    
+    // 添加最后一个字段
+    row.push(current.trim());
+    rows.push(row);
+  }
+  
+  return rows;
+}
+
+/**
+ * 将CSV数据转换为Excel workbook格式
+ */
+function csvToWorkbook(csvText, fileName = 'Sheet1') {
+  const rows = parseCSV(csvText);
+  
+  // 检查是否是时间段表格格式（包含student_name, weekday, start_time, end_time列）
+  if (isTimeSlotTableFormat(rows)) {
+    return parseTimeSlotTable(rows, fileName);
+  }
+  
+  // 默认处理方式
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, fileName);
+  return wb;
+}
+
+/**
+ * 判断是否为时间段表格格式
+ */
+function isTimeSlotTableFormat(rows) {
+  if (rows.length < 2) return false;
+  
+  const header = rows[0];
+  const requiredColumns = ['student_name', 'weekday', 'start_time', 'end_time'];
+  
+  return requiredColumns.every(col => 
+    header.some(cell => String(cell).toLowerCase().includes(col))
+  );
+}
+
+/**
+ * 解析时间段表格格式数据
+ */
+function parseTimeSlotTable(rows, fileName) {
+  const header = rows[0];
+  const dataRows = rows.slice(1);
+  
+  // 找到各列的索引
+  const columnIndices = {
+    studentName: findColumnIndex(header, ['student_name', '学生姓名', 'name']),
+    weekday: findColumnIndex(header, ['weekday', '星期', 'day']),
+    startTime: findColumnIndex(header, ['start_time', '开始时间', 'start']),
+    endTime: findColumnIndex(header, ['end_time', '结束时间', 'end'])
+  };
+  
+  // 按学生分组数据
+  const studentGroups = new Map();
+  
+  dataRows.forEach(row => {
+    if (!row || row.length === 0) return;
+    
+    const studentName = String(row[columnIndices.studentName] || '').trim();
+    const weekday = parseInt(row[columnIndices.weekday]) || 0;
+    const startTime = String(row[columnIndices.startTime] || '').trim();
+    const endTime = String(row[columnIndices.endTime] || '').trim();
+    
+    if (!studentName || !startTime || !endTime || weekday < 1 || weekday > 5) return;
+    
+    if (!studentGroups.has(studentName)) {
+      studentGroups.set(studentName, []);
+    }
+    
+    studentGroups.get(studentName).push({
+      weekday: weekday - 1, // 转换为0-4（周一到周五）
+      timeRange: `${startTime}-${endTime}`,
+      text: '练琴' // 默认标记为练琴
+    });
+  });
+  
+  // 转换为标准课表格式
+  const convertedData = convertToStandardScheduleFormat(studentGroups);
+  
+  // 创建workbook
+  const ws = XLSX.utils.aoa_to_sheet(convertedData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, fileName);
+  return wb;
+}
+
+/**
+ * 查找列索引
+ */
+function findColumnIndex(header, possibleNames) {
+  for (let i = 0; i < header.length; i++) {
+    const cellValue = String(header[i]).toLowerCase();
+    if (possibleNames.some(name => cellValue.includes(name))) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * 转换为标准课表格式
+ */
+function convertToStandardScheduleFormat(studentGroups) {
+  const result = [];
+  
+  studentGroups.forEach((timeSlots, studentName) => {
+    // 添加学生标题行（模拟 G10 格式）
+    const grade = extractGradeFromName(studentName) || 'G10';
+    result.push([`${grade} ${studentName}`, `${grade} ${studentName}`, '', '', '', '']);
+    
+    // 添加表头行
+    result.push(['TIME 时间', 'MON 周一', 'TUE 周二', 'WED 周三', 'THUR 周四', 'FRI 周五']);
+    
+    // 收集所有时间段并排序
+    const allTimeRanges = [...new Set(timeSlots.map(slot => slot.timeRange))];
+    
+    // 使用自定义排序函数
+    allTimeRanges.sort((a, b) => {
+      const getStartTime = (timeRange) => {
+        const startTime = timeRange.split('-')[0];
+        const [h, m] = startTime.split(':').map(Number);
+        return h * 60 + m;
+      };
+      return getStartTime(a) - getStartTime(b);
+    });
+    
+    // 为每个时间段生成行
+    allTimeRanges.forEach(timeRange => {
+      const row = [timeRange];
+      
+      // 为每一天（周一到周五）检查是否有安排
+      for (let day = 0; day < 5; day++) {
+        const slot = timeSlots.find(s => s.weekday === day && s.timeRange === timeRange);
+        row.push(slot ? slot.text : '');
+      }
+      
+      result.push(row);
+    });
+    
+    // 添加空行分隔不同学生
+    result.push(['', '', '', '', '', '']);
+  });
+  
+  return result;
+}
+
+/**
+ * 从姓名中提取年级信息（如果有的话）
+ */
+function extractGradeFromName(name) {
+  // 尝试从姓名中提取年级信息，如果没有则返回默认值
+  const gradeMatch = name.match(/G(\d+)/i);
+  if (gradeMatch) {
+    return `G${gradeMatch[1]}`;
+  }
+  
+  // 根据姓名长度或其他特征推断年级（可选）
+  return 'G10'; // 默认年级
+}
+
+/* ================== Excel 解析核心 =================== */
+
+/**
+ * 解析一个 workbook（多 sheet）
+ * 结构：多学生块顺序堆叠
+ * 学生块检测：
+ *  - 行0 (或别的行) 形如: G10 马天翼,G10 马天翼,... (前两个/多个单元格重复匹配 /G\d+\s+/)
+ *  - 下一行含 TIME / 时间 且含 MON / 周一
+ */
+async function parseWorkbook(wb){
+  let found = 0;
+  for(const sheetName of wb.SheetNames){
+    const ws = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:''});
+    found += parseStudentBlocksInSheet(rows);
+  }
+  return found;
+}
+
+// 在单个 sheet 中解析多学生块
+function parseStudentBlocksInSheet(rows){
+  let i=0, count=0;
+  while(i<rows.length){
+    // 寻找学生标题行
+    if(rowIsBlank(rows[i])) { i++; continue; }
+    if(isStudentTitleRow(rows[i])){
+      const titleRow = rows[i];
+      // 可能的下一行表头
+      if(i+1<rows.length && isHeaderRow(rows[i+1])){
+        const {grade,name} = extractGradeAndName(titleRow[0]);
+        const studentId = `${grade||''}_${name}`.trim();
+        // 查找块结束
+        let j=i+2;
+        while(j<rows.length && !isPotentialNewBlock(rows,j)) j++;
+        const block = rows.slice(i+2,j); // 课表主体（时间行）
+        const headerRow = rows[i+1];
+        processOneStudentBlock(studentId,name,grade,headerRow,block);
+        count++;
+        i=j;
+        continue;
+      } else {
+        // 异常：缺失表头
+        i++;
+        continue;
+      }
+    }
+    i++;
+  }
+  if(count===0){
+    // 回退：尝试第一行是表头（含 TIME/时间 + MON/周一），其后为单一学生匿名课表
+    for(let h=0; h<Math.min(rows.length,8); h++){
+      if(isHeaderRow(rows[h])){
+        console.warn('[Fallback] 未检测到学生标题，使用第',h,'行为表头回退解析');
+        const headerRow=rows[h];
+        const block=rows.slice(h+1).filter(r=>r && r[0]);
+        const pseudoName='未命名';
+        const studentId='G0_'+pseudoName+ '_' + Date.now();
+        processOneStudentBlock(studentId,pseudoName,'G0',headerRow,block);
+        return 1;
+      }
+    }
+  }
+  return count;
+}
+
+// 判断是否学生标题行：看前几个单元格是否重复且匹配 G\d+
+function isStudentTitleRow(row){
+  if(!row || !row[0]) return false;
+  const cell = String(row[0]).trim();
+  if(!/^G\d+/i.test(cell)) return false;
+  // 之前要求有重复列，现在放宽：只要首列匹配即可；若有重复加分但不强制
+  let duplicate=false;
+  for(let k=1;k<Math.min(row.length,6);k++){
+    if(row[k] && String(row[k]).trim()===cell){duplicate=true;break;}
+  }
+  if(!duplicate){
+    console.warn('[ParseHint] 仅首列匹配学生标题，接受:', cell);
+  }
+  return true;
+}
+
+// 表头行：含 TIME/时间 且含 MON/周一
+function isHeaderRow(row){
+  if(!row) return false;
+  const joined = row.map(c=>String(c)).join('|').toLowerCase();
+  const ok = (joined.includes('time') || joined.includes('时间')) &&
+             (joined.includes('mon')  || joined.includes('周一'));
+  if(ok) console.warn('[ParseHint] 识别到表头行:', row.slice(0,6));
+  return ok;
+}
+
+// 检测下一个位置是否开始新学生块
+function isPotentialNewBlock(rows,idx){
+  if(idx>=rows.length) return true;
+  if(rowIsBlank(rows[idx])) return false;
+  return isStudentTitleRow(rows[idx]);
+}
+
+// 提取年级+姓名： 行首如 "G10 马天翼" 或 "G9-1魏嘉增"（含班级编号）
+function extractGradeAndName(str){
+  let s = (str||'').trim();
+  // 支持格式：G10 马天翼 / G7王奕然 / G9-1魏嘉增 / G9-2刘作翰
+  const m = s.match(/^(G\d{1,2})(?:-(\d+))?\s*(.+)$/i);
+  if(m){
+    const gradeNum = m[1].toUpperCase();
+    const classNum = m[2]; // 班级编号（如 9-1 中的 1），可能为 undefined
+    const grade = classNum ? `${gradeNum}-${classNum}` : gradeNum;
+    return { grade, name:m[3].trim() };
+  }
+  return { grade:'', name:s };
+}
+
+// 处理一位学生的块
+function processOneStudentBlock(studentId,name,grade,headerRow,blockRows){
+  console.warn('[ParseInfo] 处理学生块:', studentId, '行数:', blockRows.length);
+  // headerRow: [TIME 时间, MON..., TUE..., WED..., THUR..., FRI...]
+  // 需要遍历 blockRows 的每一行：
+  // 第0列：时间；后1~5列：周一~周五课程内容
+  const dayCols = [1,2,3,4,5]; // 固定
+  const cellsMap = {}; // slotKey => { dayN: {...} } 先收集再展开
+  blockRows.forEach(r=>{
+    if(!r || !r[0]) return;
+    const idx=mapToSlotIndex(r[0]);
+    if(idx===-1) return; // 跳过无法映射
+    const timeKey=NORMAL_SLOTS[idx];
+    dayCols.forEach((colIdx,dayIndex)=>{
+      if(r[colIdx]!==undefined && r[colIdx]!==null){
+        const rawTxt=String(r[colIdx]).trim();
+        if(rawTxt==='') return;
+        if(!cellsMap[idx]) cellsMap[idx]={};
+        cellsMap[idx][dayIndex]={
+          slotIndex:idx,
+          time: timeKey,
+          day: dayIndex,
+          text: rawTxt,
+          practice: isPracticeText(rawTxt),
+          rest: isRestText(rawTxt) || idx===4, // 午餐行自动 rest
+          majorCourse: isMajorCourse(rawTxt)
+        };
+      }
+    });
+  });
+
+  // 创建或合并学生
+  let stu = state.students.find(s=>s.id===studentId);
+  if(!stu){
+    stu = {
+      id: studentId,
+      name,
+      grade,
+      major: '',   // 原文件无明确专业，这里留空，可按需扩展
+      cells:{}     // key = timeKey + '_' + day
+    };
+    state.students.push(stu);
+  }
+  // 合并数据
+  Object.entries(cellsMap).forEach(([slotIndex,dayObj])=>{
+    Object.entries(dayObj).forEach(([dIdx, cell])=>{
+      const key = `${slotIndex}_${dIdx}`;
+      if(!stu.cells[key]){
+        stu.cells[key] = cell;
+      } else {
+        if(stu.cells[key].text !== cell.text){
+          stu.cells[key].text += '\n' + cell.text;
+        }
+        // 练琴优先级高于休息；仅当现有非练琴且新的是练琴才更新；休息不覆盖已练琴
+        if(cell.practice) stu.cells[key].practice = true;
+        if(cell.rest && !stu.cells[key].practice) stu.cells[key].rest = true;
+        if(cell.majorCourse) stu.cells[key].majorCourse = true;
+      }
+    });
+  });
+  
+  // 推断学生主修专业（如果之前为空）
+  if(!stu.major || stu.major.trim() === ''){
+    const majorCourses = Object.values(stu.cells)
+      .filter(cell => cell.majorCourse && cell.text)
+      .map(cell => extractCourseType(cell.text))
+      .filter(course => course);
+    
+    if(majorCourses.length > 0){
+      // 统计出现最频繁的主修课程
+      const courseCount = {};
+      majorCourses.forEach(course => {
+        courseCount[course] = (courseCount[course] || 0) + 1;
+      });
+      
+      const mostFrequent = Object.entries(courseCount)
+        .sort(([,a], [,b]) => b - a)[0];
+      
+      if(mostFrequent){
+        stu.major = mostFrequent[0];
+      }
+    }
+  }
+}
+
+/* ================== 统一时间轴构建 & 表格渲染 =================== */
+
+function rebuildTimeAxis(){
+  state.timeAxis.sort(timeSorter);
+}
+
+// 创建表头
+function rebuildTableHead(){
+  const theadRow = document.getElementById('theadRow');
+  theadRow.innerHTML='';
+  const thTime = document.createElement('th');
+  thTime.textContent='时间段';
+  thTime.className='time-col';
+  theadRow.appendChild(thTime);
+  state.dayNames.forEach(d=>{
+    const th=document.createElement('th');
+    th.textContent=d;
+    theadRow.appendChild(th);
+  });
+}
+
+// 渲染当前学生课表
+function renderTable(){
+  const tbody=document.getElementById('tbody');
+  tbody.innerHTML='';
+  if(state.currentIndex<0 || state.currentIndex>=state.students.length){
+    return;
+  }
+  rebuildTableHead();
+  const stu=state.students[state.currentIndex];
+
+  for(let slotIndex=0; slotIndex<NORMAL_SLOTS.length; slotIndex++){
+    const tr=document.createElement('tr');
+    const tdTime=document.createElement('td');
+    // 周三显示 WED_SLOTS 对齐，但第一列统一显示普通日或标注两种?
+    tdTime.textContent = NORMAL_SLOTS[slotIndex];
+    tdTime.className='time-col';
+    tr.appendChild(tdTime);
+    for(let d=0; d<5; d++){
+      const key=`${slotIndex}_${d}`;
+      const cellData=stu.cells[key];
+      const td=document.createElement('td');
+      td.classList.add('cell');
+      td.dataset.time=NORMAL_SLOTS[slotIndex];
+      td.dataset.day=d;
+      td.dataset.slotIndex=slotIndex;
+
+      // 周三列（d==2）如果为空且需要展示时间提示可加 title
+      if(d===2){ td.title=WED_SLOTS[slotIndex]; }
+
+      if(cellData){
+        td.textContent=cellData.text;
+        if(cellData.rest){
+          td.classList.add('rest');
+        } else {
+          if(cellData.practice && cellData.text){
+            td.classList.add('practice-mixed');
+            addCellBadge(td,'🎹');
+          } else if(cellData.practice){
+            td.classList.add('practice-only');
+            addCellBadge(td,'🎹');
+          } else if(cellData.majorCourse || isMajorCourse(cellData.text)){
+            td.classList.add('major-course');
+            addCellBadge(td,'📚');
+          }
+        }
+      } else {
+        td.textContent='';
+        if(slotIndex===4){ td.classList.add('rest'); td.textContent='午餐'; }
+        if(slotIndex===7){ td.classList.add('rest'); td.textContent='大课间'; }
+      }
+
+      // 点击/拖拽选择
+      if((!cellData || !cellData.rest) && slotIndex!==4 && slotIndex!==7){
+        td.addEventListener('mousedown',e=>startDragMark(td,e));
+        td.addEventListener('mouseenter',e=>dragEnter(td,e));
+        td.addEventListener('mouseup',endDragMark);
+      } else {
+        td.style.cursor='not-allowed';
+      }
+
+      // 过滤模式
+      applyFilterToCell(td,cellData);
+
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+
+  updateStudentInfoPanel();
+}
+
+// 渲染老师课表
+function renderTeacherTable(){
+  const tbody=document.getElementById('tbody');
+  tbody.innerHTML='';
+  if(state.currentTeacherIndex<0 || state.currentTeacherIndex>=state.teachers.length){
+    return;
+  }
+  rebuildTableHead();
+  const teacher=state.teachers[state.currentTeacherIndex];
+
+  for(let slotIndex=0; slotIndex<NORMAL_SLOTS.length; slotIndex++){
+    const tr=document.createElement('tr');
+    const tdTime=document.createElement('td');
+    tdTime.textContent = NORMAL_SLOTS[slotIndex];
+    tdTime.className='time-col';
+    tr.appendChild(tdTime);
+    
+    for(let d=0; d<5; d++){
+      const td=document.createElement('td');
+      td.classList.add('cell');
+      td.dataset.time=NORMAL_SLOTS[slotIndex];
+      td.dataset.day=d;
+      td.dataset.slotIndex=slotIndex;
+
+      // 周三列时间提示
+      if(d===2){ td.title=WED_SLOTS[slotIndex]; }
+
+      // 查找该时间段的课程
+      const coursesInSlot = [];
+      teacher.students.forEach(studentEntry => {
+        studentEntry.schedule.forEach(course => {
+          if(course.slotIndex === slotIndex && course.day === d){
+            coursesInSlot.push({
+              student: studentEntry.student,
+              course: course
+            });
+          }
+        });
+      });
+
+      if(coursesInSlot.length > 0){
+        // 显示课程信息
+        const courseTexts = coursesInSlot.map(item => 
+          `${item.student.name}(${item.student.grade})`
+        );
+        td.textContent = courseTexts.join('\n');
+        td.classList.add('major-course');
+        
+        // 如果有多个学生，添加数量角标
+        if(coursesInSlot.length > 1){
+          addCellBadge(td, coursesInSlot.length.toString());
+        } else {
+          addCellBadge(td,'📚');
+        }
+        
+        td.title = `${teacher.courses.join('/')}\n${courseTexts.join('\n')}`;
+      } else {
+        td.textContent='';
+        if(slotIndex===4){ td.classList.add('rest'); td.textContent='午餐'; }
+        if(slotIndex===7){ td.classList.add('rest'); td.textContent='大课间'; }
+      }
+
+      td.style.cursor='default'; // 老师视图不允许编辑
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+
+  updateTeacherInfoPanel();
+}
+
+// 角标
+function addCellBadge(td,icon){
+  if(td.querySelector('.corner-badge')) return;
+  const span=document.createElement('span');
+  span.className='corner-badge';
+  span.textContent=icon;
+  td.appendChild(span);
+}
+
+// 根据当前过滤模式隐藏/显示
+function applyFilterToCell(td, cellData){
+  const mode=state.filterMode;
+  td.classList.remove('hidden');
+  if(mode==='practice'){
+    if(!(cellData && cellData.practice)){
+      td.classList.add('hidden');
+    }
+  } else if(mode==='course'){
+    if(!(cellData && cellData.text && !cellData.practice)){
+      td.classList.add('hidden');
+    }
+  }
+}
+
+/* =============== 学生切换与信息显示 =============== */
+
+function populateStudentSelect(){
+  const sel=document.getElementById('studentSelect');
+  sel.innerHTML='<option value="">请选择学生</option>';
+  state.students.forEach((s,i)=>{
+    const opt=document.createElement('option');
+    opt.value=i;
+    opt.textContent=`[${s.grade}] ${s.name}`;
+    sel.appendChild(opt);
+  });
+}
+
+function populateTeacherSelect(){
+  const sel=document.getElementById('teacherSelect');
+  sel.innerHTML='<option value="">请选择老师</option>';
+  state.teachers.forEach((t,i)=>{
+    const opt=document.createElement('option');
+    opt.value=i;
+    opt.textContent=`${t.name} (${t.students.length}名学生)`;
+    sel.appendChild(opt);
+  });
+}
+
+function setCurrentStudent(index){
+  if(index<0 || index>=state.students.length){
+    state.currentIndex=-1;
+    document.getElementById('currentStudent').style.display='none';
+    renderTable();
+    return;
+  }
+  state.currentIndex=index;
+  document.getElementById('studentSelect').value=index;
+  document.getElementById('currentStudent').style.display='block';
+  renderTable();
+}
+
+function setCurrentTeacher(index){
+  if(index<0 || index>=state.teachers.length){
+    state.currentTeacherIndex=-1;
+    document.getElementById('currentTeacher').style.display='none';
+    renderTable();
+    return;
+  }
+  state.currentTeacherIndex=index;
+  document.getElementById('teacherSelect').value=index;
+  document.getElementById('currentTeacher').style.display='block';
+  renderTeacherTable();
+}
+
+function updateStudentInfoPanel(){
+  if(state.currentIndex<0) return;
+  const stu=state.students[state.currentIndex];
+  document.getElementById('infoName').textContent=stu.name;
+  document.getElementById('infoGrade').textContent=stu.grade||'';
+  document.getElementById('infoMajor').textContent=stu.major||'';
+  const count = Object.values(stu.cells).filter(c=>c.practice).length;
+  document.getElementById('infoPracticeCount').textContent=count;
+}
+
+function updateTeacherInfoPanel(){
+  if(state.currentTeacherIndex<0) return;
+  const teacher=state.teachers[state.currentTeacherIndex];
+  document.getElementById('teacherName').textContent=teacher.name;
+  document.getElementById('teacherCourses').textContent=teacher.courses.join(', ')||'未识别';
+  document.getElementById('teacherStudentCount').textContent=teacher.students.length;
+  
+  // 计算总课时数
+  const totalHours = teacher.students.reduce((total, studentEntry) => {
+    return total + studentEntry.schedule.length;
+  }, 0);
+  document.getElementById('teacherTotalHours').textContent=totalHours;
+}
+
+/* =============== 练琴标记交互（拖拽批量） =============== */
+let dragActive=false;
+let dragMode='add'; // add or remove
+let visitedDuringDrag=new Set();
+
+function startDragMark(td,e){
+  e.preventDefault();
+  if(state.currentIndex<0) return;
+  const {time, day, slotIndex} = td.dataset;
+  
+  // 检查当前状态：如果已经是练琴状态，则删除选中
+  const stu=state.students[state.currentIndex];
+  const key=`${slotIndex}_${day}`;
+  const cell=stu.cells[key];
+  
+  if(cell && cell.practice){
+    // 如果已经被高亮选中，再次点击删除选中状态
+    togglePractice(td, false);
+    dragMode = 'remove';
+  } else {
+    // 如果未选中，则添加练琴状态
+    togglePractice(td, true);
+    dragMode = 'add';
+  }
+  
+  dragActive=true;
+  visitedDuringDrag.add(key);
+  document.body.style.userSelect='none';
+}
+
+function dragEnter(td,e){
+  if(!dragActive) return;
+  const {time,day,slotIndex} = td.dataset;
+  const key=`${slotIndex}_${day}`;
+  if(visitedDuringDrag.has(key)) return;
+  visitedDuringDrag.add(key);
+  togglePractice(td, dragMode==='add');
+}
+
+function endDragMark(){
+  if(!dragActive) return;
+  dragActive=false;
+  visitedDuringDrag.clear();
+  document.body.style.userSelect='';
+  saveLocal();
+  updateStudentInfoPanel();
+}
+
+document.addEventListener('mouseup',endDragMark);
+document.addEventListener('mouseleave',endDragMark);
+
+function togglePractice(td,forceAdd){
+  const {time, day, slotIndex} = td.dataset;
+  const stu=state.students[state.currentIndex];
+  const key = `${slotIndex}_${day}`;
+  if(!stu.cells[key]){
+    // 空 -> 新建
+    stu.cells[key]={
+      slotIndex:parseInt(slotIndex,10),time,NORMAL_TIME:time,day:parseInt(day,10),text:td.textContent.trim(),practice:false,rest:([4,7].includes(parseInt(slotIndex,10)))
+    };
+  }
+  const cell=stu.cells[key];
+  if(cell.rest) return;
+  if(forceAdd===true){
+    cell.practice=true;
+  }else if(forceAdd===false){
+    cell.practice=false;
+  }else{
+    cell.practice=!cell.practice;
+  }
+  // 视觉
+  td.classList.remove('practice-only','practice-mixed');
+  td.querySelector('.corner-badge')?.remove();
+  if(cell.practice){
+    if(cell.text){
+      td.classList.add('practice-mixed');
+    } else {
+      td.classList.add('practice-only');
+    }
+    addCellBadge(td,'🎹');
+  }
+  else {
+    // 取消
+  }
+  applyFilterToCell(td,cell);
+}
+
+/* =============== 导出 Excel/CSV =============== */
+
+/**
+ * 将数组数据转换为CSV格式字符串
+ */
+function arrayToCSV(data) {
+  return data.map(row => 
+    row.map(cell => {
+      const cellStr = String(cell || '');
+      // 如果包含逗号、引号或换行符，需要用引号包围并转义
+      if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+        return '"' + cellStr.replace(/"/g, '""') + '"';
+      }
+      return cellStr;
+    }).join(',')
+  ).join('\n');
+}
+
+/**
+ * 下载CSV文件
+ */
+function downloadCSV(data, filename) {
+  const csvContent = arrayToCSV(data);
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function exportData(){
+  if(state.students.length===0){
+    notify('没有学生数据可导出','warning');return;
+  }
+  
+  const exportFormat = document.getElementById('exportFormat').value;
+  
+  if(exportFormat === 'csv'){
+    exportCSV();
+  } else {
+    exportExcel();
+  }
+}
+
+function exportCSV(){
+  // 汇总表数据
+  const summaryData = [['姓名','年级','专业','练琴段数','周一','周二','周三','周四','周五']];
+  state.students.forEach(stu=>{
+    const dayList=[[],[],[],[],[]];
+    Object.values(stu.cells).forEach(c=>{
+      if(c.practice && c.day>=0 && c.day<5){
+        const display = (c.day===2)? WED_SLOTS[c.slotIndex] : NORMAL_SLOTS[c.slotIndex];
+        dayList[c.day].push(display);
+      }
+    });
+    const practiceCount = Object.values(stu.cells).filter(c=>c.practice).length;
+    summaryData.push([
+      stu.name,
+      stu.grade||'',
+      stu.major||'',
+      practiceCount,
+      dayList[0].join('; '),
+      dayList[1].join('; '),
+      dayList[2].join('; '),
+      dayList[3].join('; '),
+      dayList[4].join('; ')
+    ]);
+  });
+  
+  const fileName=`学生练琴时间汇总_${new Date().toISOString().slice(0,10)}.csv`;
+  downloadCSV(summaryData, fileName);
+  notify('CSV汇总表导出完成','success');
+}
+
+function exportExcel(){
+  if(state.students.length===0){
+    notify('没有学生数据可导出','warning');return;
+  }
+  const wb=XLSX.utils.book_new();
+
+  // 1. 汇总表
+  const summaryData = [['姓名','年级','练琴段数','周一','周二','周三','周四','周五']];
+  state.students.forEach(stu=>{
+    const dayList=[[],[],[],[],[]];
+    Object.values(stu.cells).forEach(c=>{
+      if(c.practice){
+        // 使用标准普通日时间展示
+        const display = (c.day===2)? WED_SLOTS[c.slotIndex] : NORMAL_SLOTS[c.slotIndex];
+        dayList[c.day].push(display);
+      }
+    });
+    const count=dayList.reduce((s,a)=>s+a.length,0);
+    summaryData.push([
+      stu.name,stu.grade,count,
+      dayList[0].join(';'),dayList[1].join(';'),
+      dayList[2].join(';'),dayList[3].join(';'),
+      dayList[4].join(';')
+    ]);
+  });
+  const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+  wsSummary['!cols']=[{wch:12},{wch:8},{wch:10},{wch:30},{wch:30},{wch:30},{wch:30},{wch:30}];
+  XLSX.utils.book_append_sheet(wb,wsSummary,'数据汇总');
+
+  // 2. 每学生课表（统一时间轴）
+  state.students.forEach(stu=>{
+    const sheet = [];
+    sheet.push([`${stu.name} (${stu.grade})`]);
+    sheet.push(['TIME',...state.dayNames]);
+    NORMAL_SLOTS.forEach((slot,slotIndex)=>{
+      const row=[slot];
+      for(let d=0;d<5;d++){
+        const key=`${slotIndex}_${d}`;
+        const cell=stu.cells[key];
+        if(!cell){
+          row.push('');
+        }else{
+          if(cell.practice){
+            // 练琴 + 原文
+            if(cell.text && cell.text.trim()!=='' && !isPracticeText(cell.text)){
+              row.push('练琴 | '+cell.text);
+            }else if(cell.text && cell.text.trim()!==''){
+              // 原文本身含练琴 -> 不重复
+              row.push(cell.text);
+            }else{
+              row.push('练琴');
+            }
+          } else {
+            row.push(cell.text);
+          }
+        }
+      }
+      sheet.push(row);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(sheet);
+    ws['!cols']=[{wch:14},{wch:22},{wch:22},{wch:22},{wch:22},{wch:22}];
+    XLSX.utils.book_append_sheet(wb,ws,stu.name.substring(0,28));
+  });
+
+  // 3. 老师课表汇总
+  if(state.teachers.length > 0){
+    const teacherSummary = [['老师姓名','教授课程','学生数量','总课时数','详细安排']];
+    state.teachers.forEach(teacher => {
+      const totalHours = teacher.students.reduce((total, studentEntry) => {
+        return total + studentEntry.schedule.length;
+      }, 0);
+      
+      const studentList = teacher.students.map(studentEntry => 
+        `${studentEntry.student.name}(${studentEntry.student.grade}):${studentEntry.schedule.length}节`
+      ).join('; ');
+      
+      teacherSummary.push([
+        teacher.name,
+        teacher.courses.join('/'),
+        teacher.students.length,
+        totalHours,
+        studentList
+      ]);
+    });
+    
+    const wsTeacher = XLSX.utils.aoa_to_sheet(teacherSummary);
+    wsTeacher['!cols']=[{wch:12},{wch:15},{wch:10},{wch:10},{wch:50}];
+    XLSX.utils.book_append_sheet(wb,wsTeacher,'老师课表汇总');
+    
+    // 4. 每位老师详细课表
+    state.teachers.forEach(teacher => {
+      const sheet = [];
+      sheet.push([`${teacher.name} - ${teacher.courses.join('/')}`]);
+      sheet.push(['TIME',...state.dayNames]);
+      
+      NORMAL_SLOTS.forEach((slot,slotIndex)=>{
+        const row=[slot];
+        for(let d=0;d<5;d++){
+          const coursesInSlot = [];
+          teacher.students.forEach(studentEntry => {
+            studentEntry.schedule.forEach(course => {
+              if(course.slotIndex === slotIndex && course.day === d){
+                coursesInSlot.push(`${studentEntry.student.name}(${studentEntry.student.grade})`);
+              }
+            });
+          });
+          row.push(coursesInSlot.join('; '));
+        }
+        sheet.push(row);
+      });
+      
+      const ws = XLSX.utils.aoa_to_sheet(sheet);
+      ws['!cols']=[{wch:14},{wch:25},{wch:25},{wch:25},{wch:25},{wch:25}];
+      XLSX.utils.book_append_sheet(wb,ws,`${teacher.name}老师`.substring(0,28));
+    });
+  }
+
+  const fileName=`学生练琴时间安排_${new Date().toISOString().slice(0,10)}.xlsx`;
+  XLSX.writeFile(wb,fileName);
+  notify('导出完成','success');
+}
+
+/* =============== 事件绑定 =============== */
+
+document.getElementById('btnImport').addEventListener('click', async ()=>{
+  const files = document.getElementById('fileInput').files;
+  if(!files || files.length===0){ notify('请先选择文件','warning'); return; }
+  const mode = document.getElementById('importMode').value;
+  if(mode==='replace'){
+    state.students=[];
+    state.timeAxis=[];
+    state.currentIndex=-1;
+  }
+  let total=0;
+  
+  for(const f of files){
+    try{
+      const fileName = f.name.toLowerCase();
+      let wb;
+      
+      if(fileName.endsWith('.csv')){
+        // CSV文件处理
+        const csvText = await f.text();
+        wb = csvToWorkbook(csvText, f.name.replace('.csv', ''));
+        notify(`正在解析CSV文件: ${f.name}`, 'info', 1500);
+      } else {
+        // Excel文件处理
+        const arrayBuf = await f.arrayBuffer();
+        wb = XLSX.read(new Uint8Array(arrayBuf), {type:'array'});
+        notify(`正在解析Excel文件: ${f.name}`, 'info', 1500);
+      }
+      
+      // parseWorkbook 是 async（返回 Promise<number>），需等待结果
+      const added = await parseWorkbook(wb);
+      total += (typeof added==='number'? added : 0);
+    }catch(e){
+      console.error(e);
+      notify(`文件 ${f.name} 解析失败: ${e.message}`,'error');
+    }
+  }
+  // 防御：若之前误加了 Promise 造成字符串，做一次数值归一
+  if(typeof total!=='number'){
+    const coerced = Number(total);
+    total = Number.isFinite(coerced)? coerced : 0;
+  }
+  if(total===0){
+    notify('未解析到任何学生数据','warning');
+    return;
+  }
+  rebuildTimeAxis();
+  buildTeacherSchedules(); // 自动构建老师数据
+  populateStudentSelect();
+  populateTeacherSelect();
+  if(state.currentIndex===-1 && state.students.length>0){
+    setCurrentStudent(0);
+  }else{
+    renderTable();
+  }
+  saveLocal();
+  notify(`解析完成，共新增/合并 ${total} 位学生，识别 ${state.teachers.length} 位老师`,'success',3500);
+});
+
+document.getElementById('studentSelect').addEventListener('change', e=>{
+  const idx=parseInt(e.target.value);
+  if(Number.isNaN(idx)){ setCurrentStudent(-1); return;}
+  setCurrentStudent(idx);
+});
+
+document.getElementById('btnPrev').addEventListener('click',()=>{
+  if(state.students.length===0) return;
+  let ni = state.currentIndex<=0? state.students.length-1 : state.currentIndex-1;
+  setCurrentStudent(ni);
+});
+document.getElementById('btnNext').addEventListener('click',()=>{
+  if(state.students.length===0) return;
+  let ni = state.currentIndex>=state.students.length-1? 0 : state.currentIndex+1;
+  setCurrentStudent(ni);
+});
+
+document.getElementById('filterMode').addEventListener('change',e=>{
+  state.filterMode=e.target.value;
+  renderTable();
+});
+
+document.getElementById('btnClearAll').addEventListener('click',()=>{
+  if(!confirm('确定要清空所有已导入数据？')) return;
+  state.students=[];state.timeAxis=[];state.currentIndex=-1;
+  state.teachers=[];state.currentTeacherIndex=-1;
+  document.getElementById('studentSelect').innerHTML='<option value="">请选择学生</option>';
+  document.getElementById('teacherSelect').innerHTML='<option value="">请选择老师</option>';
+  document.getElementById('tbody').innerHTML='';
+  document.getElementById('theadRow').innerHTML='';
+  document.getElementById('currentStudent').style.display='none';
+  document.getElementById('currentTeacher').style.display='none';
+  saveLocal();
+  notify('已清空','success');
+});
+
+document.getElementById('btnClearCurrent').addEventListener('click',()=>{
+  if(state.currentIndex<0) { notify('请先选择学生','warning'); return; }
+  if(!confirm('确定清空当前学生全部练琴标记（不删除原文字）？')) return;
+  const stu=state.students[state.currentIndex];
+  Object.values(stu.cells).forEach(c=> c.practice=false );
+  renderTable();
+  saveLocal();
+  notify('已清空该学生练琴标记','success');
+});
+
+document.getElementById('btnExportExcel').addEventListener('click',exportData);
+
+// 视图模式切换
+document.getElementById('viewMode').addEventListener('change', e=>{
+  const mode = e.target.value;
+  state.viewMode = mode;
+  
+  if(mode === 'student'){
+    document.getElementById('studentControls').style.display = '';
+    document.getElementById('teacherControls').style.display = 'none';
+    document.getElementById('currentStudent').style.display = state.currentIndex >= 0 ? 'block' : 'none';
+    document.getElementById('currentTeacher').style.display = 'none';
+    if(state.currentIndex >= 0){
+      renderTable();
+    }
+  } else if(mode === 'teacher'){
+    document.getElementById('studentControls').style.display = 'none';
+    document.getElementById('teacherControls').style.display = '';
+    document.getElementById('currentStudent').style.display = 'none';
+    document.getElementById('currentTeacher').style.display = state.currentTeacherIndex >= 0 ? 'block' : 'none';
+    if(state.teachers.length === 0){
+      buildTeacherSchedules();
+      populateTeacherSelect();
+    }
+    if(state.currentTeacherIndex >= 0){
+      renderTeacherTable();
+    }
+  }
+});
+
+// 刷新老师数据
+document.getElementById('btnRefreshTeachers').addEventListener('click', ()=>{
+  buildTeacherSchedules();
+  populateTeacherSelect();
+  if(state.viewMode === 'teacher' && state.currentTeacherIndex >= 0){
+    renderTeacherTable();
+  }
+  notify(`已识别 ${state.teachers.length} 位老师`, 'success');
+});
+
+// 老师选择
+document.getElementById('teacherSelect').addEventListener('change', e=>{
+  const idx=parseInt(e.target.value);
+  if(Number.isNaN(idx)){ setCurrentTeacher(-1); return;}
+  setCurrentTeacher(idx);
+});
+
+// 🔥 智能搜索功能 - 支持中文/拼音/首字母/多关键词
+document.getElementById('quickInitial').addEventListener('input', (e)=>{
+  const q = (e.target.value||'').trim();
+  if(!q) return;
+  
+  // 根据当前 viewMode 决定搜索学生或老师
+  if(state.viewMode === 'teacher'){
+    // 搜索老师列表
+    let idx = -1;
+    for(let i=0; i<state.teachers.length; i++){
+      const name = state.teachers[i].name || '';
+      if(matchPinyin(name, q)) { 
+        idx = i; 
+        break; 
+      }
+    }
+    if(idx >= 0){ 
+      setCurrentTeacher(idx); 
+      document.getElementById('teacherSelect').value = idx; 
+      notify(`找到老师: ${state.teachers[idx].name}`, 'info', 1500);
+    } else {
+      // 显示搜索提示
+      const matchCount = state.teachers.filter(t => matchPinyin(t.name, q)).length;
+      if(matchCount === 0){
+        notify(`未找到匹配的老师: "${q}"`, 'warning', 2000);
+      }
+    }
+  } else {
+    // 搜索学生列表
+    let idx = -1;
+    for(let i=0; i<state.students.length; i++){
+      const name = state.students[i].name || '';
+      if(matchPinyin(name, q)) { 
+        idx = i; 
+        break; 
+      }
+    }
+    if(idx >= 0){ 
+      setCurrentStudent(idx); 
+      document.getElementById('studentSelect').value = idx; 
+      notify(`找到学生: ${state.students[idx].name}`, 'info', 1500);
+    } else {
+      // 显示搜索提示
+      const matchCount = state.students.filter(s => matchPinyin(s.name, q)).length;
+      if(matchCount === 0){
+        notify(`未找到匹配的学生: "${q}"`, 'warning', 2000);
+      }
+    }
+  }
+});
+
+// 回车搜索下一个匹配项
+document.getElementById('quickInitial').addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter'){
+    const q = (e.target.value||'').trim(); 
+    if(!q) return;
+    
+    if(state.viewMode === 'teacher'){
+      const matches = state.teachers.map((t,i)=>({t,i}))
+        .filter(x => matchPinyin(x.t.name
+, q));
+      if(matches.length > 0) {
+        // 找到当前老师的下一个匹配项
+        let nextIndex = 0;
+        if(state.currentTeacherIndex >= 0){
+          const currentMatchIndex = matches.findIndex(m => m.i === state.currentTeacherIndex);
+          if(currentMatchIndex >= 0 && currentMatchIndex < matches.length - 1){
+            nextIndex = currentMatchIndex + 1;
+          }
+        }
+        setCurrentTeacher(matches[nextIndex].i);
+        document.getElementById('teacherSelect').value = matches[nextIndex].i;
+        notify(`${nextIndex + 1}/${matches.length}: ${matches[nextIndex].t.name}`, 'info', 1500);
+      }
+    } else {
+      const matches = state.students.map((s,i)=>({s,i}))
+        .filter(x => matchPinyin(x.s.name, q));
+      if(matches.length > 0) {
+        // 找到当前学生的下一个匹配项
+        let nextIndex = 0;
+        if(state.currentIndex >= 0){
+          const currentMatchIndex = matches.findIndex(m => m.i === state.currentIndex);
+          if(currentMatchIndex >= 0 && currentMatchIndex < matches.length - 1){
+            nextIndex = currentMatchIndex + 1;
+          }
+        }
+        setCurrentStudent(matches[nextIndex].i);
+        document.getElementById('studentSelect').value = matches[nextIndex].i;
+        notify(`${nextIndex + 1}/${matches.length}: ${matches[nextIndex].s.name}`, 'info', 1500);
+      }
+    }
+  } else if(e.key === 'Escape'){
+    e.target.value = '';
+    e.target.blur();
+  }
+});
+
+// 老师导航
+document.getElementById('btnTeacherPrev').addEventListener('click',()=>{
+  if(state.teachers.length===0) return;
+  let ni = state.currentTeacherIndex<=0? state.teachers.length-1 : state.currentTeacherIndex-1;
+  setCurrentTeacher(ni);
+});
+document.getElementById('btnTeacherNext').addEventListener('click',()=>{
+  if(state.teachers.length===0) return;
+  let ni = state.currentTeacherIndex>=state.teachers.length-1? 0 : state.currentTeacherIndex+1;
+  setCurrentTeacher(ni);
+});
+
+/* =============== 初始化 =============== */
+loadLocal();
+populateStudentSelect();
+populateTeacherSelect();
+if(state.students.length>0){
+  setCurrentStudent(0);
+  // 如果老师数据为空，自动构建
+  if(state.teachers.length === 0){
+    buildTeacherSchedules();
+    populateTeacherSelect();
+  }
+}
+
+/* =============== 搜索功能增强提示 =============== */
+// 添加搜索提示功能
+document.getElementById('quickInitial').addEventListener('focus', (e) => {
+  const placeholder = state.viewMode === 'teacher' ? 
+    '智能搜索老师 (支持中文/拼音/首字母，如: 张三、zs、z s)' :
+    '智能搜索学生 (支持中文/拼音/首字母，如: 李四、ls、l s)';
+  e.target.placeholder = placeholder;
+});
+
+document.getElementById('quickInitial').addEventListener('blur', (e) => {
+  e.target.placeholder = '智能搜索 (支持中文/拼音/首字母)';
+});
+
+// 添加实时搜索预览功能
+let searchTimeout;
+document.getElementById('quickInitial').addEventListener('input', (e) => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    const q = (e.target.value || '').trim();
+    if(!q || q.length < 1) return;
+    
+    // 显示匹配数量
+    if(state.viewMode === 'teacher'){
+      const matchCount = state.teachers.filter(t => matchPinyin(t.name, q)).length;
+      if(matchCount > 1){
+        console.log(`🔍 找到 ${matchCount} 位老师匹配 "${q}"`);
+      }
+    } else {
+      const matchCount = state.students.filter(s => matchPinyin(s.name, q)).length;
+      if(matchCount > 1){
+        console.log(`🔍 找到 ${matchCount} 位学生匹配 "${q}"`);
+      }
+    }
+  }, 300);
+});
+
+// 添加搜索历史记录功能（可选）
+const searchHistory = {
+  history: JSON.parse(localStorage.getItem('searchHistory') || '[]'),
+  add(term) {
+    if(!term || this.history.includes(term)) return;
+    this.history.unshift(term);
+    this.history = this.history.slice(0, 10); // 保留最近10个
+    localStorage.setItem('searchHistory', JSON.stringify(this.history));
+  },
+  get() {
+    return this.history;
+  }
+};
+
+// 搜索成功时添加到历史
+document.getElementById('quickInitial').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){
+    const q = (e.target.value || '').trim();
+    if(q) {
+      searchHistory.add(q);
+    }
+  }
+});
+
+console.log('🎵 学生练琴时间录入系统已加载完成');
+
+/* =============== Supabase 云端同步 =============== */
+
+// 默认配置（已内置，无需手动填写）
+const SB_DEFAULTS = {
+  url:   'https://waesizzoqodntrlvrwhw.supabase.co',
+  key:   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhZXNpenpvcW9kbnRybHZyd2h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc4MjIyOTYsImV4cCI6MjA3MzM5ODI5Nn0.kE5gSV68q1nLo4z2IqgwqfTBVqNOJw5qs08f6r0SQH0',
+  table: 'student_schedules'
+};
+
+// 读取配置（优先用本地覆盖值，否则用内置默认值）
+function loadSupabaseConfig() {
+  return {
+    url:   localStorage.getItem('sb_url')   || SB_DEFAULTS.url,
+    key:   localStorage.getItem('sb_key')   || SB_DEFAULTS.key,
+    table: localStorage.getItem('sb_table') || SB_DEFAULTS.table
+  };
+}
+
+// 保存配置并关闭弹窗
+function saveSupabaseConfig() {
+  const url   = document.getElementById('sbUrl').value.trim();
+  const key   = document.getElementById('sbKey').value.trim();
+  const table = document.getElementById('sbTable').value.trim() || 'student_schedules';
+  if (!url || !key) { alert('请填写 Project URL 和 API Key'); return; }
+  localStorage.setItem('sb_url',   url);
+  localStorage.setItem('sb_key',   key);
+  localStorage.setItem('sb_table', table);
+  document.getElementById('supabaseModal').style.display = 'none';
+  notify('Supabase 配置已保存', 'success');
+}
+
+// 打开配置弹窗时回填已保存的值
+document.getElementById('btnSupabaseConfig').addEventListener('click', () => {
+  const cfg = loadSupabaseConfig();
+  document.getElementById('sbUrl').value   = cfg.url   || SB_DEFAULTS.url;
+  document.getElementById('sbKey').value   = cfg.key   || SB_DEFAULTS.key;
+  document.getElementById('sbTable').value = cfg.table || SB_DEFAULTS.table;
+  const modal = document.getElementById('supabaseModal');
+  modal.style.display = 'flex';
+  // 点遮罩关闭
+  modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+});
+
+// 核心同步函数：逐条 upsert 到 Supabase
+// 公共：获取已验证的配置和 headers，失败返回 null
+function getSupabaseContext() {
+  const cfg = loadSupabaseConfig();
+  if (!cfg.url || !cfg.key) {
+    notify('请先点击「配置 Supabase」填写连接信息', 'warning');
+    return null;
+  }
+  return {
+    cfg,
+    headers: {
+      'Content-Type':  'application/json',
+      'apikey':         cfg.key,
+      'Authorization': `Bearer ${cfg.key}`
+    }
+  };
+}
+
+// ── 按钮一：同步完整课表 → student_schedules ──
+async function syncSchedules() {
+  if (state.students.length === 0) { notify('没有学生数据可同步', 'warning'); return; }
+  const ctx = getSupabaseContext(); if (!ctx) return;
+  const { cfg, headers } = ctx;
+
+  const statusEl  = document.getElementById('syncStatus');
+  const endpoint  = `${cfg.url}/rest/v1/${cfg.table}`;
+  const btn       = document.getElementById('btnSyncSchedules');
+  btn.disabled    = true;
+
+  let success = 0, failed = 0;
+
+  for (let i = 0; i < state.students.length; i++) {
+    const stu = state.students[i];
+    statusEl.textContent = `☁ 同步课表 ${i + 1} / ${state.students.length}（${stu.name}）…`;
+
+    const payload = {
+      id:         stu.id,
+      name:       stu.name,
+      grade:      stu.grade  || '',
+      cells:      stu.cells,
+      updated_at: new Date().toISOString()
+    };
+    try {
+      const res = await fetch(endpoint, {
+        method:  'POST',
+        headers: { ...headers, 'Prefer': 'resolution=merge-duplicates' },
+        body:    JSON.stringify(payload)
+      });
+      if (res.ok || res.status === 201 || res.status === 200) {
+        success++;
+      } else {
+        console.error(`课表同步失败 [${stu.name}]:`, res.status, await res.text());
+        failed++;
+      }
+    } catch (err) {
+      console.error(`课表网络错误 [${stu.name}]:`, err);
+      failed++;
+    }
+  }
+
+  btn.disabled = false;
+  if (failed === 0) {
+    statusEl.textContent = `✅ 完整课表同步完成，共 ${success} 名学生`;
+    notify(`☁ 课表同步完成！共 ${success} 名学生`, 'success', 4000);
+  } else {
+    statusEl.textContent = `⚠ 课表同步：成功 ${success}，失败 ${failed}（见控制台）`;
+    notify(`课表同步部分失败`, 'warning', 5000);
+  }
+}
+
+// ── 按钮二：同步练琴时间段 → student_time_slots ──
+async function syncPracticeSlots() {
+  if (state.students.length === 0) { notify('没有学生数据可同步', 'warning'); return; }
+  const ctx = getSupabaseContext(); if (!ctx) return;
+  const { cfg, headers } = ctx;
+
+  const statusEl    = document.getElementById('syncStatus');
+  const endpoint    = `${cfg.url}/rest/v1/student_time_slots`;
+  const btn         = document.getElementById('btnSyncPractice');
+  btn.disabled      = true;
+
+  let totalInserted = 0, failed = 0;
+  const total       = state.students.length;
+
+  for (let i = 0; i < total; i++) {
+    const stu = state.students[i];
+    statusEl.textContent = `🎹 同步练琴时段 ${i + 1} / ${total}（${stu.name}）…`;
+
+    // 收集该学生所有练琴格子
+    const practiceRows = [];
+    for (const cell of Object.values(stu.cells)) {
+      if (!cell.practice) continue;
+      const slot = NORMAL_SLOTS[cell.slotIndex];
+      if (!slot) continue;
+      const [startTime, endTime] = slot.split('-');
+      practiceRows.push({
+        student_name: stu.name,
+        weekday:      cell.day + 1,   // 0-4 → 1-5（周一=1）
+        start_time:   startTime,      // "HH:MM"
+        end_time:     endTime
+      });
+    }
+
+    try {
+      // 先删除该学生旧时段，保持数据与当前标记完全一致
+      const delRes = await fetch(
+        `${endpoint}?student_name=eq.${encodeURIComponent(stu.name)}`,
+        { method: 'DELETE', headers }
+      );
+      if (!delRes.ok && delRes.status !== 204) {
+        console.warn(`删除旧时段失败 [${stu.name}]:`, delRes.status, await delRes.text());
+      }
+
+      // 有练琴时段则批量插入
+      if (practiceRows.length > 0) {
+        const insRes = await fetch(endpoint, {
+          method:  'POST',
+          headers: { ...headers, 'Prefer': 'return=minimal' },
+          body:    JSON.stringify(practiceRows)
+        });
+        if (insRes.ok || insRes.status === 201) {
+          totalInserted += practiceRows.length;
+        } else {
+          console.error(`时段插入失败 [${stu.name}]:`, insRes.status, await insRes.text());
+          failed++;
+        }
+      }
+    } catch (err) {
+      console.error(`时段网络错误 [${stu.name}]:`, err);
+      failed++;
+    }
+  }
+
+  btn.disabled = false;
+  if (failed === 0) {
+    statusEl.textContent = `✅ 练琴时段同步完成，共 ${totalInserted} 条记录`;
+    notify(`🎹 练琴时段同步完成！共 ${totalInserted} 条`, 'success', 4000);
+  } else {
+    statusEl.textContent = `⚠ 时段同步：${totalInserted} 条成功，${failed} 名学生失败（见控制台）`;
+    notify(`练琴时段同步部分失败`, 'warning', 5000);
+  }
+}
+
+document.getElementById('btnSyncSchedules').addEventListener('click', syncSchedules);
+document.getElementById('btnSyncPractice').addEventListener('click', syncPracticeSlots);
+
+</script>
+</body>
+</html>
+
