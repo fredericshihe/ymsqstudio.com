@@ -589,71 +589,6 @@ const fetchHealth=()=>api('v_baseline_health?select=*').then(r=>r[0]||null);
 const fetchStudents=()=>api('student_baseline?select=*&order=composite_score.desc.nullslast');
 const fetchHistory=n=>api(`student_score_history?student_name=eq.${encodeURIComponent(n)}&select=snapshot_date,composite_score,raw_score,baseline_score,trend_score,momentum_score,accum_score,outlier_rate,short_session_rate,mean_duration,record_count&order=snapshot_date.asc&limit=52`);
 
-// AI 分析专用：直接从 practice_logs 配对完整的 assign/clear，生成最近 30 次练琴
-function pairPracticeLogs(logs,maxSessions=30){
-  const sorted=[...(logs||[])].sort((a,b)=>{
-    const ta=new Date(a.created_at).getTime();
-    const tb=new Date(b.created_at).getTime();
-    return ta-tb || (a.id||0)-(b.id||0);
-  });
-  const sessions=[];
-  const WINDOW_MS=16*60*60*1000; // 16 小时
-
-  for(let i=0;i<sorted.length;i++){
-    const clear=sorted[i];
-    if(clear.action!=='clear') continue;
-    const clearTime=new Date(clear.created_at);
-
-    let assign=null,assignIdx=-1;
-    for(let j=i-1;j>=0;j--){
-      const cand=sorted[j];
-      if(cand.action!=='assign') continue;
-      if((cand.student_name||'')!==(clear.student_name||'')) continue;
-      if((cand.room_name||'')!==(clear.room_name||'')) continue;
-      const assignTime=new Date(cand.created_at);
-      if(clearTime-assignTime>WINDOW_MS) break;
-      assign=cand;
-      assignIdx=j;
-      break; // 按参考 SQL：只取最近配对的 assign
-    }
-    if(!assign) continue;
-
-    const assignTime=new Date(assign.created_at);
-    // 若 assign 和 clear 之间已经出现其他 clear，说明这个 assign 已被消费，跳过
-    const consumed=sorted.slice(assignIdx+1,i).some(mid=>
-      mid.action==='clear' &&
-      (mid.student_name||'')===(clear.student_name||'') &&
-      (mid.room_name||'')===(clear.room_name||'') &&
-      mid.id!==clear.id
-    );
-    if(consumed) continue;
-
-    const durSeconds=clear.practice_duration!=null
-      ? Number(clear.practice_duration)
-      : Math.round((clearTime-assignTime)/1000);
-    if(!Number.isFinite(durSeconds)||durSeconds<300) continue; // 不足 5 分钟丢弃
-
-    const rawMinutes=Math.round(durSeconds/60);
-    sessions.push({
-      session_start:assign.created_at,
-      session_end:clear.created_at,
-      cleaned_duration:Math.min(rawMinutes,120),
-      raw_duration:rawMinutes,
-      is_outlier:durSeconds>7800, // >130 分钟
-      room_name:clear.room_name||assign.room_name||'',
-      piano_type:clear.piano_type||assign.piano_type||''
-    });
-  }
-
-  return sessions
-    .sort((a,b)=>new Date(b.session_start)-new Date(a.session_start))
-    .slice(0,maxSessions);
-}
-
-const fetchSessions=n=>api(
-  `practice_logs?student_name=eq.${encodeURIComponent(n)}&action=in.(assign,clear)&select=id,created_at,action,room_name,student_name,piano_type,practice_duration&order=created_at.desc&limit=260`
-).then(rows=>pairPracticeLogs(rows,30)).catch(()=>[]);
-
 // 返回本周一的「本地日期」字符串，格式 YYYY-MM-DD
 // 注意：必须用本地日期，不能用 toISOString()（UTC 日期会使中国用户偏移一天）
 function getWeekMonday(){
@@ -692,15 +627,15 @@ const fetchCurrentWeekScores=()=>api(
 const S={students:[],filtered:[],health:null,
   sortCol:'composite_score',sortDir:'desc',page:1,pageSize:20,
   selected:null,charts:{},
-  currentStudent:null,currentHist:[],currentSessions:[]};
+  currentStudent:null};
 
 // ── AI Analysis ────────────────────────────────
-const AI_FN = 'deepseek-chat';   // ← 改为你在 Supabase 部署的 Edge Function 名称
+// AI 分析统一由后端 batch-ai-analysis Edge Function 生成，前端只负责读缓存和触发
 const AI_CACHE_DAYS = 7;         // 缓存有效天数
+const BATCH_SECRET  = 'menuhin2026'; // 与 Edge Function BATCH_AI_SECRET 一致
 
 async function fetchAnalysisCache(name){
   try{
-    // 按 generated_at 倒序，确保始终取最新的一条
     const rows=await api(`student_ai_analysis?student_name=eq.${encodeURIComponent(name)}&select=analysis_text,generated_at,model_source&order=generated_at.desc&limit=1`);
     if(!rows.length)return null;
     const ageDays=(Date.now()-new Date(rows[0].generated_at).getTime())/86400000;
@@ -708,123 +643,9 @@ async function fetchAnalysisCache(name){
   }catch{return null;}
 }
 
-async function saveAnalysisCache(name,text,source){
-  try{
-    // ?on_conflict=student_name 告诉 PostgREST 按 student_name 唯一约束做冲突检测（upsert）
-    // 若不加此参数，merge-duplicates 只看主键 id，新行没有 id 就变成 INSERT，永远不会更新旧行
-    const res=await fetch(
-      `${cfg.url}/rest/v1/student_ai_analysis?on_conflict=student_name`,{
-        method:'POST',
-        headers:{
-          apikey:cfg.key,
-          Authorization:`Bearer ${cfg.key}`,
-          'Content-Type':'application/json',
-          Prefer:'resolution=merge-duplicates'
-        },
-        body:JSON.stringify({
-          student_name:name,
-          analysis_text:text,
-          model_source:source||'unknown',
-          generated_at:new Date().toISOString()
-        })
-    });
-    if(!res.ok){
-      const err=await res.text().catch(()=>'');
-      console.warn('[AI Cache] 保存失败 HTTP',res.status,':',err.slice(0,200));
-      toast('AI 分析已生成，但缓存保存失败（刷新后可能消失）','err',4000);
-    }
-  }catch(e){
-    console.warn('[AI Cache] 保存异常:',e.message);
-  }
-}
+// AI prompt 构建 / generateAIAnalysis 已全部迁移至后端，见 index.ts
 
-const WD_CN=['周日','周一','周二','周三','周四','周五','周六'];
 
-// 中国音乐学院学年节假日参考（用于判断缺席是否属于假期）
-const CN_HOLIDAYS=[
-  {name:'元旦假期',      range:'12月31日 ~ 1月3日前后'},
-  {name:'寒假+春节',     range:'1月中旬 ~ 2月下旬（各校差异较大，通常4~6周）'},
-  {name:'清明节',        range:'4月4日前后3天'},
-  {name:'劳动节',        range:'5月1日前后5天'},
-  {name:'端午节',        range:'5月底/6月初前后3天'},
-  {name:'期末考试周',    range:'6月下旬（大学期末，部分学生停止练琴备考）'},
-  {name:'暑假',          range:'7月初 ~ 8月底（通常6~8周）'},
-  {name:'中秋节',        range:'9月中旬前后3天'},
-  {name:'国庆节',        range:'10月1日~7日'},
-  {name:'期末考试周',    range:'12月下旬（秋季学期期末）'},
-];
-
-// 解析缺席段落，返回带假期推测的文字
-function inferAbsencePeriods(hist){
-  const sorted=[...hist]
-    .filter(h=>h.snapshot_date)
-    .sort((a,b)=>a.snapshot_date.localeCompare(b.snapshot_date));
-  if(!sorted.length) return '';
-
-  // 找出连续缺席段
-  const periods=[];
-  let run=[];
-  sorted.forEach(h=>{
-    if(h.composite_score===0){run.push(h.snapshot_date.slice(0,10));}
-    else{if(run.length){periods.push([...run]);run=[];}}
-  });
-  if(run.length) periods.push(run);
-  if(!periods.length) return '无明显缺席段。';
-
-  return periods.map(p=>{
-    const start=new Date(p[0]),end=new Date(p[p.length-1]);
-    const sm=start.getMonth()+1,sd=start.getDate();
-    const em=end.getMonth()+1,ed=end.getDate();
-    const weeks=p.length;
-    // 简单月份比对，判断是否落在已知假期范围
-    let guess='';
-    if((sm===1&&sd>=10)||(sm===2)||(sm===3&&sd<=10)) guess='→ 时间段与寒假/春节重合，可能属于正常寒假';
-    else if(sm===7||sm===8||(em===7||em===8)) guess='→ 时间段与暑假重合，可能属于正常暑假';
-    else if(sm===10&&sd<=8) guess='→ 与国庆假期重合，属于正常法定假日';
-    else if(sm===5&&sd<=8) guess='→ 与劳动节假期重合，属于正常法定假日';
-    else if(sm===6&&sd>=20||sm===12&&sd>=20) guess='→ 与期末考试周时间接近，可能因备考暂停练琴';
-    else if(weeks<=1) guess='→ 仅1周，可能是普通小长假或偶发缺席';
-    else if(weeks>=4) guess='→ 连续缺席'+weeks+'周且不在已知假期，建议老师关注';
-    else guess='→ 未明显对应已知假期，需进一步了解原因';
-    return `  缺席段：${p[0]} ~ ${p[p.length-1]}（共${weeks}周） ${guess}`;
-  }).join('\n');
-}
-
-// 分析练琴时间段分布，只返回有明显特征的描述，否则返回空字符串
-// 学校琴房规则：8:00开门，21:30清场；12:00~13:00午饭时间
-function practiceSlot(h,min){
-  const t=h*60+(min||0);
-  if(t<480)  return 'abnormal';   // 8点前，异常
-  if(t<720)  return 'morning';    // 8:00~12:00 上午
-  if(t<780)  return 'lunch';      // 12:00~13:00 午饭时间
-  if(t<1080) return 'afternoon';  // 13:00~18:00 下午
-  if(t<1290) return 'evening';    // 18:00~21:30 晚饭后
-  return 'abnormal';              // 21:30后，学校已清场，异常
-}
-
-function analyzePracticeTimeSlots(sessions){
-  if(!sessions||sessions.length<5) return '';
-  const slots={morning:0,lunch:0,afternoon:0,evening:0,abnormal:0};
-  sessions.forEach(r=>{
-    const d=new Date(r.session_start);
-    slots[practiceSlot(d.getHours(),d.getMinutes())]++;
-  });
-  const total=sessions.length;
-  const pct=k=>Math.round(slots[k]/total*100);
-
-  const notes=[];
-  if(pct('morning')>=50)   notes.push(`上午（8~12点）是主要练琴时段，占${pct('morning')}%`);
-  if(pct('afternoon')>=50) notes.push(`下午（13~18点）是主要练琴时段，占${pct('afternoon')}%`);
-  if(pct('evening')>=50)   notes.push(`晚饭后（18~21:30）是主要练琴时段，占${pct('evening')}%`);
-  if(pct('lunch')>=20)     notes.push(`有${pct('lunch')}%的练琴记录开始于午饭时间（12~13点），该生习惯利用午休练琴`);
-  if(pct('abnormal')>=10)  notes.push(`有${pct('abnormal')}%的练琴记录开始于8点前或21:30后（学校非开放时段），数据异常，建议核查`);
-  // 时段均匀分散
-  const maxPct=Math.max(pct('morning'),pct('afternoon'),pct('evening'));
-  if(maxPct<35&&notes.length===0) notes.push('练琴时间段分布较均匀，上午/下午/晚间均有使用');
-
-  if(!notes.length) return '';
-  return `练琴时间段特点（最近${total}次）：${notes.join('；')}。`;
-}
 
 // 从最近30次完整练琴中提炼更“像这个学生”的特征，供 AI 自由发挥
 function summarizeSessionSignals(sessions){
@@ -1163,41 +984,51 @@ function setAIUI(state,text,meta){
   }
 }
 
-async function loadStudentAnalysis(s,hist,sessions){
+// AI 分析缓存检查 → 有效则直接展示，过期/缺失则调用后端重新生成
+async function loadStudentAnalysis(s){
   const cached=await fetchAnalysisCache(s.student_name);
   if(cached){
-    // 若本周无练琴（has_week_snapshot=true），缓存可能基于旧状态，需判断：
-    // 如果缓存是今天之后生成的 → 还算新鲜，可以用
-    // 如果本周无练琴且缓存早于本周一 → 状态已变化，强制重新生成
+    // 本周未练且缓存早于本周一 → 状态已变化，强制重新生成
     const cacheDate=new Date(cached.generated_at);
     const weekMonday=new Date(getWeekMonday()+'T00:00:00');
     const staleForAbsent = s.has_week_snapshot && cacheDate < weekMonday;
     if(!staleForAbsent){
-      const d=cacheDate;
       const src=cached.model_source==='deepseek'?'DeepSeek':'Gemini';
-      setAIUI('ok',cached.analysis_text,`${src} 生成 · ${d.toLocaleDateString('zh-CN')} · 缓存`);
+      setAIUI('ok',cached.analysis_text,`${src} 生成 · ${cacheDate.toLocaleDateString('zh-CN')} · 缓存`);
       return;
     }
-    // 缓存过期（本周未练但缓存是上周前生成的）→ 强制重新生成
   }
-  await doGenerateAnalysis(s,hist,sessions);
+  await doGenerateAnalysis(s.student_name);
 }
 
-async function doGenerateAnalysis(s,hist,sessions){
+// 调用后端 batch-ai-analysis Edge Function（单学生模式）
+async function doGenerateAnalysis(name){
   setAIUI('loading');
   try{
-    const{text,source}=await generateAIAnalysis(s,hist,sessions);
-    await saveAnalysisCache(s.student_name,text,source);
-    const src=source==='deepseek'?'DeepSeek':'Gemini';
-    setAIUI('ok',text,`${src} 生成 · ${new Date().toLocaleDateString('zh-CN')}`);
+    const res=await fetch(`${cfg.url}/functions/v1/batch-ai-analysis`,{
+      method:'POST',
+      headers:{
+        apikey:cfg.key,
+        Authorization:`Bearer ${cfg.key}`,
+        'Content-Type':'application/json',
+        'x-batch-secret':BATCH_SECRET
+      },
+      body:JSON.stringify({student_name:name})
+    });
+    if(!res.ok){const t=await res.text();throw new Error(`AI 生成失败 (${res.status}): ${t.slice(0,120)}`);}
+    const data=await res.json();
+    if(data.log) console.log('🔍 AI调试日志:', data.log); // 打印后端返回的调试日志
+    if(data.error)throw new Error(data.error);
+    const src=data.source==='deepseek'?'DeepSeek':'Gemini';
+    setAIUI('ok',data.text,`${src} 生成 · ${new Date().toLocaleDateString('zh-CN')}`);
   }catch(e){
     setAIUI('error',e.message);
   }
 }
 
-// 重新生成按钮回调（在 HTML onclick 中调用）
+// 重新生成按钮回调
 function regenerateAnalysis(){
-  if(S.currentStudent)doGenerateAnalysis(S.currentStudent,S.currentHist,S.currentSessions);
+  if(S.currentStudent)doGenerateAnalysis(S.currentStudent.student_name);
 }
 
 // 历史快照表格折叠展开
@@ -1434,14 +1265,11 @@ async function pickStudent(name){
   dp.innerHTML=`<div style="padding:40px;text-align:center;color:var(--t3)"><div class="spin"></div><br><br>加载 ${name} 的数据…</div>`;
   try{
     const s=S.students.find(x=>x.student_name===name);
-    const[hist,sessions]=await Promise.all([fetchHistory(name),fetchSessions(name)]);
-    // 保存到状态，供 regenerateAnalysis() 使用
+    const hist=await fetchHistory(name);
     S.currentStudent=s;
-    S.currentHist=hist;
-    S.currentSessions=sessions;
     renderDP(s,hist);
-    // AI 分析异步加载，不阻塞面板渲染
-    loadStudentAnalysis(s,hist,sessions);
+    // AI 分析由后端生成，异步触发不阻塞面板渲染
+    loadStudentAnalysis(s);
   }catch(e){dp.innerHTML=`<div style="padding:28px;color:var(--red)">加载失败：${e.message}</div>`;toast(`加载失败：${e.message}`,'err')}
 }
 
