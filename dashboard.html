@@ -1,0 +1,1707 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>青岛耶胡迪梅纽因学校 学生练琴智能监控系统</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080c1a;--sur:#0e1529;--card:#111d35;--card2:#172141;
+  --bdr:#1e2f54;--bdr2:#2e4580;
+  --blue:#4f8ef7;--blue2:#3574e0;
+  --teal:#06b6d4;--green:#10b981;--yellow:#f59e0b;
+  --orange:#f97316;--red:#ef4444;--purple:#a855f7;--pink:#ec4899;
+  --t1:#e2e8f0;--t2:#94a3b8;--t3:#4b5e82;
+  --r:10px;--rlg:16px;--shadow:0 12px 40px rgba(0,0,0,.55);
+}
+html{font-size:15px}
+body{font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;background:var(--bg);color:var(--t1);min-height:100vh;line-height:1.6}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:4px}
+
+/* ── Layout ──────────────────────────────── */
+.wrap{max-width:1680px;margin:0 auto;padding:0 28px 64px}
+
+/* ── Modal ───────────────────────────────── */
+.mask{position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.78);
+  backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center}
+.mask.hidden{display:none}
+.modal{background:var(--sur);border:1px solid var(--bdr2);border-radius:20px;
+  padding:40px;width:500px;max-width:94vw;box-shadow:var(--shadow)}
+.modal h2{font-size:1.15rem;font-weight:800;margin-bottom:6px}
+.modal .sub{font-size:.82rem;color:var(--t3);margin-bottom:28px}
+.tip-banner{background:rgba(79,142,247,.09);border:1px solid rgba(79,142,247,.22);
+  border-radius:var(--r);padding:12px 16px;font-size:.78rem;color:var(--t2);
+  margin-bottom:20px;line-height:1.7}
+.fg{margin-bottom:18px}
+.fg label{display:block;font-size:.8rem;font-weight:700;color:var(--t2);margin-bottom:6px}
+.fg input{width:100%;background:var(--card);border:1px solid var(--bdr2);
+  border-radius:var(--r);color:var(--t1);padding:11px 14px;font-size:.85rem;outline:none;
+  transition:border-color .2s}
+.fg input:focus{border-color:var(--blue)}
+.fg .hint{font-size:.72rem;color:var(--t3);margin-top:5px}
+.modal-foot{display:flex;gap:10px;justify-content:flex-end;margin-top:28px}
+
+/* ── Buttons ─────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;
+  border-radius:var(--r);border:1px solid var(--bdr2);background:var(--card);
+  color:var(--t2);cursor:pointer;font-size:.84rem;transition:all .18s;white-space:nowrap}
+.btn:hover{border-color:var(--blue);color:var(--blue)}
+.btn.pri{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.pri:hover{background:var(--blue2)}
+.btn svg,.btn-ic{width:15px;height:15px;flex-shrink:0}
+.btn:disabled{opacity:.4;pointer-events:none}
+
+/* ── Toast ───────────────────────────────── */
+.toasts{position:fixed;right:22px;bottom:22px;z-index:2000;
+  display:flex;flex-direction:column;gap:9px;pointer-events:none}
+.toast{padding:11px 18px;border-radius:var(--r);font-size:.82rem;
+  font-weight:600;border:1px solid;animation:tin .3s;box-shadow:var(--shadow)}
+.toast.ok{background:rgba(16,185,129,.12);border-color:var(--green);color:var(--green)}
+.toast.err{background:rgba(239,68,68,.12);border-color:var(--red);color:var(--red)}
+.toast.inf{background:rgba(79,142,247,.12);border-color:var(--blue);color:var(--blue)}
+@keyframes tin{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:none}}
+.spin{display:inline-block;width:18px;height:18px;border:2px solid var(--bdr2);
+  border-top-color:var(--blue);border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ── AI 分析卡片 ─────────────────────────── */
+.ai-card{
+  position:relative;margin:0 0 24px;
+  background:linear-gradient(145deg,rgba(8,14,30,.92) 0%,rgba(14,20,46,.92) 60%,rgba(10,18,38,.92) 100%);
+  border:1px solid rgba(79,142,247,.38);border-radius:var(--r);
+  padding:0;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(79,142,247,.08),0 10px 40px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.04)}
+/* 顶部发光线 */
+.ai-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent 5%,rgba(79,142,247,.7) 30%,rgba(168,85,247,.6) 70%,transparent 95%)}
+/* 扫描动画线（加载时用 .ai-card.scanning 触发） */
+.ai-card.scanning::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,rgba(79,142,247,.9),transparent);
+  animation:ai-scan 1.4s ease-in-out infinite}
+@keyframes ai-scan{0%{top:0;opacity:0}10%{opacity:1}90%{opacity:1}100%{top:100%;opacity:0}}
+/* HUD 四角装饰 */
+.ai-card .ai-corner{position:absolute;width:10px;height:10px;border-color:rgba(79,142,247,.55);border-style:solid}
+.ai-card .ai-corner.tl{top:7px;left:7px;border-width:1.5px 0 0 1.5px}
+.ai-card .ai-corner.tr{top:7px;right:7px;border-width:1.5px 1.5px 0 0}
+.ai-card .ai-corner.bl{bottom:7px;left:7px;border-width:0 0 1.5px 1.5px}
+.ai-card .ai-corner.br{bottom:7px;right:7px;border-width:0 1.5px 1.5px 0}
+/* 卡片头部 */
+.ai-hd{display:flex;align-items:center;gap:10px;
+  padding:13px 20px 12px;border-bottom:1px solid rgba(79,142,247,.15);
+  background:rgba(79,142,247,.05)}
+.ai-title{font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  background:linear-gradient(90deg,#6ab0ff,#c084fc);
+  background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.ai-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;
+  background:rgba(79,142,247,.9);
+  box-shadow:0 0 6px 2px rgba(79,142,247,.55);
+  animation:ai-pulse 2.2s ease-in-out infinite}
+@keyframes ai-pulse{0%,100%{opacity:1;box-shadow:0 0 6px 2px rgba(79,142,247,.55)}
+  50%{opacity:.5;box-shadow:0 0 3px 1px rgba(79,142,247,.25)}}
+.ai-meta{margin-left:auto;font-size:.64rem;color:rgba(148,163,184,.7);letter-spacing:.03em;white-space:nowrap}
+.ai-regen{font-size:.67rem;padding:3px 11px;border-radius:20px;
+  border:1px solid rgba(79,142,247,.4);background:transparent;
+  color:rgba(99,160,255,.9);cursor:pointer;letter-spacing:.04em;
+  transition:background .15s,border-color .15s,box-shadow .15s}
+.ai-regen:hover{background:rgba(79,142,247,.15);border-color:rgba(79,142,247,.7);
+  box-shadow:0 0 8px rgba(79,142,247,.25)}
+.ai-regen:disabled{opacity:.45;cursor:default}
+/* 卡片内容区 */
+.ai-body{padding:16px 20px 18px;position:relative}
+/* 左侧蓝色细竖线 + 文字 */
+.ai-text{font-size:.91rem;color:rgba(220,232,255,.88);line-height:1.95;
+  padding-left:14px;border-left:2px solid rgba(79,142,247,.35);
+  min-height:2.8rem;letter-spacing:.01em}
+.ai-text.loading{color:rgba(148,163,184,.6);border-left-color:rgba(79,142,247,.15)}
+.ai-text.errored{color:rgba(251,113,133,.8);border-left-color:rgba(239,68,68,.35)}
+
+/* ── Header ──────────────────────────────── */
+.hd{display:flex;align-items:center;gap:18px;
+  padding:24px 0 22px;border-bottom:1px solid var(--bdr);margin-bottom:34px}
+.hd-logo{font-size:2.05rem;line-height:1}
+.hd-info h1{font-size:1.72rem;font-weight:900;letter-spacing:.015em;line-height:1.18;
+  background:linear-gradient(135deg,#f8fbff 0%,#dbeafe 38%,#8db5ff 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  text-shadow:0 8px 30px rgba(79,142,247,.12)}
+.hd-info p{font-size:.82rem;color:var(--t3);margin-top:6px}
+.hd-right{display:flex;align-items:center;gap:10px;margin-left:auto}
+.conn{display:inline-flex;align-items:center;gap:7px;padding:5px 14px;
+  border-radius:20px;font-size:.78rem;font-weight:600;
+  border:1px solid var(--bdr2);background:var(--card)}
+.conn .dot{width:8px;height:8px;border-radius:50%;background:var(--t3)}
+.conn.ok .dot{background:var(--green);box-shadow:0 0 7px var(--green);animation:pulse 2s infinite}
+.conn.err .dot{background:var(--red)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+
+/* ── KPI Grid ────────────────────────────── */
+.kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:16px;margin-bottom:28px}
+@media(max-width:1200px){.kpi-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:680px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--card);border:1px solid var(--bdr);border-radius:var(--rlg);
+  padding:22px 22px 18px;position:relative;overflow:visible;
+  transition:border-color .2s,transform .2s;cursor:default}
+.kpi:hover{border-color:var(--bdr2);transform:translateY(-2px)}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  border-radius:var(--rlg) var(--rlg) 0 0;background:var(--kc,var(--blue))}
+.kpi-lbl{font-size:.72rem;color:var(--t3);font-weight:700;
+  text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;
+  display:flex;align-items:center;gap:5px}
+.kpi-val{font-size:2rem;font-weight:900;color:var(--kc,var(--t1));
+  line-height:1;margin-bottom:6px}
+.kpi-sub{font-size:.74rem;color:var(--t3);line-height:1.5}
+
+/* ── Info Tooltip ────────────────────────── */
+.itip{display:inline-flex;align-items:center;justify-content:center;
+  width:17px;height:17px;border-radius:50%;border:1px solid var(--bdr2);
+  color:var(--t3);font-size:.66rem;font-style:normal;cursor:help;
+  position:relative;flex-shrink:0}
+/* .ibox 内容由 JS 读取后注入 #g-tip，自身保持隐藏 */
+.ibox{display:none}
+/* 全局浮动 tooltip — JS 控制位置 */
+#g-tip{position:fixed;display:none;visibility:hidden;width:360px;max-width:min(420px,92vw);
+  background:linear-gradient(180deg,rgba(23,33,65,.98),rgba(17,29,53,.98));
+  border:1px solid rgba(79,142,247,.28);border-radius:14px;
+  padding:16px 18px;font-size:.84rem;color:var(--t1);line-height:1.82;
+  z-index:3000;box-shadow:0 18px 48px rgba(0,0,0,.52),0 0 0 1px rgba(79,142,247,.05);
+  pointer-events:none;white-space:normal;font-weight:500;text-transform:none;letter-spacing:.01em;
+  backdrop-filter:blur(8px)}
+@media(max-width:640px){
+  #g-tip{width:min(94vw,420px);padding:15px 16px;font-size:.82rem;line-height:1.78}
+}
+
+/* ── Filter Bar ──────────────────────────── */
+.fbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.fsel,.fsrch{
+  appearance:none;-webkit-appearance:none;-moz-appearance:none;
+  background:linear-gradient(180deg,rgba(23,33,65,.92),rgba(17,29,53,.96));
+  border:1px solid rgba(79,142,247,.22);border-radius:14px;
+  color:var(--t1);padding:9px 14px;font-size:.83rem;outline:none;
+  transition:border-color .2s,box-shadow .2s,background .2s;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
+}
+.fsel{cursor:pointer;padding-right:34px;
+  background-image:
+    linear-gradient(180deg,rgba(23,33,65,.92),rgba(17,29,53,.96)),
+    linear-gradient(45deg,transparent 50%,#7ea6f5 50%),
+    linear-gradient(135deg,#7ea6f5 50%,transparent 50%);
+  background-repeat:no-repeat,no-repeat,no-repeat;
+  background-size:auto,6px 6px,6px 6px;
+  background-position:0 0,calc(100% - 16px) 52%,calc(100% - 11px) 52%}
+.fsel:hover,.fsrch:hover{
+  border-color:rgba(79,142,247,.42);
+  box-shadow:0 0 0 2px rgba(79,142,247,.08),0 8px 20px rgba(79,142,247,.08),inset 0 1px 0 rgba(255,255,255,.04);
+  background:linear-gradient(180deg,rgba(27,39,74,.96),rgba(19,31,58,.98));
+}
+.fsel:hover{
+  background-image:
+    linear-gradient(180deg,rgba(27,39,74,.96),rgba(19,31,58,.98)),
+    linear-gradient(45deg,transparent 50%,#9ec0ff 50%),
+    linear-gradient(135deg,#9ec0ff 50%,transparent 50%);
+}
+.fsel:focus,.fsrch:focus{
+  border-color:rgba(79,142,247,.55);
+  box-shadow:0 0 0 3px rgba(79,142,247,.12),inset 0 1px 0 rgba(255,255,255,.03)
+}
+.fsrch{min-width:180px}
+.fsrch::placeholder{color:#7a8fb8}
+.fsel option{background:var(--card2)}
+.fcnt{font-size:.78rem;color:var(--t3);margin-left:auto}
+
+/* ── Table ───────────────────────────────── */
+.tbl-wrap{background:var(--card);border:1px solid var(--bdr);
+  border-radius:var(--rlg);overflow:hidden;margin-bottom:16px}
+.tbl-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.84rem;white-space:nowrap}
+thead th{background:var(--card2);color:var(--t3);font-weight:700;
+  font-size:.73rem;text-transform:uppercase;letter-spacing:.05em;
+  padding:13px 16px;text-align:left;border-bottom:1px solid var(--bdr);
+  cursor:pointer;user-select:none;transition:color .15s}
+thead th:hover{color:var(--t2)}
+thead th.sa::after{content:' ↑';color:var(--blue)}
+thead th.sd::after{content:' ↓';color:var(--blue)}
+tbody tr{border-bottom:1px solid var(--bdr);transition:background .1s;cursor:pointer}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:rgba(255,255,255,.024)}
+tbody tr.sel{background:rgba(79,142,247,.08);border-left:3px solid var(--blue)}
+tbody td{padding:13px 16px;color:var(--t2);vertical-align:middle}
+tbody td.b{color:var(--t1);font-weight:700}
+.badge{display:inline-flex;align-items:center;justify-content:center;
+  min-width:44px;padding:4px 10px;border-radius:8px;font-weight:900;font-size:.88rem}
+.b5{background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.3)}
+.b4{background:rgba(79,142,247,.15);color:var(--blue);border:1px solid rgba(79,142,247,.3)}
+.b3{background:rgba(245,158,11,.15);color:var(--yellow);border:1px solid rgba(245,158,11,.3)}
+.b2{background:rgba(249,115,22,.15);color:var(--orange);border:1px solid rgba(249,115,22,.3)}
+.b1{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+.b0{background:rgba(75,94,130,.15);color:var(--t3);border:1px solid rgba(75,94,130,.25);font-weight:600;font-size:.76rem}
+.mbar{display:flex;align-items:center;gap:6px}
+.mbar-t{flex:1;height:4px;background:var(--bdr);border-radius:2px;overflow:hidden;min-width:60px}
+.mbar-f{height:100%;border-radius:2px;transition:width .4s}
+.stag{display:inline-block;padding:3px 9px;border-radius:5px;font-size:.72rem;font-weight:800}
+.stag-c{background:rgba(6,182,212,.12);color:var(--teal);border:1px solid rgba(6,182,212,.25)}
+.stag-n{background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.25)}
+
+/* th tooltip */
+.thtip{display:inline-flex;align-items:center;justify-content:center;
+  width:17px;height:17px;border-radius:50%;border:1px solid var(--bdr2);
+  color:var(--t3);font-size:.66rem;font-style:normal;cursor:help;
+  position:relative;vertical-align:middle;margin-left:3px}
+.thtip-b{display:none}
+
+/* ── Pager ───────────────────────────────── */
+.pager{display:flex;align-items:center;gap:7px;
+  padding:13px 18px;border-top:1px solid var(--bdr);flex-wrap:wrap;font-size:.8rem}
+.pi{color:var(--t3);margin-right:6px}
+.pb{padding:4px 11px;border-radius:6px;border:1px solid var(--bdr2);
+  background:var(--card);color:var(--t2);cursor:pointer;font-size:.77rem;transition:all .15s}
+.pb:hover,.pb.act{border-color:var(--blue);color:var(--blue);background:rgba(79,142,247,.1)}
+.pb:disabled{opacity:.35;pointer-events:none}
+
+/* ── Detail Panel ────────────────────────── */
+#dp-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.58);backdrop-filter:blur(3px);z-index:999}
+#dp-bg.show{display:block}
+.dp{background:var(--card);border:1px solid rgba(79,142,247,.4);border-radius:var(--rlg);
+  padding:32px;display:none;
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:min(94vw,1360px);max-height:90vh;overflow-y:auto;
+  z-index:1000;box-shadow:0 24px 80px rgba(0,0,0,.5);
+  animation:fdin .22s ease}
+.dp.show{display:block}
+@keyframes fdin{from{opacity:0;transform:translate(-50%,-48%)}to{opacity:1;transform:translate(-50%,-50%)}}
+
+/* dp header */
+.dp-hd{display:flex;align-items:flex-start;gap:20px;
+  padding-bottom:22px;margin-bottom:24px;border-bottom:1px solid var(--bdr)}
+.dp-info{flex:1}
+.dp-name{font-size:1.75rem;font-weight:900;margin-bottom:6px;letter-spacing:.01em}
+.dp-meta{font-size:.8rem;color:var(--t3);display:flex;flex-wrap:wrap;gap:12px}
+.dp-meta span{display:flex;align-items:center;gap:4px}
+.dp-score-area{display:grid;grid-template-columns:repeat(2,minmax(170px,1fr));gap:12px;flex-shrink:0;min-width:380px}
+.dp-score-box{position:relative;padding:14px 16px 15px;border-radius:16px;border:1px solid var(--bdr);
+  background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.015));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03)}
+.dp-score-box::before{content:'';position:absolute;left:0;top:14px;bottom:14px;width:2px;border-radius:2px;background:rgba(255,255,255,.12)}
+.dp-score-box.rank{border-color:rgba(79,142,247,.28);background:linear-gradient(180deg,rgba(79,142,247,.1),rgba(79,142,247,.03));box-shadow:0 8px 24px rgba(79,142,247,.08),inset 0 1px 0 rgba(255,255,255,.03)}
+.dp-score-box.rank::before{background:linear-gradient(180deg,rgba(79,142,247,.9),rgba(79,142,247,.18))}
+.dp-score-box.raw{border-color:rgba(16,185,129,.24);background:linear-gradient(180deg,rgba(16,185,129,.09),rgba(16,185,129,.03));box-shadow:0 8px 24px rgba(16,185,129,.07),inset 0 1px 0 rgba(255,255,255,.03)}
+.dp-score-box.raw::before{background:linear-gradient(180deg,rgba(16,185,129,.92),rgba(16,185,129,.18))}
+.dp-score-top{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:999px;font-size:.68rem;color:#dbeafe;letter-spacing:.03em;font-weight:800}
+.dp-score-box.rank .dp-score-top{background:rgba(79,142,247,.16);border:1px solid rgba(79,142,247,.24);color:#93c5fd}
+.dp-score-box.raw .dp-score-top{background:rgba(16,185,129,.14);border:1px solid rgba(16,185,129,.22);color:#86efac}
+.dp-score-line{display:flex;align-items:flex-end;gap:8px;margin-top:6px;flex-wrap:wrap}
+.dp-score{font-size:2.55rem;font-weight:900;line-height:1;margin-top:6px}
+.dp-score-line .dp-score{margin-top:0}
+.dp-score.raw{font-size:2.15rem}
+.dp-mini-tag{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;
+  font-size:.68rem;font-weight:800;letter-spacing:.02em}
+.dp-mini-tag.rankno{background:rgba(79,142,247,.14);border:1px solid rgba(79,142,247,.24);color:#93c5fd}
+.dp-mini-tag.up{background:rgba(16,185,129,.14);border:1px solid rgba(16,185,129,.25);color:#86efac}
+.dp-mini-tag.flat{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.22);color:#fcd34d}
+.dp-mini-tag.down{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.22);color:#fca5a5}
+.dp-score-lbl{font-size:.8rem;color:var(--t2);margin-top:8px;font-weight:800}
+.dp-score-sub{font-size:.72rem;color:var(--t3);margin-top:4px;line-height:1.4}
+.dp-close{width:32px;height:32px;border-radius:50%;border:1px solid var(--bdr2);
+  background:var(--card2);color:var(--t3);cursor:pointer;font-size:1.05rem;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s;flex-shrink:0;margin-left:8px}
+.dp-close:hover{border-color:var(--red);color:var(--red)}
+@media(max-width:980px){
+  .dp-hd{flex-wrap:wrap}
+  .dp-score-area{width:100%;min-width:0}
+  .dp-close{margin-left:auto}
+}
+@media(max-width:640px){
+  .dp-score-area{grid-template-columns:1fr}
+}
+
+/* dp body: score dims + charts + metrics */
+.dp-body{display:grid;grid-template-columns:280px 1fr;gap:24px;align-items:stretch}
+@media(max-width:960px){.dp-body{grid-template-columns:1fr}}
+
+/* left column — 5张卡片平均撑满整个列高 */
+.dp-left{display:flex;flex-direction:column;gap:14px;height:100%}
+.dp-left>.mc{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:space-between}
+
+/* metric card */
+.mc{background:var(--card2);border:1px solid var(--bdr);border-radius:var(--r);padding:16px 18px}
+.mc-lbl{font-size:.72rem;color:var(--t3);font-weight:700;text-transform:uppercase;
+  letter-spacing:.05em;margin-bottom:8px;display:flex;align-items:center;gap:5px}
+.mc-val{font-size:1.15rem;font-weight:900;line-height:1.2;margin-bottom:5px}
+.mc-bar{margin:8px 0 5px}
+.mc-desc{font-size:.75rem;color:var(--t3);line-height:1.55}
+.mc-desc.warn{color:var(--yellow)}
+.mc-desc.err{color:var(--red)}
+.mc-desc.ok{color:var(--green)}
+
+/* right column — 撑满整个列高，四维历史图卡片 flex:1 填满剩余空间 */
+.dp-right{display:flex;flex-direction:column;gap:18px;height:100%}
+.dp-right>.ccard-fill{flex:1;min-height:0;display:flex;flex-direction:column}
+.dp-right>.ccard-fill .cw-fill{flex:1;min-height:120px;position:relative}
+
+/* dim row */
+.dim-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:700px){.dim-row{grid-template-columns:repeat(2,1fr)}}
+.dim{background:var(--card2);border:1px solid var(--bdr);border-radius:var(--r);padding:16px 15px}
+.dim-lbl{font-size:.7rem;color:var(--t3);font-weight:700;margin-bottom:8px;
+  display:flex;align-items:center;gap:4px}
+.dim-val{font-size:1.4rem;font-weight:900;line-height:1;margin-bottom:5px}
+.dim-bar{margin:8px 0 6px}
+.dim-desc{font-size:.72rem;color:var(--t3);line-height:1.5}
+
+/* chart cards */
+.ch-row{display:grid;grid-template-columns:3fr 2fr;gap:14px}
+@media(max-width:700px){.ch-row{grid-template-columns:1fr}}
+.ccard{background:var(--card2);border:1px solid var(--bdr);border-radius:var(--r);padding:18px}
+.ccard h4{font-size:.72rem;color:var(--t3);font-weight:700;
+  text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px}
+.ccard .cw{position:relative;height:170px}
+
+/* extra metrics row */
+.xm-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media(max-width:700px){.xm-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- ── Config Modal ──────────────────────────── -->
+<div class="mask hidden" id="msk">
+  <div class="modal">
+    <h2>🎹 连接 Supabase 数据库</h2>
+    <p class="sub">配置仅保存在本地浏览器，不会上传任何数据。</p>
+    <div class="tip-banner">
+      建议使用 <strong>service_role</strong> Key（Supabase 控制台 → Settings → API），
+      可绕过 RLS 读取所有学生数据。
+    </div>
+    <div class="fg">
+      <label>Supabase 项目 URL</label>
+      <input type="url" id="cUrl" placeholder="https://xxx.supabase.co">
+      <div class="hint">格式：https://[项目ID].supabase.co</div>
+    </div>
+    <div class="fg">
+      <label>API Key</label>
+      <input type="password" id="cKey" placeholder="eyJ…">
+      <div class="hint">service_role 或 anon key</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="cCancelBtn" onclick="closeCfg()">取消</button>
+      <button class="btn pri" onclick="saveCfg()">保存并连接</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<!-- ── Main ──────────────────────────────────── -->
+<div class="wrap">
+
+  <!-- Header -->
+  <div class="hd">
+    <div class="hd-logo">🎹</div>
+    <div class="hd-info">
+      <h1>青岛耶胡迪梅纽因学校 学生练琴智能监控系统</h1>
+      <p id="refreshTxt">尚未加载数据</p>
+    </div>
+    <div class="hd-right">
+      <div class="conn" id="connDot"><div class="dot"></div><span id="connTxt">未连接</span></div>
+      <button class="btn" onclick="openCfg()">
+        <svg class="btn-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+        </svg>
+        设置
+      </button>
+      <button class="btn pri" id="refBtn" onclick="loadAll()" disabled>
+        <svg class="btn-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+          <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+        </svg>
+        刷新数据
+      </button>
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div class="kpi-grid">
+    <div class="kpi" style="--kc:var(--blue)">
+      <div class="kpi-lbl">总学生数</div>
+      <div class="kpi-val" id="kv1">—</div>
+      <div class="kpi-sub">已建立基线档案的学生</div>
+    </div>
+    <div class="kpi" style="--kc:var(--teal)">
+      <div class="kpi-lbl">冷启动
+        <i class="itip">?<span class="ibox">记录不足 10 条的学生。此阶段基线借用同专业同年级群体均值，数据仅供参考，随练琴记录增加自动恢复。</span></i>
+      </div>
+      <div class="kpi-val" id="kv2">—</div>
+      <div class="kpi-sub" id="ks2">占全校 —%</div>
+    </div>
+    <div class="kpi" style="--kc:var(--purple)">
+      <div class="kpi-lbl">平均可信度 α
+        <i class="itip">?<span class="ibox">全校基线平均可信度（0.5 ~ 1.0）。越接近 1.0，说明整体练琴时间越稳定、异常记录越少，基线越可靠。低于 0.70 需关注。</span></i>
+      </div>
+      <div class="kpi-val" id="kv3">—</div>
+      <div class="kpi-sub" id="ks3">理想 ≥ 0.85</div>
+    </div>
+    <div class="kpi" style="--kc:var(--green)">
+      <div class="kpi-lbl">平均练琴时长
+        <i class="itip">?<span class="ibox">全校学生最近 30 次有效练琴的平均时长（已清洗，上限 120 分钟）。低于 30 分钟说明整体偏碎片化。</span></i>
+      </div>
+      <div class="kpi-val" id="kv4">—</div>
+      <div class="kpi-sub">分钟 / 次（已清洗）</div>
+    </div>
+    <div class="kpi" style="--kc:var(--red)">
+      <div class="kpi-lbl">全校异常会话率
+        <i class="itip">?<span class="ibox">超长会话（&gt;130 分钟）占比均值。高异常率通常意味着学生忘记退出琴房，时长虚报而非真实练琴。超过 20% 需重点排查。</span></i>
+      </div>
+      <div class="kpi-val" id="kv5">—</div>
+      <div class="kpi-sub" id="ks5">理想 &lt; 20%</div>
+    </div>
+    <div class="kpi" style="--kc:var(--yellow)">
+      <div class="kpi-lbl">成长分置信度
+        <i class="itip">?<span class="ibox">成长分整体可信程度（0 ~ 1）。由历史快照数量、异常率、数据新鲜度综合决定。低于 0.5 说明多数学生历史数据不足，成长分仅供参考。</span></i>
+      </div>
+      <div class="kpi-val" id="kv6">—</div>
+      <div class="kpi-sub" id="ks6">理想 ≥ 0.70</div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="fbar">
+    <select class="fsel" id="fMaj" onchange="applyF()"><option value="">全部专业</option></select>
+    <select class="fsel" id="fGrd" onchange="applyF()"><option value="">全部年级</option></select>
+    <select class="fsel" id="fSta" onchange="applyF()">
+      <option value="">全部状态</option>
+      <option value="cold">冷启动</option>
+      <option value="outlier">高异常率 &gt;40%</option>
+      <option value="low">低成长分 &lt;20</option>
+      <option value="short">高短时率 &gt;40%</option>
+      <option value="stale">超过 7 天未更新</option>
+    </select>
+    <input class="fsrch" id="fSrch" placeholder="搜索姓名…" oninput="applyF()">
+    <span class="fcnt" id="fCnt"></span>
+    <button class="btn" onclick="clearF()">清除筛选</button>
+  </div>
+
+  <!-- Table -->
+  <div class="tbl-wrap">
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr>
+          <th style="width:46px">#</th>
+          <th data-col="student_name" onclick="srt(this)">姓名</th>
+          <th data-col="student_major" onclick="srt(this)">专业</th>
+          <th data-col="student_grade" onclick="srt(this)">年级</th>
+          <th data-col="composite_score" onclick="srt(this)">全校排名分
+            <i class="thtip">?<span class="thtip-b">0-100 的全校百分位分。100 = 全校最前，50 = 全校中位附近。它表示本周在全校中的位置，不等于个人绝对进步幅度。</span></i>
+          </th>
+          <th data-col="raw_score" onclick="srt(this)">个人变化值
+            <i class="thtip">?<span class="thtip-b">0-1 原始成长值，只和这位学生自己的历史相比。越高说明相对自己近期状态越好，不参与全校排名。</span></i>
+          </th>
+          <th data-col="alpha" onclick="srt(this)">可信度 α
+            <i class="thtip">?<span class="thtip-b">基线数据可靠性（0.5 ~ 1.0）。越高说明练琴时间越稳定、异常越少。低于 0.70 时可信度偏低，基线仅供参考。</span></i>
+          </th>
+          <th data-col="mean_duration" onclick="srt(this)">均时长
+            <i class="thtip">?<span class="thtip-b">最近 30 次有效练琴平均时长（分钟）。已清洗，上限 120 min。低于 30 min 说明碎片化练习为主。</span></i>
+          </th>
+          <th data-col="record_count" onclick="srt(this)">记录数
+            <i class="thtip">?<span class="thtip-b">用于计算基线的有效会话数（上限 30 条参与运算）。不足 10 条为冷启动状态。</span></i>
+          </th>
+          <th data-col="outlier_rate" onclick="srt(this)">异常率
+            <i class="thtip">?<span class="thtip-b">超长会话（&gt;130 min）占比。超过 40% 会对成长分产生指数衰减惩罚，通常原因是学生忘记退出琴房。</span></i>
+          </th>
+          <th data-col="is_cold_start" onclick="srt(this)">状态</th>
+          <th data-col="last_updated" onclick="srt(this)">更新</th>
+        </tr></thead>
+        <tbody id="tbody">
+          <tr><td colspan="12" style="padding:40px;text-align:center;color:var(--t3)">
+            <div class="spin"></div><br>请先连接 Supabase 数据库
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="pager" id="pager"></div>
+  </div>
+
+</div><!-- /wrap -->
+
+<!-- Detail Panel Modal (outside wrap, fixed overlay) -->
+<div id="dp-bg" onclick="closeDp()"></div>
+<div class="dp" id="dp"></div>
+
+<script>
+'use strict';
+// ── Config ────────────────────────────────────────
+const CKEY = 'piano_v2';
+const DEFAULT_URL = 'https://waesizzoqodntrlvrwhw.supabase.co';
+const DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhZXNpenpvcW9kbnRybHZyd2h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc4MjIyOTYsImV4cCI6MjA3MzM5ODI5Nn0.kE5gSV68q1nLo4z2IqgwqfTBVqNOJw5qs08f6r0SQH0';
+let cfg = null;
+function loadCfg(){
+  try{cfg=JSON.parse(localStorage.getItem(CKEY))}catch{cfg=null}
+  // 没有保存过配置时，直接使用内置默认值
+  if(!cfg||!cfg.url||!cfg.key){
+    cfg={url:DEFAULT_URL,key:DEFAULT_KEY};
+    localStorage.setItem(CKEY,JSON.stringify(cfg));
+  }
+}
+function saveCfgD(u,k){cfg={url:u.replace(/\/$/,''),key:k};localStorage.setItem(CKEY,JSON.stringify(cfg))}
+function openCfg(){
+  document.getElementById('msk').classList.remove('hidden');
+  if(cfg){document.getElementById('cUrl').value=cfg.url;document.getElementById('cKey').value=cfg.key}
+  document.getElementById('cCancelBtn').style.display=cfg?'':'none';
+}
+function closeCfg(){document.getElementById('msk').classList.add('hidden')}
+function saveCfg(){
+  const u=document.getElementById('cUrl').value.trim();
+  const k=document.getElementById('cKey').value.trim();
+  if(!u||!k){toast('请填写完整的 URL 和 Key','err');return}
+  saveCfgD(u,k);closeCfg();
+  setConn(true);document.getElementById('refBtn').disabled=false;
+  loadAll();
+}
+
+// ── UI helpers ────────────────────────────────────
+function setConn(ok){
+  const d=document.getElementById('connDot'),t=document.getElementById('connTxt');
+  d.className='conn '+(ok?'ok':'err');t.textContent=ok?'已连接':'连接失败';
+}
+function toast(msg,type='inf',dur=3500){
+  const w=document.getElementById('toasts');
+  const el=document.createElement('div');el.className='toast '+type;el.textContent=msg;
+  w.appendChild(el);setTimeout(()=>el.remove(),dur);
+}
+function $(id){return document.getElementById(id)}
+function setT(id,v){const e=$(id);if(e)e.textContent=v}
+function pct(v){return(+(v*100)).toFixed(1)}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+
+// ── API ───────────────────────────────────────────
+async function api(path){
+  if(!cfg)throw new Error('未配置');
+  const r=await fetch(`${cfg.url}/rest/v1/${path}`,{
+    headers:{apikey:cfg.key,Authorization:`Bearer ${cfg.key}`,Accept:'application/json'}
+  });
+  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.message||e.hint||`HTTP ${r.status}`)}
+  return r.json();
+}
+const fetchHealth=()=>api('v_baseline_health?select=*').then(r=>r[0]||null);
+const fetchStudents=()=>api('student_baseline?select=*&order=composite_score.desc.nullslast');
+const fetchHistory=n=>api(`student_score_history?student_name=eq.${encodeURIComponent(n)}&select=snapshot_date,composite_score,raw_score,baseline_score,trend_score,momentum_score,accum_score,outlier_rate,short_session_rate,mean_duration,record_count&order=snapshot_date.asc&limit=52`);
+
+// 返回本周一的「本地日期」字符串，格式 YYYY-MM-DD
+// 注意：必须用本地日期，不能用 toISOString()（UTC 日期会使中国用户偏移一天）
+function getWeekMonday(){
+  const d=new Date();
+  const day=d.getDay(); // 0=周日
+  const diff=day===0?-6:1-day; // 调整到本周一
+  d.setDate(d.getDate()+diff);
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const dd=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dd}`;
+}
+
+// 返回本周一本地午夜对应的 ISO 字符串（用于 timestamptz 比较）
+function getWeekMondayLocalISO(){
+  const d=new Date();
+  const day=d.getDay();
+  const diff=day===0?-6:1-day;
+  d.setDate(d.getDate()+diff);
+  d.setHours(0,0,0,0); // 本地午夜
+  return d.toISOString();
+}
+
+// 【核心】直接查 practice_sessions，找出本周内有练琴记录的学生集合
+// 不依赖数据库是否写了 0 分快照（避免 FIX-13 未部署时的失效问题）
+const fetchActiveThisWeek=()=>api(
+  `practice_sessions?session_start=gte.${encodeURIComponent(getWeekMondayLocalISO())}&select=student_name`
+).then(rows=>new Set(rows.map(r=>r.student_name))).catch(()=>null);
+
+// 获取本周（周一）所有学生的成长分快照（作为补充，用于已有快照的学生展示真实分）
+const fetchCurrentWeekScores=()=>api(
+  `student_score_history?snapshot_date=eq.${getWeekMonday()}&select=student_name,composite_score,raw_score`
+).catch(()=>[]);
+
+// ── State ─────────────────────────────────────────
+const S={students:[],filtered:[],health:null,
+  sortCol:'composite_score',sortDir:'desc',page:1,pageSize:20,
+  selected:null,charts:{},
+  currentStudent:null};
+
+// ── AI Analysis ────────────────────────────────
+// AI 分析统一由后端 batch-ai-analysis Edge Function 生成，前端只负责读缓存和触发
+const AI_CACHE_DAYS = 7;         // 缓存有效天数
+const BATCH_SECRET  = 'menuhin2026'; // 与 Edge Function BATCH_AI_SECRET 一致
+
+async function fetchAnalysisCache(name){
+  try{
+    const rows=await api(`student_ai_analysis?student_name=eq.${encodeURIComponent(name)}&select=analysis_text,generated_at,model_source&order=generated_at.desc&limit=1`);
+    if(!rows.length)return null;
+    const ageDays=(Date.now()-new Date(rows[0].generated_at).getTime())/86400000;
+    return ageDays<AI_CACHE_DAYS?rows[0]:null;
+  }catch{return null;}
+}
+
+// AI prompt 构建 / generateAIAnalysis 已全部迁移至后端，见 index.ts
+
+
+
+// 从最近30次完整练琴中提炼更“像这个学生”的特征，供 AI 自由发挥
+function summarizeSessionSignals(sessions){
+  if(!sessions||!sessions.length) return '暂无最近练琴记录。';
+  const arr=[...sessions];
+  const total=arr.length;
+  const raw=(r)=>Math.round(r.raw_duration||r.cleaned_duration||0);
+  const fmtDate=(s)=>{const d=new Date(s);return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;};
+  const fmtHm=(s)=>{const d=new Date(s);return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;};
+
+  const long=arr.filter(r=>raw(r)>120);
+  const short=arr.filter(r=>raw(r)<30);
+  const lunch=arr.filter(r=>practiceSlot(new Date(r.session_start).getHours(),new Date(r.session_start).getMinutes())==='lunch');
+  const abnormal=arr.filter(r=>practiceSlot(new Date(r.session_start).getHours(),new Date(r.session_start).getMinutes())==='abnormal');
+
+  const byDay={};
+  arr.forEach(r=>{
+    const k=fmtDate(r.session_start);
+    (byDay[k] ||= []).push(r);
+  });
+  const multiDays=Object.entries(byDay)
+    .filter(([,items])=>items.length>=2)
+    .sort((a,b)=>b[1].length-a[1].length)
+    .slice(0,3)
+    .map(([d,items])=>`${d} 有 ${items.length} 次练琴`);
+
+  const longest=[...arr].sort((a,b)=>raw(b)-raw(a)).slice(0,3)
+    .map(r=>`${fmtDate(r.session_start)} ${fmtHm(r.session_start)}-${fmtHm(r.session_end||r.session_start)} ${raw(r)}分钟`);
+  const shortest=[...arr].filter(r=>raw(r)>=5).sort((a,b)=>raw(a)-raw(b)).slice(0,3)
+    .map(r=>`${fmtDate(r.session_start)} ${fmtHm(r.session_start)}-${fmtHm(r.session_end||r.session_start)} ${raw(r)}分钟`);
+
+  const weekdayCounts=[0,0,0,0,0,0,0];
+  arr.forEach(r=>weekdayCounts[new Date(r.session_start).getDay()]++);
+  const topWeekdays=weekdayCounts
+    .map((cnt,i)=>({cnt,label:WD_CN[i]}))
+    .sort((a,b)=>b.cnt-a.cnt)
+    .slice(0,2)
+    .filter(x=>x.cnt>0)
+    .map(x=>`${x.label}${x.cnt}次`);
+
+  const avgRaw=Math.round(arr.reduce((a,r)=>a+raw(r),0)/total);
+  const sameRoomHint=(()=>{
+    const roomMap={};
+    arr.forEach(r=>{const k=r.room_name||'未知琴房';roomMap[k]=(roomMap[k]||0)+1;});
+    const top=Object.entries(roomMap).sort((a,b)=>b[1]-a[1])[0];
+    if(!top||top[1]<Math.max(4,Math.ceil(total*0.3))) return '';
+    return `最常使用 ${top[0]}（${top[1]}次）`;
+  })();
+
+  return [
+    `总样本：最近${total}次完整练琴，平均实际时长约${avgRaw}分钟。`,
+    `明显短练：${short.length}次；明显超长：${long.length}次；午饭时间开始：${lunch.length}次；异常时段开始：${abnormal.length}次。`,
+    topWeekdays.length?`最常练琴日：${topWeekdays.join('、')}。`:'',
+    multiDays.length?`同一天多次练琴：${multiDays.join('；')}。`:'',
+    longest.length?`最长的3次：${longest.join('；')}。`:'',
+    shortest.length?`最短的3次：${shortest.join('；')}。`:'',
+    sameRoomHint?`${sameRoomHint}。`:''
+  ].filter(Boolean).join('\n');
+}
+
+function buildAnalysisPrompt(s,hist,sessions){
+  // ── 近10周历史快照（0 分 = 本周未练琴，完整字段+含义）──
+  const recent=[...hist].filter(h=>h.composite_score!=null).reverse().slice(0,10);
+  const histRows=recent.length
+    ?recent.map(h=>{
+        if(h.composite_score===0) return `  ${(h.snapshot_date||'').slice(0,10)}  ▸ 【本周未练琴：全校排名分=0，个人原始成长值不作比较】`;
+        // 各字段转成自然语言
+        const progressTxt=h.baseline_score!=null
+          ?(h.baseline_score>0.05?'超过了自己历史平均水平（本周有进步）'
+            :h.baseline_score<-0.05?'低于自己历史平均水平（本周有退步）':'与自己历史平均持平')
+          :'—';
+        const trendTxt=h.trend_score!=null
+          ?(h.trend_score>0.05?'近期练琴时长整体在增加'
+            :h.trend_score<-0.05?'近期练琴时长整体在减少':'近期练琴时长基本稳定')
+          :'—';
+        const mmtTxt=h.momentum_score!=null
+          ?(h.momentum_score>0.1?'最近2周明显比前几周更努力'
+            :h.momentum_score<-0.1?'最近2周比前几周有所退步':'最近2周与前几周强度相当')
+          :'—';
+        return [
+          `  ${(h.snapshot_date||'').slice(0,10)}`,
+          `    · 全校排名分 ${h.composite_score}/100（0=最低, 100=最高，用来看本周在全校的位置）`,
+          `    · 个人原始成长值 ${h.raw_score!=null?(h.raw_score||0).toFixed(3):'-'}（只看自己前后变化，不参与横向排名）`,
+          `    · 均练琴时长 ${h.mean_duration!=null?(h.mean_duration||0).toFixed(0):'-'}分钟（该周统计时的历史每次平均时长）`,
+          `    · 异常次数占比 ${h.outlier_rate!=null?((h.outlier_rate||0)*100).toFixed(0):'-'}%（超长会话 >130 分钟占该周记录的比例，超过 20% 需警惕）`,
+          `    · 进步情况：${progressTxt}`,
+          `    · 时长走向：${trendTxt}`,
+          `    · 近期冲劲：${mmtTxt}`,
+        ].join('\n');
+      }).join('\n')
+    :'  暂无历史快照';
+
+  // ── 近30次练琴明细 ──
+  const WD=WD_CN;
+  const sessRows=(sessions||[]).map(r=>{
+    const d=new Date(r.session_start);
+    const e=new Date(r.session_end||r.session_start);
+    const date=`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+    const wd=WD[d.getDay()];
+    const startHm=`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    const endHm=`${String(e.getHours()).padStart(2,'0')}:${String(e.getMinutes()).padStart(2,'0')}`;
+    const rawDur=Math.round(r.raw_duration||r.cleaned_duration||0);
+    const cleanDur=Math.round(r.cleaned_duration||0);
+    const flag=r.is_outlier?'  ★超长/疑似未还卡':'';
+    const capNote=rawDur!==cleanDur?`（计分按${cleanDur}分钟）`:'';
+    const room=r.room_name?`  ${r.room_name}`:'';
+    return `  ${date} ${wd}  ${startHm}-${endHm}  实际${rawDur}分钟${capNote}${room}${flag}`;
+  }).join('\n')||'  暂无记录';
+
+  // ── 星期分布统计 ──
+  const wdCount=[0,0,0,0,0,0,0];
+  (sessions||[]).forEach(r=>{wdCount[new Date(r.session_start).getDay()]++;});
+  const wdSummary=WD.map((w,i)=>`${w}:${wdCount[i]}次`).join('  ');
+
+  // ── 冷启动注意 ──
+  const coldNote=s.is_cold_start
+    ?`⚠ 该生累计记录仅${s.record_count??0}条，处于冷启动阶段，数据量不足，分析结论仅供参考`
+    :`数据充分（${s.record_count??0}条有效记录），结论可信`;
+
+  // ── 本周实际状态（以 display_score 为准，0=本周未练）──
+  const displayScore = 'display_score' in s ? s.display_score : s.composite_score;
+  const noPracticeNow = s.has_week_snapshot; // true = 本周未练
+  const displayRaw = noPracticeNow ? null : ('display_raw_score' in s ? s.display_raw_score : s.raw_score);
+  // 最近10周中有多少周是 0（缺席）
+  const absentWeeks=recent.filter(h=>h.composite_score===0).length;
+  const activeWeeks=recent.filter(h=>h.composite_score>0).length;
+  const absentNote=absentWeeks>0
+    ?`最近${recent.length}周快照中有 ${absentWeeks} 周为缺席（完全没有练琴记录），有练琴的仅 ${activeWeeks} 周`
+    :`最近${recent.length}周均有练琴记录`;
+
+  // ── 趋势对比：只对有练琴的快照取平均，避免0分缺席周拉低数值 ──
+  const recentActive=recent.slice(0,4).filter(h=>h.composite_score>0);
+  const olderActive=recent.slice(4).filter(h=>h.composite_score>0);
+  const recentAvg=recentActive.length?recentActive.reduce((a,h)=>a+h.composite_score,0)/recentActive.length:null;
+  const olderAvg=olderActive.length?olderActive.reduce((a,h)=>a+h.composite_score,0)/olderActive.length:null;
+  const trendNote=recentAvg!==null&&olderAvg!==null
+    ?(recentAvg>olderAvg+3?`有练琴的周里近4周排名分均值${recentAvg.toFixed(1)}，前期均值${olderAvg.toFixed(1)}，有进步`
+      :recentAvg<olderAvg-3?`有练琴的周里近4周排名分均值${recentAvg.toFixed(1)}，前期均值${olderAvg.toFixed(1)}，有下滑`
+      :`有练琴的周里近期排名分均值${recentAvg.toFixed(1)}，与前期基本持平`)
+    :recentAvg!==null?`近期有练琴的周排名分均值${recentAvg.toFixed(1)}，历史对比数据不足`
+    :'近期均无练琴记录，无法比较';
+
+  // ── 各维度来源说明（来自最后一次有练琴时的计算值）──
+  const lastPracticeNote=noPracticeNow
+    ?`（以下各维度数据来自上次有练琴时的最后计算值，当前本周无练琴记录）`
+    :`（以下各维度数据为本周最新计算值）`;
+
+  // ── 时长分布统计（供 AI 判断短练/超长占比）──
+  const totalSess=(sessions||[]).length;
+  const shortSess=(sessions||[]).filter(r=>(r.raw_duration||r.cleaned_duration||0)<30);
+  const longSess=(sessions||[]).filter(r=>(r.raw_duration||r.cleaned_duration||0)>120);
+  const shortCnt=shortSess.length, longCnt=longSess.length;
+  const shortPct=totalSess?Math.round(shortCnt/totalSess*100):0;
+  const longPct=totalSess?Math.round(longCnt/totalSess*100):0;
+  const durationDistNote=totalSess>0
+    ?`不足30分钟的练琴：${shortCnt}次（占${shortPct}%）；超过120分钟的练琴：${longCnt}次（占${longPct}%）；其余${totalSess-shortCnt-longCnt}次在30~120分钟之间`
+    :'暂无记录';
+
+  // ── 超长/过短练琴的时间段分布（仅在占比明显时生成）──
+  function slotLabel(h,min){
+    const t=h*60+(min||0);
+    if(t<480)  return '8点前(异常)';
+    if(t<720)  return '上午(8~12点)';
+    if(t<780)  return '午饭时间(12~13点)';
+    if(t<1080) return '下午(13~18点)';
+    if(t<1290) return '晚饭后(18~21:30)';
+    return '21:30后(异常)';
+  }
+  function slotDist(arr){
+    const m={};
+    arr.forEach(r=>{const d=new Date(r.session_start);const lbl=slotLabel(d.getHours(),d.getMinutes());m[lbl]=(m[lbl]||0)+1;});
+    return Object.entries(m).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${k}${v}次`).join('、');
+  }
+  // 超长练琴中，跨越午休(12~13点)或晚餐(18点)的次数 → 大概率是没还琴房卡
+  let spanLunchCnt=0, spanDinnerCnt=0;
+  longSess.forEach(r=>{
+    const start=new Date(r.session_start);
+    const startMin=start.getHours()*60+start.getMinutes();
+    const endMin=startMin+Math.round(r.raw_duration||r.cleaned_duration||0);
+    if(startMin<720&&endMin>720)  spanLunchCnt++;   // 跨越12:00
+    if(startMin<1080&&endMin>1080) spanDinnerCnt++; // 跨越18:00
+  });
+  const spanNote=(spanLunchCnt>0||spanDinnerCnt>0)
+    ?`\n  其中跨越午休时间(12点)的：${spanLunchCnt}次，跨越晚饭时间(18点)的：${spanDinnerCnt}次 → 这类记录大概率是午饭/晚饭未归还琴房卡所致`
+    :'';
+
+  // 超长：占比>20% 时附带时间段分布 + 跨餐点分析
+  const longTimeNote=(longPct>=20&&longCnt>=3)
+    ?`\n超长练琴时间段分布：${slotDist(longSess)}${spanNote}`
+    :(spanLunchCnt+spanDinnerCnt>=2?`\n${spanLunchCnt+spanDinnerCnt}次超长练琴跨越了午休或晚餐时间${spanNote}`:'');
+  // 过短：占比>30% 时附带时间段分布
+  const shortTimeNote=(shortPct>=30&&shortCnt>=5)
+    ?`\n过短练琴时间段分布：${slotDist(shortSess)}`:'';
+
+  return `
+【学生基本信息】
+姓名：${s.student_name}（${s.student_major||'专业未知'} ${s.student_grade||''}）
+${coldNote}
+
+【⚠️ 当前周状态（最重要，请优先参考）】
+本周（${getWeekMonday()}）是否有练琴：${noPracticeNow?'【否，本周完全没有练琴记录】':'【是，本周已有练琴记录】'}
+本周全校排名分：${noPracticeNow?'0（本周无练琴，不参与排名）':displayScore+'/100'}
+本周个人原始成长值：${noPracticeNow?'—（本周无练琴，不计算个人原始值）':(displayRaw!=null?displayRaw.toFixed(3):'—')}（只和自己历史比较，不用于横向排名）
+${absentNote}
+最近一次练琴记录：${(sessions||[]).length>0?(() => {const d=new Date(sessions[0].session_start);const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,'0');const dd=String(d.getDate()).padStart(2,'0');const wd=WD_CN[d.getDay()];return `${y}-${m}-${dd} ${wd}`;})():'无记录'}
+
+【历史综合表现】
+上次有练琴时的全校排名分：${s.composite_score??'—'}/100（这是历史值，不代表本周状态）
+历史最高综合排名分：${s.personal_best??'—'}
+已连续提升周数：${s.weeks_improving??0}周（仅计有练琴的周）
+${trendNote}
+
+【练琴时长分布（最近${totalSess}次记录）】
+平均每次练琴时长：${(s.mean_duration||0).toFixed(1)}分钟
+时长分布：${durationDistNote}${longTimeNote}${shortTimeNote}
+备注：不足30分钟的练琴效果有限；超过120分钟可能未及时归还琴房卡（偶发属正常）；不足5分钟的记录不计入统计
+不足30分钟的短时练琴次数占比（5~30分钟均计入）：${((s.short_session_rate||0)*100).toFixed(1)}%
+
+【各维度拆解说明】${lastPracticeNote}
+练习水平是否超越自己历史均值：${(s.baseline_score||0)>0.5?'是，有进步（高于自己历史均值）':'否，与历史均值持平或略低'}（量化值=${(s.baseline_score||0).toFixed(3)}，0-1 归一化，0.5 为中位）
+练琴时长整体趋势：${s.trend_score>0.05?'增加中':(s.trend_score<-0.05?'减少中':'基本持平')}（量化值=${(s.trend_score||0).toFixed(3)}）
+近期练习强度变化：${s.momentum_score>0.05?'近期更努力':(s.momentum_score<-0.05?'近期有所松懈':'基本一致')}（量化值=${(s.momentum_score||0).toFixed(3)}）
+累计练琴经验积累得分：${(s.accum_score||0).toFixed(3)}（越多越好）
+
+【最近${recent.length}周每周数据快照（从新到旧排列，第一条为最近一周）】
+以下每周含6项指标，括号内是该指标的实际含义：
+${histRows}
+
+【缺席段落分析（请结合中国节假日日历判断是否属于正常假期）】
+今天日期：${new Date().toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric',weekday:'long'})}
+中国音乐学院常规节假日参考：
+${CN_HOLIDAYS.map(h=>`  ${h.name}：${h.range}`).join('\n')}
+
+该生历史缺席段落及初步假期推测：
+${inferAbsencePeriods(hist)}
+
+【最近30次练琴的机器提炼特征（请优先吸收后再写，不要逐条复述）】
+${summarizeSessionSignals(sessions)}
+
+${(()=>{const ts=analyzePracticeTimeSlots(sessions);return ts?`【练琴时间段特点】\n${ts}\n\n`:''})()}【最近${(sessions||[]).length}次完整单次练琴记录（从新到旧，直接由 practice_logs 的 assign/clear 配对得到）】
+格式：日期  星期  开始-结束  实际时长  （若显示“计分按XX分钟”表示系统计分时已封顶；★表示超长，需结合时间段判断是否忘还琴房卡或其他异常）
+${sessRows}
+
+【各星期练琴频次分布（最近${(sessions||[]).length}次）】
+${wdSummary}
+`.trim();
+}
+
+async function generateAIAnalysis(s,hist,sessions){
+  const res=await fetch(`${cfg.url}/functions/v1/${AI_FN}`,{
+    method:'POST',
+    headers:{apikey:cfg.key,Authorization:`Bearer ${cfg.key}`,'Content-Type':'application/json'},
+    body:JSON.stringify({
+      system_prompt:`你是音乐学院练琴数据分析系统的智能助理，面向任课老师提供专业的学情简报。你熟悉中国音乐学院的学年节奏、节假日安排以及学生练琴规律。
+
+【语言风格】
+- 语气专业、客观、简洁，面向老师和家长均可读懂，不使用任何技术术语
+- 每位学生的分析必须基于其具体数据，不得套用与数据无关的通用模板句
+- 允许你根据最近30次完整练琴记录自由发挥，优先写“最值得老师知道的现象和判断”，不要机械套模板
+- 不要总用同一类开头，如“某某同学本周……”“需要重点关注的是……”这类句式不要反复套用
+- 每次都尽量找到这个学生身上最有辨识度的细节，让老师一看就知道这段分析不能套在别人身上
+- 禁止出现：α、β、σ、outlier、baseline、score、momentum、accum、基线可信度、维度 等统计词汇
+- 禁止使用Markdown格式（不能有 *、#、**、- 开头的列表），输出纯文字段落
+- 字数控制在140~240字之间，2~3段
+
+【假期处理规则（重要）】
+- 若停练段与寒暑假或法定假日重合，仅用一句话带过（如"这段停练正值寒假，属正常情况"），不再展开解释，立即转入下一个有价值的信息点
+- 若停练不在任何假期范围内且连续3周以上，需明确标注异常，并建议了解原因
+
+【练琴时长与时间段解读规则（重要）】
+- 学校琴房8:00开放，21:30强制清场；12:00~13:00为午饭时间；时段分为：上午(8~12点)、午饭时间(12~13点)、下午(13~18点)、晚饭后(18~21:30)
+- 午饭时间练琴占比较高（≥20%）说明该生习惯利用午休练琴，属积极行为，可正面提及
+- 若数据中出现"8点前"或"21:30后"的记录，属异常数据，可提及但无需过度解读
+- 练琴时长波动大属于正常现象（文化课安排决定可用时间），不必单独提及时长波动
+- 若不足30分钟的练琴次数超过总次数的30%，需明确指出效果有限
+- 若超过120分钟的练琴次数超过总次数的20%，可能是未及时归还琴房卡所致；偶发属正常，但需提醒老师转告学生：练超2小时建议去前台续卡、起身走动
+- 若数据中标注了"跨越午休时间(12点)"或"跨越晚饭时间(18点)"的超长练琴，说明该生在午饭或晚饭期间未归还琴房卡、继续占用琴房，这是最直接的忘还卡证据，应明确指出次数并建议告知学生按时归还
+
+【最近30次完整练琴记录的使用规则（非常重要）】
+- prompt 中给你的最近30次记录，已经是从 practice_logs 的 assign / clear 完整配对得到的单次练琴，不是简单打点
+- 每条记录都包含：日期、星期、开始时间、结束时间、实际时长；部分记录还会显示“计分按XX分钟”，表示实际时长过长、系统计分时已封顶
+- 你要认真利用这30条记录自己发现规律和问题，例如：连续多次超长、跨午饭/晚饭、极短练习过多、只在某个时段练、几乎只在午休练、频繁晚饭后超长、同一天多次碎片化练琴等
+- 你必须至少举出 2 个具体例子，最好直接写出“日期 + 时间段 + 时长”，让老师知道你的判断来自真实记录，而不是空泛总结
+- 你可以提出“可能原因”，包括但不限于：忘记还琴房卡、只是占用琴房未正常练习、短时打卡式练琴、作息挤压导致练琴碎片化、近期状态回升或松懈
+- 但涉及原因判断时必须使用审慎语气，如“可能”“更像是”“需要核实”，不要把推测说成确定事实
+
+【排名分与原始值口径（必须分清）】
+- 全校排名分：用于看该生本周在全校处于什么位置，适合横向比较
+- 个人原始成长值：用于看该生相对自己近期是进步还是回落，适合纵向比较
+- 判断“最近是否进步”时，优先参考个人原始成长值和 B/T/M/A，不要只根据全校排名分变化下结论
+
+【维度数值解读规则】
+prompt中会提供4个量化维度，仅在数值明显（绝对值>0.1）且有实际意义时才用通俗语言提及，否则忽略：
+- baseline_score（练习水平对比自己历史均值）：正值=近期比自己以往练得更好；负值=近期练习质量有所下滑
+- trend_score（时长整体走势）：正值=近几个月练琴时长在增加；负值=整体时长在缩短
+- momentum_score（近两周冲劲）：正值=最近两周比之前更积极；负值=近两周练习有所松懈
+- accum_score（总积累量）：反映累计练习总量，越高说明该生历史练琴越勤奋
+
+【分析结构（灵活撰写，不要分点）】
+- 第1段：先说本周状态和整体判断
+- 第2段：从最近30次完整练琴记录和近几周快照中，抓最关键的1~3个现象来讲，并大胆给出“可能原因”的专业推测
+- 第3段：给老师一条或两条简短、明确、能立刻执行的建议
+- 不要求每次都按固定句式写，重点是让老师一眼看懂“最近发生了什么、可能为什么、接下来该怎么管”`,
+      user_prompt:buildAnalysisPrompt(s,hist,sessions),
+      temperature:0.82,
+      max_tokens:600
+    })
+  });
+  if(!res.ok){const t=await res.text();throw new Error(`AI调用失败 (${res.status}): ${t.slice(0,100)}`);}
+  const data=await res.json();
+  if(data.error)throw new Error(data.error);
+  return{text:(data.choices?.[0]?.message?.content||'').trim()||'生成失败',source:data._source||'unknown'};
+}
+
+function setAIUI(state,text,meta){
+  const elTxt=document.getElementById('dp-ai-text');
+  const elMeta=document.getElementById('dp-ai-meta');
+  const elBtn=document.getElementById('dp-ai-btn');
+  const elCard=document.getElementById('ai-card-wrap');
+  if(!elTxt)return;
+  elTxt.classList.remove('loading','errored');
+  if(elCard) elCard.classList.remove('scanning');
+  if(state==='loading'){
+    elTxt.classList.add('loading');
+    if(elCard) elCard.classList.add('scanning');
+    elTxt.innerHTML='<div class="spin" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:8px"></div>AI 正在分析，请稍候…';
+    if(elBtn){elBtn.disabled=true;elBtn.textContent='生成中…';}
+  }else if(state==='error'){
+    elTxt.classList.add('errored');
+    elTxt.textContent='⚠ '+text;
+    if(elBtn){elBtn.disabled=false;elBtn.textContent='重新生成';}
+  }else{
+    elTxt.textContent=text||'';
+    if(elMeta)elMeta.textContent=meta||'';
+    if(elBtn){elBtn.disabled=false;elBtn.textContent='重新生成';}
+  }
+}
+
+// AI 分析缓存检查 → 有效则直接展示，过期/缺失则调用后端重新生成
+async function loadStudentAnalysis(s){
+  const cached=await fetchAnalysisCache(s.student_name);
+  if(cached){
+    // 本周未练且缓存早于本周一 → 状态已变化，强制重新生成
+    const cacheDate=new Date(cached.generated_at);
+    const weekMonday=new Date(getWeekMonday()+'T00:00:00');
+    const staleForAbsent = s.has_week_snapshot && cacheDate < weekMonday;
+    if(!staleForAbsent){
+      const src=cached.model_source==='deepseek'?'DeepSeek':'Gemini';
+      setAIUI('ok',cached.analysis_text,`${src} 生成 · ${cacheDate.toLocaleDateString('zh-CN')} · 缓存`);
+      return;
+    }
+  }
+  await doGenerateAnalysis(s.student_name);
+}
+
+// 调用后端 batch-ai-analysis Edge Function（单学生模式）
+async function doGenerateAnalysis(name){
+  setAIUI('loading');
+  try{
+    const res=await fetch(`${cfg.url}/functions/v1/batch-ai-analysis`,{
+      method:'POST',
+      headers:{
+        apikey:cfg.key,
+        Authorization:`Bearer ${cfg.key}`,
+        'Content-Type':'application/json',
+        'x-batch-secret':BATCH_SECRET
+      },
+      body:JSON.stringify({student_name:name})
+    });
+    if(!res.ok){const t=await res.text();throw new Error(`AI 生成失败 (${res.status}): ${t.slice(0,120)}`);}
+    const data=await res.json();
+    if(data.log) console.log('🔍 AI调试日志:', data.log); // 打印后端返回的调试日志
+    if(data.error)throw new Error(data.error);
+    const src=data.source==='deepseek'?'DeepSeek':'Gemini';
+    setAIUI('ok',data.text,`${src} 生成 · ${new Date().toLocaleDateString('zh-CN')}`);
+  }catch(e){
+    setAIUI('error',e.message);
+  }
+}
+
+// 重新生成按钮回调
+function regenerateAnalysis(){
+  if(S.currentStudent)doGenerateAnalysis(S.currentStudent.student_name);
+}
+
+// 历史快照表格折叠展开
+function toggleSnapTable(){
+  const wrap=document.getElementById('dp-snaptbl-body-wrap');
+  const arrow=document.getElementById('dp-snap-arrow');
+  if(!wrap)return;
+  const opening=wrap.style.display==='none';
+  wrap.style.display=opening?'block':'none';
+  if(arrow)arrow.style.transform=opening?'rotate(90deg)':'';
+}
+
+// ESC 关闭详情弹窗
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.selected)closeDp();});
+
+// ── Load ──────────────────────────────────────────
+async function loadAll(){
+  if(!cfg){loadCfg()} // cfg 始终有内置值，无需弹窗
+  const btn=$('refBtn');btn.disabled=true;
+  btn.innerHTML='<div class="spin" style="width:13px;height:13px;border-width:2px"></div> 加载中…';
+  try{
+    const[health,students,weekScores,activeThisWeek]=await Promise.all([
+      fetchHealth(),fetchStudents(),fetchCurrentWeekScores(),fetchActiveThisWeek()
+    ]);
+
+    // weekMap: 本周已有快照（DB 侧写了快照）的学生及其全校排名分/原始成长值
+    const weekMap={};
+    (weekScores||[]).forEach(r=>{weekMap[r.student_name]={composite_score:r.composite_score,raw_score:r.raw_score};});
+    // rankMap: 仅对本周有练琴且已有快照的学生，按全校排名分降序计算名次
+    const rankMap={};
+    const rankedRows=[...(weekScores||[])]
+      .filter(r=>(r.composite_score??0)>0)
+      .sort((a,b)=>(b.composite_score??-1)-(a.composite_score??-1));
+    let lastScore=null,lastRank=0;
+    rankedRows.forEach((r,idx)=>{
+      const sc=r.composite_score??0;
+      if(lastScore===null||sc!==lastScore){lastRank=idx+1;lastScore=sc;}
+      rankMap[r.student_name]=lastRank;
+    });
+    const activeRankedTotal=rankedRows.length;
+
+    students.forEach(s=>{
+      const name=s.student_name;
+      // 判断本周是否有练琴：优先用 practice_sessions 实时查询（最可靠）
+      // activeThisWeek 为 null 表示查询失败，降级到快照判断
+      const practicedThisWeek = activeThisWeek!==null
+        ? activeThisWeek.has(name)
+        : (name in weekMap && ((weekMap[name].composite_score||0)>0 || (weekMap[name].raw_score||0)>0));
+
+      if(practicedThisWeek){
+        // 本周有练琴：优先使用本周快照，避免继续显示上周旧值
+        s.display_score = name in weekMap ? weekMap[name].composite_score : s.composite_score;
+        s.display_raw_score = name in weekMap ? weekMap[name].raw_score : s.raw_score;
+        s.display_rank = rankMap[name] ?? null;
+        s.display_rank_total = activeRankedTotal || null;
+        s.has_week_snapshot = false; // 非"未练"状态
+      } else {
+        // 本周无练琴：强制显示"本周未练"
+        s.display_score = 0;
+        s.display_raw_score = null;
+        s.display_rank = null;
+        s.display_rank_total = activeRankedTotal || null;
+        s.has_week_snapshot = true; // 触发"本周未练"徽章
+      }
+    });
+
+    S.health=health;S.students=students;
+    setConn(true);
+    renderKPIs(health,students);
+    buildFilters(students);
+    applyF();
+    const n=new Date();
+    setT('refreshTxt',`最后刷新：${n.toLocaleDateString('zh-CN')} ${n.toLocaleTimeString('zh-CN')} · 共 ${students.length} 位学生`);
+    toast('数据加载成功','ok');
+  }catch(e){setConn(false);toast(`加载失败：${e.message}`,'err',5000);console.error(e)}
+  btn.disabled=false;
+  btn.innerHTML='<svg class="btn-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> 刷新数据';
+}
+
+// ── KPIs ──────────────────────────────────────────
+function renderKPIs(h,ss){
+  if(!h)return;
+  const total=+h.total_students||ss.length,cold=+h.cold_start_count||0;
+  const alpha=+h.avg_alpha||0,dur=+h.avg_mean_duration||0;
+  const outr=+h.avg_outlier_rate||0,conf=+h.avg_score_confidence||0;
+  setT('kv1',total);
+  setT('kv2',cold);setT('ks2',`占全校 ${pct(cold/total)}%`);
+  setT('kv3',alpha.toFixed(3));
+  $('kv3').style.color=alpha>=.85?'var(--green)':alpha>=.7?'var(--blue)':alpha>=.55?'var(--yellow)':'var(--orange)';
+  setT('ks3',alpha>=.85?'✓ 数据质量优良':alpha>=.7?'△ 数据质量一般':'⚠ 数据质量偏低');
+  setT('kv4',dur.toFixed(1));
+  setT('kv5',(outr*100).toFixed(1)+'%');
+  $('kv5').style.color=outr<.2?'var(--green)':outr<.4?'var(--yellow)':'var(--red)';
+  setT('ks5',outr>.4?'⚠ 偏高，请检查退房记录':outr>.2?'△ 略高，请关注':'✓ 正常');
+  setT('kv6',conf.toFixed(3));
+  $('kv6').style.color=conf>=.7?'var(--green)':conf>=.5?'var(--yellow)':'var(--orange)';
+  setT('ks6',conf>=.7?'✓ 成长分可信':conf>=.5?'△ 部分历史不足':'⚠ 整体历史数据偏少');
+}
+
+// ── Alerts ────────────────────────────────────────
+// ── Filters ───────────────────────────────────────
+function buildFilters(ss){
+  const majs=[...new Set(ss.map(s=>s.student_major).filter(Boolean))].sort();
+  const grds=[...new Set(ss.map(s=>s.student_grade).filter(Boolean))].sort();
+  $('fMaj').innerHTML='<option value="">全部专业</option>'+majs.map(m=>`<option>${m}</option>`).join('');
+  $('fGrd').innerHTML='<option value="">全部年级</option>'+grds.map(g=>`<option>${g}</option>`).join('');
+}
+function applyF(){
+  const maj=$('fMaj').value,grd=$('fGrd').value,sta=$('fSta').value;
+  const q=$('fSrch').value.trim().toLowerCase(),now=Date.now();
+  S.filtered=S.students.filter(s=>{
+    if(maj&&s.student_major!==maj)return false;
+    if(grd&&s.student_grade!==grd)return false;
+    if(q&&!s.student_name.toLowerCase().includes(q))return false;
+    if(sta==='cold'&&!s.is_cold_start)return false;
+    if(sta==='outlier'&&(s.outlier_rate||0)<=.4)return false;
+    if(sta==='low'&&((s.display_score??s.composite_score??0)>=20 || s.has_week_snapshot))return false;
+    if(sta==='short'&&(s.short_session_rate||0)<=.4)return false;
+    if(sta==='stale'){const d=s.last_updated?(now-new Date(s.last_updated).getTime())/86400000:999;if(d<=7)return false}
+    return true;
+  });
+  const col=S.sortCol,dir=S.sortDir==='asc'?1:-1;
+  S.filtered.sort((a,b)=>{
+    const getVal=s=>{
+      if(col==='composite_score'){
+        // 本周未练的学生排在末尾（null → Infinity 处理）
+        if(s.has_week_snapshot) return null;
+        return 'display_score' in s ? s.display_score : (s.composite_score??null);
+      }
+      if(col==='raw_score'){
+        if(s.has_week_snapshot) return null;
+        return 'display_raw_score' in s ? s.display_raw_score : (s.raw_score??null);
+      }
+      return s[col];
+    };
+    const av=getVal(a)??(dir>0?Infinity:-Infinity);
+    const bv=getVal(b)??(dir>0?Infinity:-Infinity);
+    if(typeof av==='boolean')return av===bv?0:av?-dir:dir;
+    if(typeof av==='string')return av.localeCompare(bv)*dir;
+    return(av-bv)*dir;
+  });
+  S.page=1;
+  setT('fCnt',`共 ${S.filtered.length} 位`);
+  renderTable();
+}
+function clearF(){
+  $('fMaj').value='';$('fGrd').value='';$('fSta').value='';$('fSrch').value='';applyF();
+}
+function srt(th){
+  const col=th.dataset.col;
+  if(S.sortCol===col){S.sortDir=S.sortDir==='asc'?'desc':'asc'}
+  else{S.sortCol=col;S.sortDir=col==='student_name'||col==='student_major'?'asc':'desc'}
+  document.querySelectorAll('thead th').forEach(h=>{h.classList.remove('sa','sd');if(h.dataset.col===col)h.classList.add('s'+S.sortDir[0])});
+  applyF();
+}
+
+// ── Table ─────────────────────────────────────────
+function renderTable(){
+  const tbody=$('tbody');
+  const tot=S.filtered.length,pages=Math.max(1,Math.ceil(tot/S.pageSize));
+  const pg=Math.min(S.page,pages),st=(pg-1)*S.pageSize;
+  const rows=S.filtered.slice(st,st+S.pageSize);
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="12" style="padding:40px;text-align:center;color:var(--t3)">暂无匹配数据</td></tr>';$('pager').innerHTML='';return}
+
+  tbody.innerHTML=rows.map((s,i)=>{
+    const rank=st+i+1,al=s.alpha??0;
+    // has_week_snapshot=true 表示本周无练琴（由 loadAll 统一判断）
+    const noPracticeThisWeek = !!s.has_week_snapshot;
+    const sc = noPracticeThisWeek ? 0 : ('display_score' in s ? s.display_score : (s.composite_score??null));
+    const raw = noPracticeThisWeek ? null : ('display_raw_score' in s ? s.display_raw_score : (s.raw_score??null));
+    const or=s.outlier_rate??0,dur=s.mean_duration??0;
+    const stale=s.last_updated?Math.floor((Date.now()-new Date(s.last_updated).getTime())/86400000):null;
+    const sel=S.selected===s.student_name;
+    // 成长分徽章：0=本周未练（灰），null=无数据（破折号），其他按分段配色
+    const scoreBadge=noPracticeThisWeek
+      ?`<span class="badge b0" title="本周（${getWeekMonday()}）无练琴记录">本周未练</span>`
+      :sc!==null?`<span class="badge ${bdgCls(sc)}">${sc}</span>`:'—';
+    const rawBadge=noPracticeThisWeek
+      ?`<span class="badge b0" style="padding:2px 8px;font-size:.72rem">未练</span>`
+      :raw!==null?(()=>{const cls=raw>0.55?'up':raw<0.45?'down':'flat';const txt=raw>0.55?'进步':raw<0.45?'退步':'稳定';return`<span class="dp-mini-tag ${cls}" style="font-size:.78rem">${txt}</span>`;})():'—';
+    return`<tr class="${sel?'sel':''}" data-name="${esc(s.student_name)}" onclick="pickStudent(this.dataset.name)">
+      <td style="color:var(--t3)">${rank}</td>
+      <td class="b">${s.student_name}</td>
+      <td>${s.student_major||'—'}</td>
+      <td>${s.student_grade||'—'}</td>
+      <td>${scoreBadge}</td>
+      <td style="text-align:center">${rawBadge}</td>
+      <td><div class="mbar">
+        <span style="font-weight:800;color:${aC(al)}">${al.toFixed(3)}</span>
+        <div class="mbar-t"><div class="mbar-f" style="width:${(((al-.5)/.5)*100).toFixed(0)}%;background:${aC(al)}"></div></div>
+      </div></td>
+      <td style="font-weight:700">${dur.toFixed(1)}<span style="font-size:.75rem;color:var(--t3);font-weight:400"> min</span></td>
+      <td>${s.record_count??'—'}</td>
+      <td><div class="mbar">
+        <span style="color:${rC(or)}">${pct(or)}%</span>
+        <div class="mbar-t"><div class="mbar-f" style="width:${(or*100).toFixed(0)}%;background:${rC(or)}"></div></div>
+      </div></td>
+      <td>${s.is_cold_start?'<span class="stag stag-c">冷启动</span>':'<span class="stag stag-n">正常</span>'}</td>
+      <td style="color:${stale!==null&&stale>7?'var(--yellow)':'var(--t3)'}">
+        ${stale===null?'—':stale===0?'今天':stale===1?'昨天':stale+'天前'}
+      </td>
+    </tr>`;
+  }).join('');
+
+  // pager
+  const P=$('pager');
+  if(pages<=1){P.innerHTML=`<span class="pi">共 ${tot} 位</span>`;return}
+  let h=`<span class="pi">共 ${tot} 位 / 第 ${pg}/${pages} 页</span>`;
+  h+=`<button class="pb" onclick="goP(${pg-1})" ${pg===1?'disabled':''}>‹ 上页</button>`;
+  for(let p=Math.max(1,pg-2);p<=Math.min(pages,pg+2);p++)
+    h+=`<button class="pb${p===pg?' act':''}" onclick="goP(${p})">${p}</button>`;
+  h+=`<button class="pb" onclick="goP(${pg+1})" ${pg===pages?'disabled':''}>下页 ›</button>`;
+  P.innerHTML=h;
+}
+function goP(p){S.page=p;renderTable();document.querySelector('.tbl-wrap').scrollIntoView({behavior:'smooth',block:'start'})}
+
+// ── Detail Panel ──────────────────────────────────
+function closeDp(){
+  S.selected=null;
+  $('dp').classList.remove('show');
+  const bg=$('dp-bg');if(bg)bg.classList.remove('show');
+  document.body.style.overflow='';
+  renderTable();
+}
+
+async function pickStudent(name){
+  if(S.selected===name){closeDp();return;}
+  S.selected=name;renderTable();
+  const dp=$('dp');
+  const bg=$('dp-bg');
+  dp.classList.add('show');
+  if(bg)bg.classList.add('show');
+  document.body.style.overflow='hidden'; // 防止背景滚动
+  dp.innerHTML=`<div style="padding:40px;text-align:center;color:var(--t3)"><div class="spin"></div><br><br>加载 ${name} 的数据…</div>`;
+  try{
+    const s=S.students.find(x=>x.student_name===name);
+    const hist=await fetchHistory(name);
+    S.currentStudent=s;
+    renderDP(s,hist);
+    // AI 分析由后端生成，异步触发不阻塞面板渲染
+    loadStudentAnalysis(s);
+  }catch(e){dp.innerHTML=`<div style="padding:28px;color:var(--red)">加载失败：${e.message}</div>`;toast(`加载失败：${e.message}`,'err')}
+}
+
+function renderDP(s,hist){
+  const dp=$('dp');
+  // has_week_snapshot=true 表示本周无练琴（由 loadAll 根据 practice_sessions 判断）
+  const noPracticeWeek = !!s.has_week_snapshot;
+  const sc = noPracticeWeek ? 0 : ('display_score' in s ? s.display_score : (s.composite_score??0));
+  const raw = noPracticeWeek ? null : ('display_raw_score' in s ? s.display_raw_score : (s.raw_score??null));
+  const rankNo = noPracticeWeek ? null : ('display_rank' in s ? s.display_rank : null);
+  const rankTotal = 'display_rank_total' in s ? s.display_rank_total : null;
+  const al=s.alpha??0;
+  const stale=s.last_updated?Math.floor((Date.now()-new Date(s.last_updated).getTime())/86400000):null;
+  const staleTxt=stale===null?'—':stale===0?'今天':stale===1?'昨天':stale+'天前';
+
+  const rankHtml=noPracticeWeek
+    ?`<div class="dp-score" style="color:var(--t3);font-size:2rem;letter-spacing:.02em">本周未练</div>`
+    :sc!=null
+    ?`<div class="dp-score-line"><div class="dp-score" style="color:${scC(sc)}">${sc}</div>${rankNo!=null?`<span class="dp-mini-tag rankno">第${rankNo}名</span>`:''}</div>`
+    :`<div class="dp-score" style="color:var(--t3);font-size:1.8rem;letter-spacing:.04em">—</div>`;
+  const rawState = raw==null ? null : raw>0.55
+    ? {text:'进步',cls:'up'}
+    : raw<0.45
+      ? {text:'退步',cls:'down'}
+      : {text:'稳定',cls:'flat'};
+  const rawHtml=noPracticeWeek
+    ?`<div class="dp-score raw" style="color:var(--t3);font-size:1.7rem;letter-spacing:.02em">本周未算</div>`
+    :rawState!=null
+    ?`<div class="dp-score-line"><span class="dp-mini-tag ${rawState.cls}" style="font-size:1.35rem;height:auto;padding:7px 22px;font-weight:800;letter-spacing:.04em">${rawState.text}</span></div>`
+    :`<div class="dp-score raw" style="color:var(--t3)">—</div>`;
+
+  // ── weekday data from student_baseline.weekday_pattern
+  const wd=buildWD(s.weekday_pattern);
+
+  dp.innerHTML=`
+  <!-- Header -->
+  <div class="dp-hd">
+    <div class="dp-info">
+      <div class="dp-name">${s.student_name}</div>
+      <div class="dp-meta">
+        <span>🎵 ${s.student_major||'专业未知'}</span>
+        <span>📚 ${s.student_grade||'年级未知'}</span>
+        <span>📋 ${s.record_count??0} 条有效记录</span>
+        ${s.is_cold_start?'<span style="color:var(--teal)">❄ 冷启动中</span>':'<span style="color:var(--green)">✓ 基线已建立</span>'}
+      </div>
+    </div>
+    <div class="dp-score-area">
+      <div class="dp-score-box rank">
+        <div class="dp-score-top">全校排名分</div>
+        ${rankHtml}
+        <div class="dp-score-lbl">${noPracticeWeek?'本周未练':'本周全校排名分 + 排名'}</div>
+        <div class="dp-score-sub">${noPracticeWeek?`统计周：${getWeekMonday()}`:(rankNo!=null&&rankTotal?`本周第 ${rankNo} 名 / 共 ${rankTotal} 人 · 历史最高 ${s.personal_best??'—'} 分`:`本周排名待更新 · 历史最高 ${s.personal_best??'—'} 分`)}</div>
+      </div>
+      <div class="dp-score-box raw">
+        <div class="dp-score-top">个人变化</div>
+        ${rawHtml}
+        <div class="dp-score-lbl">${noPracticeWeek?'本周未计算':'相对自己近况'}</div>
+        <div class="dp-score-sub">${noPracticeWeek?'本周没有可比数据':'看自己 · 不看别人'}</div>
+      </div>
+    </div>
+    <button class="dp-close" onclick="closeDp()">✕</button>
+  </div>
+
+  <!-- ── AI 练琴分析卡片 ── -->
+  <div class="ai-card" id="ai-card-wrap">
+    <div class="ai-corner tl"></div><div class="ai-corner tr"></div>
+    <div class="ai-corner bl"></div><div class="ai-corner br"></div>
+    <div class="ai-hd">
+      <div class="ai-dot"></div>
+      <span class="ai-title">AI · 练琴状况智能分析</span>
+      <span id="dp-ai-meta" class="ai-meta"></span>
+      <button id="dp-ai-btn" class="ai-regen" onclick="regenerateAnalysis()">重新生成</button>
+    </div>
+    <div class="ai-body">
+      <div id="dp-ai-text" class="ai-text loading">
+        <div class="spin" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:8px"></div>AI 正在分析，请稍候…
+      </div>
+    </div>
+  </div>
+
+  <div class="dp-body">
+    <!-- Left: core metrics -->
+    <div class="dp-left">
+
+      <div class="mc">
+        <div class="mc-lbl">
+          <i class="itip">?<span class="ibox">0.5 ~ 1.0。综合了练琴时间均匀性、异常会话比例、短时率三个维度。越接近 1.0，说明这位学生的练琴习惯越稳定可信；低于 0.70 时基线数据可信度偏低。</span></i>
+          基线可信度 α
+        </div>
+        <div class="mc-val" style="color:${aC(al)}">${al.toFixed(4)}</div>
+        <div class="mc-bar"><div class="mbar-t" style="flex:1;height:5px"><div class="mbar-f" style="width:${(((al-.5)/.5)*100).toFixed(0)}%;background:${aC(al)}"></div></div></div>
+        <div class="mc-desc ${al>=.85?'ok':al>=.7?'':'warn'}">${al>=.85?'✓ 数据高度可信，基线准确反映真实练琴习惯':al>=.7?'△ 数据基本可信，可正常参考':'⚠ 可信度偏低，成长分分析结果请谨慎参考'}</div>
+      </div>
+
+      <div class="mc">
+        <div class="mc-lbl">
+          <i class="itip">?<span class="ibox">mean_duration：最近 30 次有效练琴的平均时长（已清洗，上限 120 分钟）。std_duration：时长标准差，越小说明每次练琴越规律；超过 25 分钟说明时长波动大。</span></i>
+          平均时长 / 波动
+        </div>
+        <div class="mc-val" style="color:var(--blue)">${(s.mean_duration||0).toFixed(1)}<span style="font-size:.82rem;font-weight:400;color:var(--t3)"> min</span></div>
+        <div class="mc-desc">σ = ${(s.std_duration||0).toFixed(1)} min &nbsp;·&nbsp; ${
+          (s.std_duration||0)<10?'✓ 练琴时长非常规律':
+          (s.std_duration||0)<25?'△ 有一定波动，属正常范围':
+          '⚠ 时长波动较大，练琴节奏不稳定'}</div>
+      </div>
+
+      <div class="mc">
+        <div class="mc-lbl">
+          <i class="itip">?<span class="ibox">outlier_rate：超长会话（&gt;130 分钟）占最近 30 条的比例。高异常率通常说明学生忘记在系统中退出，导致时长虚报。超过 40% 时系统会对成长分施加指数衰减惩罚。</span></i>
+          异常会话率
+        </div>
+        <div class="mc-val" style="color:${rC(s.outlier_rate||0)}">${pct(s.outlier_rate||0)}%</div>
+        <div class="mc-bar"><div class="mbar-t" style="flex:1;height:5px"><div class="mbar-f" style="width:${((s.outlier_rate||0)*100).toFixed(0)}%;background:${rC(s.outlier_rate||0)}"></div></div></div>
+        <div class="mc-desc ${(s.outlier_rate||0)>.4?'err':''}">${
+          (s.outlier_rate||0)>.4?'⚠ 异常率过高，成长分已受到惩罚。请检查该学生的退房记录。':
+          (s.outlier_rate||0)>.2?'△ 略高，建议提醒学生记得退出琴房':'✓ 正常'}</div>
+      </div>
+
+      <div class="mc">
+        <div class="mc-lbl">
+          <i class="itip">?<span class="ibox">short_session_rate：5 ~ 30 分钟短时练琴占最近 30 条的比例。高短时率说明该学生多以碎片化方式使用琴房，缺乏系统深度训练，需要引导。</span></i>
+          短时练琴率
+        </div>
+        <div class="mc-val" style="color:${rC(s.short_session_rate||0)}">${pct(s.short_session_rate||0)}%</div>
+        <div class="mc-bar"><div class="mbar-t" style="flex:1;height:5px"><div class="mbar-f" style="width:${((s.short_session_rate||0)*100).toFixed(0)}%;background:${rC(s.short_session_rate||0)}"></div></div></div>
+        <div class="mc-desc ${(s.short_session_rate||0)>.4?'warn':''}">${
+          (s.short_session_rate||0)>.4?'⚠ 碎片化练习偏多，建议引导安排系统性训练':
+          (s.short_session_rate||0)>.2?'△ 有一定碎片化倾向':'✓ 以系统性练习为主'}</div>
+      </div>
+
+      <div class="mc">
+        <div class="mc-lbl">
+          <i class="itip">?<span class="ibox">score_confidence：成长分的综合可信程度（0 ~ 1）。由三个因素决定：① 有实际练琴的历史周数（越多越可信）② 异常率（越低越好）③ 数据新鲜度（7 天内有记录最佳）。低于 0.5 时成长分结果仅供参考。</span></i>
+          成长分置信度
+        </div>
+        <div class="mc-val" style="color:${s01C(s.score_confidence||0)}">${(s.score_confidence||0).toFixed(3)}</div>
+        <div class="mc-desc">最后更新：${staleTxt}${stale!==null&&stale>7?' &nbsp;⚠ 已超过 7 天未更新':''}</div>
+      </div>
+
+    </div>
+
+    <!-- Right -->
+    <div class="dp-right">
+
+      <!-- 四维拆解 -->
+      <div>
+        <div style="font-size:.72rem;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px">个人变化四维拆解（当前快照）</div>
+        <div class="dim-row">
+          ${dimCard('B','基线进步',s.baseline_score,'最近5个有练琴周 vs 更早5个有练琴周的个人原始表现对比。&gt;0.5 说明在进步，&lt;0.5 说明有所回落。')}
+          ${dimCard('T','成长趋势',s.trend_score,'最近 8 个有练琴周的个人原始表现线性回归斜率。&gt;0.5 持续上升，&lt;0.5 说明整体在下滑。需至少 3 周历史才能计算。')}
+          ${dimCard('M','持续动量',s.momentum_score,'连续改善周数，对数归一化（9 周满分）。值越高说明连续进步的周数越多，体现练琴惯性和自律性。')}
+          ${dimCard('A','积累量',s.accum_score,'最近样本量 × 同专业时长质量形成的练琴底盘。它会影响稳定性判断，但不等于本周全校排名。')}
+        </div>
+        <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
+          ${xMetric('连续改善周数',s.weeks_improving??'—','周','连续多少周的个人原始成长值比上一周更高，是 M 维度（动量）的来源','var(--green)')}
+          ${xMetric('成长加速度',s.growth_velocity!==null&&s.growth_velocity!==undefined?(s.growth_velocity>0?'+':'')+((s.growth_velocity||0)*100).toFixed(2)+'%/周':'—','','近4周斜率 − 近8周斜率。正数说明加速进步，负数说明进步在放缓甚至倒退','var(--blue)')}
+          ${xMetric('历史最高全校排名',s.personal_best??'—','分','该学生有史以来最高的 composite_score（全校百分位）','var(--yellow)')}
+        </div>
+      </div>
+
+      <!-- Charts row 1: composite + weekday -->
+      <div class="ch-row">
+        <div class="ccard">
+          <h4>全校排名分历史趋势（百分位 · 近一年）
+            <span style="float:right;font-size:.68rem;color:var(--t3);text-transform:none;letter-spacing:0;font-weight:400">横向比较用，0-100</span>
+          </h4>
+          <div class="cw"><canvas id="dp-hist"></canvas></div>
+        </div>
+        <div class="ccard">
+          <h4>练琴星期分布
+            <span style="float:right;font-size:.68rem;color:var(--t3);text-transform:none;letter-spacing:0;font-weight:400">颜色越绿练琴越多</span>
+          </h4>
+          <div class="cw"><canvas id="dp-wd"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Chart row 2: 4-dim history（flex:1 撑满剩余高度）-->
+      <div class="ccard ccard-fill">
+        <h4>个人变化四维历史（B基线进步 · T趋势 · M动量 · A积累 · 近一年）
+          <span style="float:right;font-size:.68rem;color:var(--t3);text-transform:none;letter-spacing:0;font-weight:400">原始分 0-1，&gt;0.5 为良好</span>
+        </h4>
+        <div class="cw-fill"><canvas id="dp-dim"></canvas></div>
+      </div>
+
+      <!-- Recent snapshots table (collapsible) -->
+      <div class="ccard" id="dp-snaptbl-wrap">
+        <h4 onclick="toggleSnapTable()" style="margin-bottom:0;cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px">
+          <span id="dp-snap-arrow" style="color:var(--blue);font-size:.85rem;transition:transform .2s;display:inline-block">▶</span>
+          每周历史快照明细（最近 12 周）
+          <span style="margin-left:auto;font-size:.68rem;color:var(--t3);font-weight:400;text-transform:none;letter-spacing:0">点击展开 · 来源：student_score_history</span>
+        </h4>
+        <div id="dp-snaptbl-body-wrap" style="display:none;margin-top:14px">
+          <div style="overflow-x:auto">
+            <table id="dp-snaptbl" style="width:100%;border-collapse:collapse;font-size:.77rem;white-space:nowrap">
+              <thead>
+                <tr style="border-bottom:1px solid var(--bdr)">
+                  <th style="padding:7px 10px;text-align:left;color:var(--t3);font-weight:700;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">日期</th>
+                  <th style="padding:7px 10px;text-align:center;color:var(--t3);font-weight:700;font-size:.7rem;text-transform:uppercase">全校排名</th>
+                  <th style="padding:7px 10px;text-align:center;color:var(--t3);font-weight:700;font-size:.7rem;text-transform:uppercase">个人变化值</th>
+                  <th style="padding:7px 10px;text-align:center;color:var(--t3);font-weight:700;font-size:.7rem;text-transform:uppercase">B 基线</th>
+                  <th style="padding:7px 10px;text-align:center;color:var(--t3);font-weight:700;font-size:.7rem;text-transform:uppercase">T 趋势</th>
+                  <th style="padding:7px 10px;text-align:center;color:var(--t3);font-weight:700;font-size:.7rem;text-transform:uppercase">M 动量</th>
+                  <th style="padding:7px 10px;text-align:center;color:var(--t3);font-weight:700;font-size:.7rem;text-transform:uppercase">A 积累</th>
+                  <th style="padding:7px 10px;text-align:center;color:var(--t3);font-weight:700;font-size:.7rem;text-transform:uppercase">均时长</th>
+                  <th style="padding:7px 10px;text-align:center;color:var(--t3);font-weight:700;font-size:.7rem;text-transform:uppercase">异常率</th>
+                </tr>
+              </thead>
+              <tbody id="dp-snaptbl-body"></tbody>
+            </table>
+          </div>
+          <div style="font-size:.72rem;color:var(--t3);margin-top:10px;line-height:1.6;padding:0 2px">
+            📌 <strong>全校排名分</strong>：当周全校百分位排名（0-100），由系统每周 PERCENT_RANK 归一化写入。
+            &nbsp;·&nbsp;<strong>个人变化值</strong>：该学生自己的原始成长值（0-1），只适合看自己前后变化。
+            &nbsp;·&nbsp;<strong>B/T/M/A</strong>：原始维度分（0-1），反映该学生本周练琴的各维度表现。
+            &nbsp;·&nbsp;<strong>均时长</strong>：该快照时刻使用的基线均值（分钟）。
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>`;
+
+  setTimeout(()=>{
+    renderHistCh(hist);
+    renderWDCh(wd);
+    renderDimHistCh(hist);
+    renderSnapTable(hist);
+  },50);
+}
+
+function dimCard(letter,name,val,tip){
+  const v=val??null;
+  const color=s01C(v);
+  const pctW=v!==null?(v*100).toFixed(0):'0';
+  const desc=v===null?'历史数据不足':v>=.7?'表现良好':v>=.5?'处于平均水平':'低于平均，需关注';
+  return`<div class="dim">
+    <div class="dim-lbl">${letter}
+      <i class="itip">?<span class="ibox">${tip}</span></i>
+    </div>
+    <div class="dim-lbl" style="font-size:.8rem;color:var(--t2);text-transform:none;letter-spacing:0;margin-bottom:6px;font-weight:700">${name}</div>
+    <div class="dim-val" style="color:${color}">${v!==null?v.toFixed(3):'—'}</div>
+    <div class="dim-bar"><div class="mbar-t" style="flex:1;height:4px"><div class="mbar-f" style="width:${pctW}%;background:${color}"></div></div></div>
+    <div class="dim-desc">${desc}</div>
+  </div>`;
+}
+
+function xMetric(label,val,unit,tip,color='var(--t2)'){
+  return`<div style="background:var(--card2);border:1px solid var(--bdr);border-radius:var(--r);padding:12px 16px;flex:1;min-width:120px">
+    <div style="font-size:.7rem;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;display:flex;align-items:center;gap:4px">
+      ${label}<i class="itip">?<span class="ibox">${tip}</span></i>
+    </div>
+    <div style="font-size:1.1rem;font-weight:900;color:${color}">${val}<span style="font-size:.75rem;font-weight:400;color:var(--t3);margin-left:3px">${unit}</span></div>
+  </div>`;
+}
+
+function renderHistCh(hist){
+  const ctx=document.getElementById('dp-hist');if(!ctx)return;
+  if(S.charts.hist)S.charts.hist.destroy();
+  const labels=hist.map(h=>h.snapshot_date?h.snapshot_date.slice(5,10):'');
+  // composite_score=0 = 该周无练琴记录，作为真实 0 点展示
+  const data=hist.map(h=>h.composite_score??null);
+  const pr=data.length>20?2:5;
+  S.charts.hist=new Chart(ctx.getContext('2d'),{type:'line',
+    data:{labels,datasets:[{
+      label:'全校排名分',data,borderColor:'#4f8ef7',backgroundColor:'rgba(79,142,247,.07)',
+      borderWidth:2.5,pointRadius:pr,pointBackgroundColor:'#4f8ef7',fill:true,tension:.35,spanGaps:true}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{
+          title:it=>{const h=hist[it[0].dataIndex];return h?.snapshot_date||''},
+          label:c=>`全校排名分: ${c.raw}`}}},
+      scales:{
+        x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#4b5e82',font:{size:9},maxTicksLimit:8,
+          callback:(v,i)=>i%Math.ceil(Math.max(labels.length,1)/8)===0?labels[i]:''}},
+        y:{min:0,max:100,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#4b5e82',font:{size:9}}}}}});
+}
+
+function renderDimHistCh(hist){
+  const ctx=document.getElementById('dp-dim');if(!ctx)return;
+  if(S.charts.dim)S.charts.dim.destroy();
+  if(!hist.length){return}
+  const labels=hist.map(h=>h.snapshot_date?h.snapshot_date.slice(5,10):'');
+  const pr=hist.length>20?0:3;
+  const mkDs=(key,label,color)=>({
+    // 0 分周（无练琴）的 B/T/M/A 本身就是 null，spanGaps 会自动跨越
+    label,data:hist.map(h=>h[key]!=null?+h[key].toFixed(3):null),
+    borderColor:color,backgroundColor:'transparent',
+    borderWidth:2,pointRadius:pr,pointBackgroundColor:color,tension:.3,spanGaps:true
+  });
+  S.charts.dim=new Chart(ctx.getContext('2d'),{type:'line',
+    data:{labels,datasets:[
+      mkDs('baseline_score','B 基线进步','#10b981'),
+      mkDs('trend_score',   'T 成长趋势','#4f8ef7'),
+      mkDs('momentum_score','M 持续动量','#f59e0b'),
+      mkDs('accum_score',   'A 积累量',  '#a855f7'),
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:true,position:'top',
+          labels:{color:'#94a3b8',font:{size:11},boxWidth:12,padding:16}},
+        tooltip:{callbacks:{
+          title:it=>{const h=hist[it[0].dataIndex];return h?.snapshot_date||''},
+          label:c=>`${c.dataset.label}: ${c.raw}`}}},
+      scales:{
+        x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#4b5e82',font:{size:9},maxTicksLimit:8,
+          callback:(v,i)=>i%Math.ceil(Math.max(labels.length,1)/8)===0?labels[i]:''}},
+        y:{min:0,max:1,grid:{color:'rgba(255,255,255,.04)'},
+          ticks:{color:'#4b5e82',font:{size:9},
+            callback:v=>v===0?'0':v===.5?'0.5':v===1?'1':''
+          },
+          afterBuildTicks:ax=>{ax.ticks=[{value:0},{value:.25},{value:.5},{value:.75},{value:1}]}
+        }}}});
+}
+
+function renderSnapTable(hist){
+  const tb=document.getElementById('dp-snaptbl-body');if(!tb)return;
+  // show last 12, most recent first
+  const rows=[...hist].reverse().slice(0,12);
+  if(!rows.length){tb.innerHTML='<tr><td colspan="9" style="padding:14px;text-align:center;color:var(--t3)">暂无历史快照数据</td></tr>';return}
+  tb.innerHTML=rows.map((h,i)=>{
+    const sc=h.composite_score??null;
+    const raw=h.raw_score??null;
+    const noPractice=sc===0;  // 本周无练琴记录
+    const b=h.baseline_score,t=h.trend_score,m=h.momentum_score,a=h.accum_score;
+    const dur=h.mean_duration,or=h.outlier_rate;
+    const rowBg=noPractice?'background:rgba(100,116,139,.06)':i%2===0?'':'background:rgba(255,255,255,.015)';
+    const d01=(v)=>v!=null?`<span style="color:${s01C(v)};font-weight:700">${v.toFixed(3)}</span>`:'<span style="color:var(--t3)">—</span>';
+    return`<tr style="border-bottom:1px solid var(--bdr);${rowBg}${noPractice?';opacity:.6':''}">
+      <td style="padding:8px 10px;color:var(--t2)">${h.snapshot_date||'—'}${noPractice?'<span style="margin-left:6px;font-size:.68rem;color:var(--t3)">本周未练</span>':''}</td>
+      <td style="padding:8px 10px;text-align:center">${noPractice?'<span style="color:var(--t3);font-size:.8rem">—</span>':sc!==null?`<span class="badge ${bdgCls(sc)}" style="min-width:36px;padding:2px 8px;font-size:.78rem">${sc}</span>`:'—'}</td>
+      <td style="padding:8px 10px;text-align:center">${noPractice?'<span style="color:var(--t3);font-size:.8rem">—</span>':raw!=null?`<span style="color:${s01C(raw)};font-weight:800">${raw.toFixed(3)}</span>`:'—'}</td>
+      <td style="padding:8px 10px;text-align:center">${d01(b)}</td>
+      <td style="padding:8px 10px;text-align:center">${d01(t)}</td>
+      <td style="padding:8px 10px;text-align:center">${d01(m)}</td>
+      <td style="padding:8px 10px;text-align:center">${d01(a)}</td>
+      <td style="padding:8px 10px;text-align:center;color:var(--t2)">${dur!=null?dur.toFixed(1)+' min':'—'}</td>
+      <td style="padding:8px 10px;text-align:center;color:${rC(or||0)}">${or!=null?pct(or)+'%':'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function buildWD(pattern){
+  const names=['日','一','二','三','四','五','六'];
+  return{labels:names.map(n=>'周'+n),counts:names.map((_,i)=>pattern?(pattern[String(i)]||0):0)};
+}
+function renderWDCh(wd){
+  const ctx=document.getElementById('dp-wd');if(!ctx)return;
+  if(S.charts.wd)S.charts.wd.destroy();
+  const mx=Math.max(...wd.counts,1);
+  S.charts.wd=new Chart(ctx.getContext('2d'),{type:'bar',
+    data:{labels:wd.labels,datasets:[{data:wd.counts,
+      backgroundColor:wd.counts.map(c=>c===0?'rgba(255,255,255,.05)':c/mx>.75?'rgba(16,185,129,.75)':c/mx>.4?'rgba(79,142,247,.7)':'rgba(245,158,11,.65)'),
+      borderRadius:5,borderSkipped:false}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw} 次`}}},
+      scales:{x:{grid:{display:false},ticks:{color:'#4b5e82',font:{size:11}}},
+              y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#4b5e82',font:{size:9},stepSize:1}}}}});
+}
+
+// ── Color helpers ─────────────────────────────────
+function bdgCls(v){return v>=80?'b5':v>=60?'b4':v>=40?'b3':v>=20?'b2':'b1'}
+function scC(v){return v>=80?'var(--green)':v>=60?'var(--blue)':v>=40?'var(--yellow)':v>=20?'var(--orange)':'var(--red)'}
+function s01C(v){if(v===null||v===undefined)return'var(--t3)';return v>=.7?'var(--green)':v>=.5?'var(--blue)':v>=.35?'var(--yellow)':'var(--orange)'}
+function aC(v){return v>=.85?'var(--green)':v>=.7?'var(--blue)':v>=.55?'var(--yellow)':'var(--orange)'}
+function rC(v){return v<.2?'var(--green)':v<.4?'var(--yellow)':'var(--red)'}
+
+// ── Init ──────────────────────────────────────────
+loadCfg();
+// cfg 始终有内置默认值，直接连接，无需弹出配置框
+$('cUrl').value=cfg.url;$('cKey').value=cfg.key;
+setConn(true);$('refBtn').disabled=false;
+loadAll();
+
+// ── 全局 Tooltip（防边缘溢出）─────────────────────
+(function(){
+  const tip=document.createElement('div');
+  tip.id='g-tip';
+  document.body.appendChild(tip);
+
+  const PAD=12; // 距视口边缘最小间距
+
+  function showTip(el){
+    const box=el.querySelector('.ibox,.thtip-b');
+    if(!box)return;
+    tip.innerHTML=box.innerHTML;
+    // 先隐形渲染以获取真实尺寸，避免闪烁到 (0,0)
+    tip.style.visibility='hidden';
+    tip.style.display='block';
+    positionTip(el);
+    tip.style.visibility='visible';
+  }
+
+  function positionTip(el){
+    const r=el.getBoundingClientRect();
+    const tw=tip.offsetWidth;
+    const th=tip.offsetHeight;
+    const vw=window.innerWidth;
+    const vh=window.innerHeight;
+
+    // 默认：元素上方居中
+    let x=r.left+r.width/2-tw/2;
+    let y=r.top-th-8;
+
+    // 若上方放不下，改到下方
+    if(y<PAD) y=r.bottom+8;
+
+    // 水平夹紧
+    if(x<PAD) x=PAD;
+    if(x+tw>vw-PAD) x=vw-PAD-tw;
+
+    // 垂直夹紧（极端情况）
+    if(y+th>vh-PAD) y=vh-PAD-th;
+    if(y<PAD) y=PAD;
+
+    tip.style.left=x+'px';
+    tip.style.top=y+'px';
+  }
+
+  function hideTip(){tip.style.display='none';tip.style.visibility='hidden';}
+
+  // 委托监听：所有 .itip / .thtip 元素
+  document.addEventListener('mouseover',e=>{
+    const el=e.target.closest('.itip,.thtip');
+    if(el)showTip(el);
+  });
+  document.addEventListener('mouseout',e=>{
+    const el=e.target.closest('.itip,.thtip');
+    if(el)hideTip();
+  });
+  // 弹窗内滚动时重新定位
+  document.addEventListener('scroll',()=>hideTip(),true);
+})();
+</script>
+</body>
+</html>
