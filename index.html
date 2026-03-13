@@ -903,7 +903,6 @@
 		<!-- 已移除同步到云端 (实时同步已覆盖全部场景) -->
 			<button id="btnReconnect" class="ghost" style="display: none;">重新连接</button>
 			<!-- 跳转按钮 -->
-			<button onclick="window.open('studentschedulesupdate.html', '_blank')" class="ghost" title="打开课表录入系统">📅 课表录入</button>
 			<button onclick="window.open('practiceanalyse.html', '_blank')" class="ghost" title="打开练琴分析">📊 练琴分析</button>
 			<button id="btnToggleSlotCheck" class="ghost" title="切换登记时段检测">时段检测: 开</button>
 			<button id="btnPracticeLogSearch" class="ghost" title="查询学生练琴记录">查练琴记录</button>
@@ -15669,6 +15668,133 @@ function toast(msg){let box=document.getElementById('dev-toast-box'); if(!box){b
 // （已移除内置转移调试面板，如需再次启用请参考版本控制历史）
 </script>
 <!-- ==== /房间转移前端增强脚本 ==== -->
+
+<!-- ==== 自动清空脚本 ==== -->
+<script>
+/**
+ * 自动清空功能
+ * 
+ * 功能说明：
+ * 1. 默认开启，每晚 21:30 自动清空所有占用琴房
+ * 2. 状态持久化存储 (localStorage)
+ * 3. 只有当天首次运行时才会执行清空动作 (避免重复)
+ */
+(function() {
+	const KEY_ENABLED = 'piano_auto_clear_enabled';
+	const KEY_LAST_RUN = 'piano_auto_clear_last_run';
+	
+	// 初始化状态 (默认开启，除非用户明确关闭)
+	let isEnabled = localStorage.getItem(KEY_ENABLED) !== 'false';
+	
+	function init() {
+		// 1. 创建控制按钮
+		const btn = document.createElement('button');
+		btn.id = 'btnAutoClear';
+		btn.className = 'ghost';
+		btn.title = '每晚 21:30 自动清空全部琴房';
+		// 稍微加宽一点以免文字换行
+		btn.style.whiteSpace = 'nowrap';
+		updateBtn(btn);
+		
+		btn.onclick = () => {
+			isEnabled = !isEnabled;
+			localStorage.setItem(KEY_ENABLED, isEnabled);
+			updateBtn(btn);
+			toast(`自动清空已${isEnabled ? '开启' : '关闭'}`, isEnabled ? 'success' : 'info');
+		};
+		
+		// 插入到工具栏 (练习记录按钮后面)
+		const refBtn = document.getElementById('btnPracticeLogSearch');
+		if (refBtn && refBtn.parentNode) {
+			// 插入到 refBtn 后面
+			refBtn.parentNode.insertBefore(btn, refBtn.nextSibling);
+		} else {
+			// 备用插入点
+			const toolbar = document.querySelector('.tool-bar') || document.body;
+			if(toolbar) toolbar.appendChild(btn);
+		}
+		
+		// 2. 启动定时检查 (每 30 秒)
+		setInterval(checkTimeAndClear, 30000);
+		// 立即检查一次
+		checkTimeAndClear();
+	}
+	
+	function updateBtn(btn) {
+		btn.innerHTML = isEnabled ? '🌙 自动清空: 开' : '🌙 自动清空: 关';
+		btn.style.opacity = isEnabled ? '1' : '0.6';
+	}
+	
+	async function checkTimeAndClear() {
+		if (!isEnabled) return;
+		
+		const now = new Date();
+		const hour = now.getHours();
+		const min = now.getMinutes();
+		
+		// 目标时间: 21:30 ~ 21:35 (给定 5 分钟窗口，防止刚好跳过)
+		if (hour === 21 && min >= 30 && min <= 35) {
+			const todayStr = now.toDateString();
+			const lastRun = localStorage.getItem(KEY_LAST_RUN);
+			
+			// 如果今天还没跑过
+			if (lastRun !== todayStr) {
+				console.log('[AutoClear] 触发 21:30 自动清空...');
+				await performAutoClear(todayStr);
+			}
+		}
+	}
+	
+	async function performAutoClear(todayStr) {
+		toast('正在执行每晚自动清空...', 'info');
+		
+		// 确保 Store 已加载
+		if (!window.Store || !window.Store.rooms) {
+			console.warn('[AutoClear] Store 未就绪');
+			return;
+		}
+		
+		// 找出所有非空房间
+		const targets = window.Store.rooms.filter(r => r.occupant_student_name);
+		
+		if (targets.length === 0) {
+			console.log('[AutoClear] 无需清空');
+			// 即使无需清空，也标记已运行，避免重复检查
+			localStorage.setItem(KEY_LAST_RUN, todayStr);
+			return;
+		}
+		
+		let success = 0;
+		// 标记今天已运行 (放在循环前，防止循环中出错导致反复重试)
+		localStorage.setItem(KEY_LAST_RUN, todayStr);
+
+		for (const room of targets) {
+			try {
+				if (typeof window.clearRoom === 'function') {
+					await window.clearRoom(room.name, { reason: 'auto_clear' });
+					success++;
+					// 简单限流
+					await new Promise(r => setTimeout(r, 150));
+				}
+			} catch (e) {
+				console.error(`[AutoClear] 清空 ${room.name} 失败`, e);
+			}
+		}
+		
+		if (success > 0) {
+			toast(`自动清空完成: 已清理 ${success} 个房间`, 'success');
+		}
+	}
+	
+	// 等待 DOM
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', init);
+	} else {
+		init();
+	}
+})();
+</script>
+<!-- ==== /自动清空脚本 ==== -->
 
 </body>
 </html>
