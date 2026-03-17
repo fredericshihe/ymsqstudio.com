@@ -118,6 +118,35 @@ body{font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;backgro
   min-height:2.8rem;letter-spacing:.01em}
 .ai-text.loading{color:rgba(148,163,184,.6);border-left-color:rgba(79,142,247,.15)}
 .ai-text.errored{color:rgba(251,113,133,.8);border-left-color:rgba(239,68,68,.35)}
+/* ── 深度诊断 Modal ──────────────────────────────── */
+.diag-btn{font-size:.65rem;padding:3px 10px;border-radius:20px;margin-left:6px;
+  border:1px solid rgba(168,85,247,.45);background:transparent;
+  color:rgba(192,132,252,.9);cursor:pointer;letter-spacing:.04em;
+  transition:background .15s,border-color .15s,box-shadow .15s}
+.diag-btn:hover{background:rgba(168,85,247,.12);border-color:rgba(168,85,247,.7);
+  box-shadow:0 0 8px rgba(168,85,247,.25)}
+.diag-btn:disabled{opacity:.45;cursor:default}
+#diag-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.68);
+  backdrop-filter:blur(4px);z-index:1100;align-items:center;justify-content:center}
+#diag-bg.show{display:flex}
+#diag-modal{background:#0f1729;border:1px solid rgba(168,85,247,.35);border-radius:14px;
+  width:min(680px,94vw);max-height:82vh;overflow-y:auto;position:relative;
+  box-shadow:0 0 40px rgba(168,85,247,.15),0 8px 40px rgba(0,0,0,.6)}
+#diag-modal::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(168,85,247,.5),transparent)}
+.diag-hd{display:flex;align-items:center;gap:10px;padding:16px 20px 12px;
+  border-bottom:1px solid rgba(168,85,247,.12)}
+.diag-title{font-size:.73rem;font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;color:rgba(192,132,252,.95)}
+.diag-close{margin-left:auto;background:none;border:none;color:var(--t3);
+  cursor:pointer;font-size:1.1rem;line-height:1;padding:2px 6px;border-radius:4px}
+.diag-close:hover{color:#fff;background:rgba(255,255,255,.08)}
+.diag-body{padding:18px 22px 22px}
+.diag-body pre{white-space:pre-wrap;word-break:break-word;font-family:inherit;
+  font-size:.91rem;color:rgba(220,232,255,.9);line-height:1.9;
+  padding-left:14px;border-left:2px solid rgba(168,85,247,.4)}
+.diag-loading{color:rgba(148,163,184,.6);font-size:.91rem;
+  padding:24px 0;text-align:center}
 
 /* ── Header ──────────────────────────────── */
 .hd{display:flex;align-items:center;gap:18px;
@@ -454,7 +483,7 @@ tbody td.b{color:var(--t1);font-weight:700}
     </div>
     <div class="kpi" style="--kc:var(--red)">
       <div class="kpi-lbl">全校异常会话率
-        <i class="itip">?<span class="ibox">超长会话（&gt;130 分钟）占比均值（仅统计工作日）。高异常率通常意味着学生忘记退出琴房，时长虚报而非真实练琴。超过 20% 需重点排查。</span></i>
+        <i class="itip">?<span class="ibox">异常会话（超过 180 分钟未还卡，或超出个人均值 3σ 的极端值）占比均值（仅统计工作日）。120~180 分钟会截断但不计入异常。高异常率通常意味着学生忘记退出琴房，超过 20% 需重点排查。</span></i>
       </div>
       <div class="kpi-val" id="kv5">—</div>
       <div class="kpi-sub" id="ks5">理想 &lt; 20%</div>
@@ -495,7 +524,7 @@ tbody td.b{color:var(--t1);font-weight:700}
           <th data-col="student_major" onclick="srt(this)">专业</th>
           <th data-col="student_grade" onclick="srt(this)">年级</th>
           <th data-col="composite_score" onclick="srt(this)">全校排名分
-            <i class="thtip">?<span class="thtip-b">0-100 的全校百分位分。100 = 全校最前，50 = 全校中位附近。它表示本周在全校中的位置，不等于个人绝对进步幅度。</span></i>
+            <i class="thtip">?<span class="thtip-b">五个维度（B进步+T趋势+M动量+A底盘+W本周进度）加权合成的绝对分（0-100）。100 = 满分，不是百分位。学生按此分数从高到低排名；本周无练琴的学生得 0 分，不参与排名。</span></i>
           </th>
           <th data-col="raw_score" onclick="srt(this)">个人变化值
             <i class="thtip">?<span class="thtip-b">0-1 原始成长值，只和这位学生自己的历史相比。越高说明相对自己近期状态越好，不参与全校排名。</span></i>
@@ -510,7 +539,7 @@ tbody td.b{color:var(--t1);font-weight:700}
             <i class="thtip">?<span class="thtip-b">用于计算基线的有效会话数（上限 30 条参与运算）。不足 10 条为冷启动状态。</span></i>
           </th>
           <th data-col="outlier_rate" onclick="srt(this)">异常率
-            <i class="thtip">?<span class="thtip-b">超长会话（&gt;130 min）占比。超过 40% 会对成长分产生指数衰减惩罚，通常原因是学生忘记退出琴房。</span></i>
+            <i class="thtip">?<span class="thtip-b">异常会话（超 180 分钟未还卡，或超出个人均值 3σ）占比。120~180 分钟截断为 120 分钟但不计入异常。超过 40% 会对成长分产生指数衰减惩罚。</span></i>
           </th>
           <th data-col="is_cold_start" onclick="srt(this)">状态</th>
           <th data-col="last_updated" onclick="srt(this)">更新</th>
@@ -530,6 +559,24 @@ tbody td.b{color:var(--t1);font-weight:700}
 <!-- Detail Panel Modal (outside wrap, fixed overlay) -->
 <div id="dp-bg" onclick="closeDp()"></div>
 <div class="dp" id="dp"></div>
+
+<!-- 深度诊断 Modal -->
+<div id="diag-bg" onclick="if(event.target===this)closeDiag()">
+  <div id="diag-modal">
+    <div class="diag-hd">
+      <span style="font-size:1rem">🔬</span>
+      <span class="diag-title">深度诊断报告</span>
+      <span id="diag-name" style="font-size:.78rem;color:var(--t2);margin-left:4px"></span>
+      <button class="diag-close" onclick="closeDiag()">✕</button>
+    </div>
+    <div class="diag-body" id="diag-body">
+      <div class="diag-loading">
+        <div class="spin" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:8px"></div>
+        AI 正在深度分析，请稍候（约15-30秒）…
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
 'use strict';
@@ -715,23 +762,23 @@ function buildAnalysisPrompt(s,hist,sessions){
         if(h.composite_score===0) return `  ${(h.snapshot_date||'').slice(0,10)}  ▸ 【本周未练琴：全校排名分=0，个人原始成长值不作比较】`;
         // 各字段转成自然语言
         const progressTxt=h.baseline_score!=null
-          ?(h.baseline_score>0.05?'比上一周表现更好（1v1 对比进步）'
-            :h.baseline_score<-0.05?'比上一周表现略弱（1v1 对比回落）':'与上一周表现相当')
+          ?(h.baseline_score>0.55?'比上一周表现更好（1v1 对比进步）'
+            :h.baseline_score<0.45?'比上一周表现略弱（1v1 对比回落）':'与上一周表现相当')
           :'—';
         const trendTxt=h.trend_score!=null
-          ?(h.trend_score>0.05?'最近3周练琴呈上升趋势'
-            :h.trend_score<-0.05?'最近3周练琴呈下降趋势':'最近3周练琴基本平稳')
+          ?(h.trend_score>0.6?'最近3周练琴呈上升趋势'
+            :h.trend_score<0.4?'最近3周练琴呈下降趋势':'最近3周练琴基本平稳')
           :'—';
         const mmtTxt=h.momentum_score!=null
-          ?(h.momentum_score>0.1?'已连续多周保持进步势头'
-            :h.momentum_score<-0.1?'近期连续进步势头中断':'连续改善周数较少')
+          ?(h.momentum_score>0.6?'最近8周整体多数在进步（动量较强）'
+            :h.momentum_score<0.4?'最近8周整体进步次数偏少（动量偏弱）':'最近8周进步与回落基本持平')
           :'—';
         return [
           `  ${(h.snapshot_date||'').slice(0,10)}`,
           `    · 全校排名分 ${h.composite_score}/100（0=最低, 100=最高，用来看本周在全校的位置）`,
           `    · 个人原始成长值 ${h.raw_score!=null?(h.raw_score||0).toFixed(3):'-'}（只看自己前后变化，不参与横向排名）`,
           `    · 均练琴时长 ${h.mean_duration!=null?(h.mean_duration||0).toFixed(0):'-'}分钟（该周统计时的历史每次平均时长）`,
-          `    · 异常次数占比 ${h.outlier_rate!=null?((h.outlier_rate||0)*100).toFixed(0):'-'}%（超长会话 >130 分钟占该周记录的比例，超过 20% 需警惕）`,
+          `    · 异常次数占比 ${h.outlier_rate!=null?((h.outlier_rate||0)*100).toFixed(0):'-'}%（超 180 分钟未还卡或极端值占该周记录的比例，超过 20% 需警惕）`,
           `    · 进步情况：${progressTxt}`,
           `    · 时长走向：${trendTxt}`,
           `    · 近期冲劲：${mmtTxt}`,
@@ -867,8 +914,8 @@ ${trendNote}
 
 【各维度拆解说明（五维 B/T/M/A/W）】${lastPracticeNote}
 B 进步分（上周 vs 前周 1v1 对比）：${(s.baseline_score||0)>0.5?'上一周比前一周表现更好（进步）':'上一周与前一周持平或略有回落'}（量化值=${(s.baseline_score||0).toFixed(3)}，0-1 归一化，0.5 为中位）
-T 趋势分（最近3周线性回归）：${s.trend_score>0.05?'近3周整体呈上升趋势':(s.trend_score<-0.05?'近3周整体呈下滑趋势':'近3周基本平稳')}（量化值=${(s.trend_score||0).toFixed(3)}）
-M 动量分（连续改善周数）：${s.momentum_score>0.05?'已连续多周保持进步势头':(s.momentum_score<-0.05?'近期连续改善势头中断':'连续改善积累较少')}（量化值=${(s.momentum_score||0).toFixed(3)}）
+T 趋势分（最近3个活跃周线性回归）：${s.trend_score>0.6?'近3周整体呈上升趋势':(s.trend_score<0.4?'近3周整体呈下滑趋势':'近3周基本平稳')}（量化值=${(s.trend_score||0).toFixed(3)}，0-1 归一化，0.5 为中位）
+M 动量分（最近8活跃周加权改善率）：${s.momentum_score>0.6?'近期整体多数在进步（动量较强）':(s.momentum_score<0.4?'近期整体进步次数偏少（动量偏弱）':'近期进步与回落基本持平')}（量化值=${(s.momentum_score||0).toFixed(3)}，0-1 归一化，越高说明进步频率越高）
 A 底盘分（同专业积累质量）：${(s.accum_score||0).toFixed(3)}（同专业 IQR 质量比较，越高说明底子越扎实）
 W 本周进度分（本周实时）：本周工作日实际时长已实时计入综合分（权重最高，每练一次当天排名即变动）
 
@@ -941,9 +988,9 @@ async function generateAIAnalysis(s,hist,sessions){
 
 【维度数值解读规则（五维 B/T/M/A/W）】
 prompt中会提供5个量化维度，仅在数值明显（绝对值>0.1）且有实际意义时才用通俗语言提及，否则忽略：
-- baseline_score（B 进步分）：上周 vs 前周 1v1 对比；正值=上周比前周练得更好；负值=上周有所回落（窗口仅1v1，对近期变化最敏感）
-- trend_score（T 趋势分）：最近3周线性回归斜率；正值=3周内整体在上升；负值=整体在下滑；数据少于3周时为中位 0.5
-- momentum_score（M 动量分）：连续改善周数对数归一化；正值=连续多周在进步；负值=连续改善势头中断
+- baseline_score（B 进步分）：最近两个活跃周的 raw_score 1v1 对比，Sigmoid 归一化至 0-1；>0.5 说明上周比前周更好，<0.5 说明有所回落，0.5 为持平中位
+- trend_score（T 趋势分）：最近3个活跃周线性回归斜率 × 60 后输入 Sigmoid，归一化至 0-1；>0.6 说明整体在上升，<0.4 说明整体在下滑，数据少于3个活跃周时为中位 0.5；微小波动不会显著影响得分
+- momentum_score（M 动量分）：最近8个活跃周的指数衰减加权改善率，归一化至 0-1；最近一周权重最高（约43%），越往前权重越低；>0.6 说明整体多数周在进步，<0.4 说明进步频率偏低；偶尔一周回落不会归零
 - accum_score（A 底盘分）：同专业 IQR 质量比较；反映该生整体练琴底子，越高说明积累越扎实
 - W 本周进度分（未单独列出）：本周工作日实际 / (日均值 × 已过工作日)，权重最高，每练一次立刻影响综合分和排名
 
@@ -1034,6 +1081,72 @@ function regenerateAnalysis(){
   if(S.currentStudent)doGenerateAnalysis(S.currentStudent.student_name);
 }
 
+// ── 深度诊断 ──────────────────────────────────────
+function closeDiag(){
+  const bg=$('diag-bg');
+  if(bg)bg.classList.remove('show');
+  document.body.style.overflow='';
+}
+
+async function deepDiag(name){
+  if(!name)return;
+  const bg=$('diag-bg');
+  const body=$('diag-body');
+  const nameEl=$('diag-name');
+  if(!bg||!body)return;
+
+  // 显示 Modal + Loading
+  nameEl.textContent='— '+name;
+  body.innerHTML=`<div class="diag-loading">
+    <div class="spin" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:8px"></div>
+    AI 正在深度分析 ${name}，请稍候（约 15~30 秒）…
+  </div>`;
+  bg.classList.add('show');
+  document.body.style.overflow='hidden';
+
+  // 禁用按钮防重复点击
+  const btn=$('dp-diag-btn');
+  if(btn)btn.disabled=true;
+
+  try{
+    const EDGE_URL=`${cfg.url}/functions/v1/batch-ai-analysis`;
+    const res=await fetch(EDGE_URL,{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':`Bearer ${cfg.key}`,
+        'x-batch-secret': BATCH_SECRET,
+      },
+      body:JSON.stringify({ student_name: name, diagnostic: true }),
+    });
+    const data=await res.json();
+    if(!res.ok||data.error){
+      body.innerHTML=`<pre style="color:var(--red)">诊断失败：${esc(data.error||'未知错误')}</pre>`;
+      return;
+    }
+    // 将 AI 返回文本渲染为带格式的段落
+    const html=esc(data.text||'（无结果）')
+      .replace(/^(\d\.\s+[^\n]+)/gm,'<strong>$1</strong>')   // 标题行加粗
+      .replace(/\n/g,'<br>');
+    body.innerHTML=`<pre style="border:none;padding:0;margin:0">${html}</pre>
+      <div style="margin-top:14px;font-size:.72rem;color:var(--t3)">
+        模型：${esc(data.source||'—')} &nbsp;|&nbsp; 仅供参考，不构成教学评价
+      </div>`;
+  }catch(e){
+    body.innerHTML=`<pre style="color:var(--red)">网络错误：${esc(String(e))}</pre>`;
+  }finally{
+    if(btn)btn.disabled=false;
+  }
+}
+
+// ESC 同时关闭诊断弹窗
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    if($('diag-bg')&&$('diag-bg').classList.contains('show')){closeDiag();return;}
+    if(S.selected)closeDp();
+  }
+});
+
 // 历史快照表格折叠展开
 function toggleSnapTable(){
   const wrap=document.getElementById('dp-snaptbl-body-wrap');
@@ -1044,8 +1157,7 @@ function toggleSnapTable(){
   if(arrow)arrow.style.transform=opening?'rotate(90deg)':'';
 }
 
-// ESC 关闭详情弹窗
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.selected)closeDp();});
+// ESC 关闭（已在上方 deepDiag 区块统一处理）
 
 // ── Load ──────────────────────────────────────────
 async function loadAll(){
@@ -1349,6 +1461,7 @@ function renderDP(s,hist){
       <span class="ai-title">AI · 练琴状况智能分析</span>
       <span id="dp-ai-meta" class="ai-meta"></span>
       <button id="dp-ai-btn" class="ai-regen" onclick="regenerateAnalysis()">重新生成</button>
+      <button id="dp-diag-btn" class="diag-btn" onclick="deepDiag(S.selected)">🔬 深度诊断</button>
     </div>
     <div class="ai-body">
       <div id="dp-ai-text" class="ai-text loading">
@@ -1385,7 +1498,7 @@ function renderDP(s,hist){
 
       <div class="mc">
         <div class="mc-lbl">
-          <i class="itip">?<span class="ibox">outlier_rate：超长会话（&gt;130 分钟）占最近 30 条工作日记录的比例（仅统计周一至周五）。高异常率通常说明学生忘记在系统中退出，导致时长虚报。超过 40% 时系统会对成长分施加指数衰减惩罚。</span></i>
+          <i class="itip">?<span class="ibox">outlier_rate：异常会话（超 180 分钟未还卡 = too_long，或超出个人均值 3σ = personal_outlier，或极短 = too_short）占最近 30 条工作日记录的比例。注意：120~180 分钟区间只截断为 120 分钟但不标记异常（FIX-24 保护）。超过 40% 时系统会对成长分施加指数衰减惩罚。</span></i>
           异常会话率
         </div>
         <div class="mc-val" style="color:${rC(s.outlier_rate||0)}">${pct(s.outlier_rate||0)}%</div>
@@ -1427,7 +1540,7 @@ function renderDP(s,hist){
         <div class="dim-row">
           ${dimCard('B','进步分',s.baseline_score,'上1个有练琴周 vs 前1个有练琴周的 raw_score 直接对比（1v1）。&gt;0.5 说明本周比上周更好，&lt;0.5 说明有所回落。')}
           ${dimCard('T','趋势分',s.trend_score,'最近 3 个有练琴周的个人原始表现线性回归斜率。&gt;0.5 持续上升，&lt;0.5 说明整体在下滑。需至少 3 周历史才能计算。')}
-          ${dimCard('M','动量分',s.momentum_score,'连续改善周数，对数归一化（9 周满分）。值越高说明连续进步的周数越多，体现练琴惯性和自律性。')}
+          ${dimCard('M','动量分',s.momentum_score,'最近 8 个有练琴的周的指数衰减加权改善率。最近一周权重最大（约 43%），越往前权重越低。值越高说明整体进步频率越高，偶尔一周回落不会归零。')}
           ${dimCard('A','底盘分',s.accum_score,'最近样本量 × 同专业时长质量形成的练琴底盘。它会影响稳定性判断，但不等于本周全校排名。')}
           ${dimCard('W','本周进度',s.w_score,'本周工作日实际练琴时长 / (个人日均值 × 已过工作日天数)，Sigmoid 归一化。每练完一次立即实时生效，是每日排名变动的主要来源。每次练琴后由后端实时写入并存储。')}
         </div>
