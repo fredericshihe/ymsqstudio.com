@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>青岛耶胡迪梅纽因学校 · 练琴排行榜指南</title>
+    <style>
+        /* 全局与色彩变量 */
+        :root {
+            --primary-color: #1a2b4c; /* 优雅海军蓝 */
+            --gold-color: #c5a059;    /* 香槟金 */
+            --bg-color: #fcfbf9;      /* 宣纸暖白 */
+            --text-main: #333333;
+            --text-light: #555555;
+        }
+
+        /* 核心修复 1：屏幕预览模式下，放弃 body 的 flex 布局 */
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', serif;
+            background-color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+            display: block; /* 必须是 block，否则 Safari 无法分页 */
+            text-align: center; /* 让内部的 A4 纸居中 */
+            color: var(--text-main);
+            line-height: 1.5;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        /* 严格的 A4 页面容器 */
+        .a4-page {
+            background-color: var(--bg-color);
+            width: 210mm;
+            height: 297mm; /* 严格锁定 A4 高度 */
+            padding: 15mm 18mm;
+            margin: 0 auto 20mm auto; /* 屏幕上居中并留出间距 */
+            box-sizing: border-box;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            text-align: left; /* 恢复文字左对齐 */
+        }
+
+        /* 头部标题区 */
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--gold-color);
+            padding-bottom: 15px;
+        }
+        .header h1 {
+            color: var(--primary-color);
+            font-size: 26px;
+            letter-spacing: 2px;
+            margin: 0 0 8px 0;
+        }
+        .header p {
+            color: var(--gold-color);
+            font-size: 15px;
+            margin: 0;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        /* 模块标题 */
+        .section-title {
+            color: var(--primary-color);
+            font-size: 18px;
+            margin: 15px 0 10px 0;
+            display: flex;
+            align-items: center;
+            font-weight: bold;
+        }
+        .section-title::before {
+            content: "";
+            display: inline-block;
+            width: 5px;
+            height: 18px;
+            background-color: var(--gold-color);
+            margin-right: 8px;
+            border-radius: 2px;
+        }
+
+        /* 强调提示框 */
+        .alert-box {
+            background-color: rgba(197, 160, 89, 0.1);
+            border-left: 4px solid var(--gold-color);
+            padding: 10px 15px;
+            font-size: 13px;
+            color: var(--primary-color);
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        /* 网格布局：特权商城 */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+        .card {
+            background: #ffffff;
+            border: 1px solid #eaeaea;
+            border-top: 3px solid var(--gold-color);
+            padding: 12px 15px;
+            border-radius: 6px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+        }
+        .card h3 {
+            margin: 0 0 8px 0;
+            color: var(--primary-color);
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px dashed #eee;
+            padding-bottom: 8px;
+        }
+        .card h3 span {
+            font-size: 11px;
+            background: var(--gold-color);
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-weight: normal;
+        }
+        .card ul {
+            margin: 0;
+            padding-left: 16px;
+            font-size: 12px;
+            color: var(--text-light);
+        }
+        .card ul li {
+            margin-bottom: 6px;
+        }
+        .card ul li:last-child {
+            margin-bottom: 0;
+        }
+        .card ul li strong {
+            color: var(--primary-color);
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        /* 算法解析区 */
+        .formula-box {
+            background: rgba(26, 43, 76, 0.02);
+            border: 1px solid #e0e0e0;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            flex-grow: 1; /* 在第二页自动撑开空间 */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+        }
+        .formula-item {
+            display: flex;
+            font-size: 12px;
+            border-bottom: 1px dashed #eee;
+            padding-bottom: 12px;
+            margin-bottom: 12px;
+        }
+        .formula-item:last-child { 
+            margin-bottom: 0; 
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+        .formula-icon {
+            font-weight: bold;
+            color: #fff;
+            background-color: var(--gold-color);
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            margin-right: 12px;
+            flex-shrink: 0;
+            font-size: 14px;
+        }
+        .formula-text strong { 
+            color: var(--primary-color); 
+            font-size: 13px;
+        }
+        .formula-text p {
+            margin: 4px 0 0 0;
+            color: var(--text-light);
+        }
+
+        /* 表格样式 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+            font-size: 12px;
+        }
+        th, td {
+            border: 1px solid #e0e0e0;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background-color: var(--primary-color);
+            color: #ffffff;
+            font-weight: normal;
+        }
+        td { background-color: #ffffff; color: var(--text-main); }
+        .highlight { color: #d32f2f; font-weight: bold; }
+
+        /* 底部提示区 */
+        .footer-tips {
+            background-color: var(--primary-color);
+            color: #ffffff;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-top: auto; /* 自动推到底部 */
+        }
+        .footer-tips h4 {
+            margin: 0 0 10px 0;
+            color: var(--gold-color);
+            font-size: 15px;
+        }
+        .footer-tips ul {
+            margin: 0;
+            padding-left: 18px;
+            font-size: 12px;
+        }
+        .footer-tips li {
+            margin-bottom: 6px;
+        }
+        .footer-tips li:last-child {
+            margin-bottom: 0;
+        }
+        .footer-tips li::marker { color: var(--gold-color); }
+
+        .slogan {
+            text-align: center;
+            color: var(--gold-color);
+            font-size: 14px;
+            font-weight: bold;
+            margin-top: 15px;
+            letter-spacing: 1px;
+        }
+
+        /* 核心修复 2：Safari 专属终极打印优化 */
+        @page {
+            size: A4 portrait;
+            margin: 0; /* 强制清空浏览器默认的物理边距 */
+        }
+        
+        @media print {
+            html, body {
+                width: 100%;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: none;
+                display: block !important; /* 绝对禁止 body 使用 flex */
+            }
+            .a4-page {
+                width: 210mm;
+                height: 297mm;
+                margin: 0 !important;
+                padding: 15mm 18mm !important; 
+                box-shadow: none !important;
+                border: none !important;
+                /* 强制分页双保险 */
+                page-break-after: always !important; 
+                break-after: page !important; 
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+            /* 防止最后一页打印出一张空白纸 */
+            .a4-page:last-child {
+                page-break-after: auto !important;
+                break-after: auto !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ================= 第一页 ================= -->
+<div class="a4-page">
+    <!-- 头部 -->
+    <div class="header">
+        <h1>新学期练琴排行榜完全指南</h1>
+        <p>青岛耶胡迪梅纽因学校 · 排行榜与积分兑换计划</p>
+    </div>
+
+    <!-- 零、音符币获取规则 -->
+    <div class="section-title" style="margin: 10px 0 8px 0;">第一章：怎么赚取【音符币】？</div>
+    <p style="font-size: 12px; margin-top: 0; margin-bottom: 6px;"><strong>每周五晚 21:30 以后</strong>，系统将自动结算本周（周一至周五）的 <strong>"练琴排行榜"</strong>，并按名次发放专属积分：</p>
+    <table style="margin-bottom: 6px;">
+        <thead>
+            <tr>
+                <th width="20%" style="padding: 6px;">名次</th>
+                <th width="26%" style="padding: 6px;">🏆 综合榜</th>
+                <th width="18%" style="padding: 6px;">🎯 稳定榜</th>
+                <th width="18%" style="padding: 6px;">🏅 守则榜</th>
+                <th width="18%" style="padding: 6px;">📈 进步榜</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td style="padding: 6px;">🥇 第 1 名</td><td style="padding: 6px;"><strong>100 币</strong> <span style="font-size:10px;color:#666">(榜首霸主)</span></td><td style="padding: 6px;"><strong>50 币</strong></td><td style="padding: 6px;"><strong>45 币</strong></td><td style="padding: 6px;"><strong>40 币</strong></td></tr>
+            <tr><td style="padding: 6px;">🥈 第 2–3 名</td><td style="padding: 6px;"><strong>80 币</strong> <span style="font-size:10px;color:#666">(荣耀亚军)</span></td><td style="padding: 6px;"><strong>35 币</strong></td><td style="padding: 6px;"><strong>30 币</strong></td><td style="padding: 6px;"><strong>25 币</strong></td></tr>
+            <tr><td style="padding: 6px;">🥉 第 4–6 名</td><td style="padding: 6px;"><strong>60 币</strong> <span style="font-size:10px;color:#666">(实力季军)</span></td><td style="padding: 6px;"><strong>20 币</strong></td><td style="padding: 6px;"><strong>18 币</strong></td><td style="padding: 6px;"><strong>15 币</strong></td></tr>
+            <tr><td style="padding: 6px;">🏅 第 7–10 名</td><td style="padding: 6px;"><strong>40 币</strong> <span style="font-size:10px;color:#666">(优秀达人)</span></td><td style="padding: 6px;">—</td><td style="padding: 6px;">—</td><td style="padding: 6px;">—</td></tr>
+        </tbody>
+    </table>
+    <div style="font-size: 11.5px; color: var(--text-light); margin-bottom: 8px; background: rgba(0,0,0,0.02); padding: 5px 10px; border-radius: 4px; display: flex; justify-content: space-between;">
+        <span><strong>🎯 稳定榜：</strong>长期坚持，单次时长稳定</span>
+        <span><strong>🏅 守则榜：</strong>严守纪律，近期无违规占房</span>
+        <span><strong>📈 进步榜：</strong>近期练琴表现有显著提升</span>
+    </div>
+    <div class="alert-box" style="display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; padding: 8px 15px;">
+        <div>📢 <strong>正式启动：</strong>音符币奖励将于 <strong style="color:#d32f2f">2026年4月3日晚21:30</strong> 起正式发放！可在练琴跟踪系统查看实时排行榜与个人积分。</div>
+        <div>⚠️ <strong>注意：</strong>前台管理员对于存在违规练琴记录的学生，有权进行音符币扣除！</div>
+    </div>
+
+    <!-- 第一部分：特权商城 -->
+    <div class="section-title" style="margin: 10px 0 8px 0;">星耀特权商城 (兑换清单)</div>
+    <div class="grid-2" style="margin-bottom: 0;">
+        <div class="card" style="padding: 10px 15px;">
+            <h3 style="margin-bottom: 6px; padding-bottom: 6px;">🟢 青铜区 <span>前三就送，快乐加倍</span></h3>
+            <ul>
+                <li style="margin-bottom: 4px;"><strong>专属琴房冠名权 · 80 音符币</strong>获得三天专属琴房使用权，门牌由你自定义命名。例如："XX 的 VIP 琴房"，彰显专属排面（每个月仅限一次）！</li>
+                <li style="margin-bottom: 0;"><strong>施坦威体验日 · 80 音符币</strong>在老师空闲无课时段，独享一天教师教室施坦威三角钢琴琴房练习特权（如周六周日，每周仅限一次）。</li>
+            </ul>
+        </div>
+        <div class="card" style="padding: 10px 15px;">
+            <h3 style="margin-bottom: 6px; padding-bottom: 6px;">🟡 白银区 <span>稍微攒攒，体验升级</span></h3>
+            <ul>
+                <li style="margin-bottom: 4px;"><strong>旁听神仙课 · 100 音符币</strong>特批进入教室旁听任何一节其他老师的课程（如音乐素养课、专业课、室内乐课等），需提前 1 天与老师预约。</li>
+                <li style="margin-bottom: 0;"><strong>作业豁免券 · 100 音符币</strong>合法免除一次常规作业（具体科目需提前与老师协商，每个月仅限一次）</li>
+            </ul>
+        </div>
+        <div class="card" style="padding: 10px 15px;">
+            <h3 style="margin-bottom: 6px; padding-bottom: 6px;">🔴 黄金区 <span>劳逸结合，自主掌控</span></h3>
+            <ul>
+                <li style="margin-bottom: 4px;"><strong>课表 DIY 日 · 180 音符币</strong>获得一天"选课自由"，自主决定是否出席当天的非专业课和非考试类课程（每个月仅可以使用一次）。</li>
+                <li style="margin-bottom: 0;"><strong>数字自由日 · 180 音符币</strong>获得整整一天（24小时）电子设备自由畅玩权（每月仅限一次）。</li>
+            </ul>
+        </div>
+        <div class="card" style="padding: 10px 15px;">
+            <h3 style="margin-bottom: 6px; padding-bottom: 6px;">💎 钻石区 <span>终极荣耀，专业巅峰</span></h3>
+            <ul>
+                <li style="margin-bottom: 4px;"><strong>大师级专属 MV · 300 音符币</strong>老师动用专业设备，为你精修录制并剪辑一首专属演奏视频（每学期仅限一次）。朋友圈炫技必备，永久留存！</li>
+                <li style="margin-bottom: 0;"><strong>额外专业课 · 300 音符币</strong>全场终极大奖！和自己的专业老师多上一节专业课，名师一对一加餐指导（每个月仅限一次）。</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 兑换规则 -->
+    <div class="alert-box" style="margin-top: auto; margin-bottom: 0; background-color: rgba(26, 43, 76, 0.05); border-left-color: var(--primary-color); padding: 8px 15px;">
+        <strong>📜 兑换规则：</strong><br>
+        1. <strong>一学期一清零</strong> — 音符币仅在当学期有效！期末将统一清零，请大家合理规划，可以每周换小特权，也可以攒满冲刺终极大奖，切勿囤积过期。<br>
+        2. <strong>兑换方式</strong> — 决定兑换后，请提前至少 <strong>1 天</strong> 向老师提交申请，扣除对应音符币后即可生效。
+    </div>
+</div>
+
+<!-- ================= 第二页 ================= -->
+<div class="a4-page">
+    <!-- 第二部分：排名算法 -->
+    <div class="section-title" style="margin-top: 0;">第二章：练琴排名分——怎么算出来的？</div>
+    <p style="font-size: 12px; margin-top: 0; margin-bottom: 10px;">总分 = <strong>五项指标加权合计 × 100</strong>，每项各有各的玩法 👇</p>
+    
+    <div class="formula-box">
+        <div class="formula-item">
+            <div class="formula-icon">W</div>
+            <div class="formula-text">
+                <strong>本周进度分 (权重最高！) —— 今天练了多少？</strong>
+                <p>系统用 <strong>本周已练时长 ÷ 应练时长</strong> 实时计算完成度。应练时长 = 你自己的日均值 × 本周已过的工作日天数。<strong>今天练完，今天排名就涨</strong>，归还琴房后几分钟内即可刷新。五项里权重最高，影响最大——<strong>每天练琴，首先冲这个分！</strong></p>
+            </div>
+        </div>
+        <div class="formula-item">
+            <div class="formula-icon">B</div>
+            <div class="formula-text">
+                <strong>进步分 (比上周) —— 上一个有练琴的周，比再往前一周练得好吗？</strong>
+                <p>拿你<strong>最近一个有练琴的周</strong>的工作日总时长，和<strong>再往前一个有练琴的周</strong>直接对比。时长更多 → 分高；减少了 → 分低。<strong>只跟自己比</strong>，不跟别的同学比，进步了就有奖励！</p>
+            </div>
+        </div>
+        <div class="formula-item">
+            <div class="formula-icon">T</div>
+            <div class="formula-text">
+                <strong>趋势分 (近期走向) —— 最近和前段时间相比，是在涨还是在跌？</strong>
+                <p>把你<strong>最近 2 个有练琴的周</strong>的平均时长，和<strong>再往前 2 个有练琴的周</strong>的平均时长对比。前者更高 → 上升趋势，分高；前者更低 → 下滑趋势，分低。<strong>用4周数据做对比，偶尔一次发挥失常不会拖垮整体</strong>，只要整体趋势向上，这个分就稳。</p>
+            </div>
+        </div>
+        <div class="formula-item">
+            <div class="formula-icon">M</div>
+            <div class="formula-text">
+                <strong>动量分 (稳定达标) —— 最近几周，你有没有完成每周的练琴目标？</strong>
+                <p>看你<strong>最近 4 个有练琴的周</strong>中，有多少周的工作日总时长<strong>达到了个人周均目标的 60%</strong>。达标周越多 → 分越高；最近一周的权重比之前更高。<strong>坚持稳定达标</strong>，这个分就会持续提升！</p>
+            </div>
+        </div>
+        <div class="formula-item">
+            <div class="formula-icon">A</div>
+            <div class="formula-text">
+                <strong>底盘分 (练琴基础积累) —— 你的基础扎实吗？</strong>
+                <p>拿你的<strong>长期平均水平</strong>和同专业同学横向比较。每次练琴时长是否达标，都在悄悄积累这个分。<strong>没有捷径，全靠平时一点一滴的坚持</strong>——就像运动员的基础体能，练出来的！</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 第三部分：权重表格 -->
+    <div class="section-title">不同阶段，权重不一样</div>
+    <table>
+        <thead>
+            <tr>
+                <th>阶段</th>
+                <th>W 本周进度</th>
+                <th>B 进步分</th>
+                <th>T 趋势分</th>
+                <th>M 动量分</th>
+                <th>A 底盘分</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>新生 (< 4周)</td>
+                <td class="highlight">50%</td>
+                <td>10%</td>
+                <td>10%</td>
+                <td>5%</td>
+                <td>25%</td>
+            </tr>
+            <tr>
+                <td>成长期 (4–11周)</td>
+                <td class="highlight">35%</td>
+                <td>20%</td>
+                <td>20%</td>
+                <td>10%</td>
+                <td>15%</td>
+            </tr>
+            <tr>
+                <td>成熟期 (≥ 12周)</td>
+                <td class="highlight">25%</td>
+                <td>25%</td>
+                <td>25%</td>
+                <td>15%</td>
+                <td>10%</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- 第四部分：冲榜秘籍 -->
+    <div class="footer-tips">
+        <h4>🚀 第三章：怎么快速提升排名？(冲榜必看)</h4>
+        <ul>
+            <li><strong>周末不计分</strong> — 周六、周日的练琴时长不计入排行榜排名，请在周一至周五（工作日）全力冲刺！</li>
+            <li>使用琴房超过 <strong>3小时</strong>，或<strong>完全跨越</strong>午饭（约11:50–12:30）或晚饭（约17:50–18:30）时间段占琴房，系统自动判定为异常记录。</li>
+            <li><strong>单次</strong>练琴在 <strong>2小时–3小时</strong>区间，仅视为有效练琴2小时，<strong>可到前台续琴房重新计时</strong>。</li>
+            <li>不练琴时<strong>及时还卡</strong>，忘还卡 = 异常记录，影响你的数据准确性。</li>
+            <li><strong>保证练琴质量</strong> — 单次建议超过 <strong>30 分钟</strong>，最少 <strong>> 5 分钟</strong> 才计入有效记录。</li>
+        </ul>
+    </div>
+    
+    <div class="slogan">🎵 青岛耶胡迪梅纽因学校 · 新学期加油！ 🎵</div>
+</div>
+
+</body>
+</html>
