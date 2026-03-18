@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>🎶 音符币管理后台</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg: #0f172a; --sur: #1e293b; --card: #1e293b;
+      --text: #f8fafc; --t2: #cbd5e1; --t3: #94a3b8;
+      --bdr: rgba(255,255,255,0.1); --bdr2: rgba(255,255,255,0.15);
+      --blue: #3b82f6; --blue-hover: #2563eb;
+      --green: #10b981; --red: #ef4444; --yellow: #f59e0b;
+      --gold: #fbbf24;
+      --shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+      --r: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; padding: 20px; }
+    
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--bdr); }
+    .header h1 { font-size: 1.5rem; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+    .header h1 span { color: var(--gold); }
+    
+    .toolbar { display: flex; gap: 12px; margin-bottom: 20px; }
+    .search-input { background: rgba(0,0,0,0.2); border: 1px solid var(--bdr2); color: var(--text); padding: 10px 16px; border-radius: 8px; width: 260px; outline: none; font-size: 0.95rem; transition: border-color 0.2s; }
+    .search-input:focus { border-color: var(--blue); }
+    
+    .table-container { background: var(--card); border-radius: var(--r); border: 1px solid var(--bdr); overflow-x: auto; box-shadow: var(--shadow); }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th, td { padding: 14px 16px; border-bottom: 1px solid var(--bdr); }
+    th { background: rgba(0,0,0,0.2); color: var(--t3); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    
+    .coin-badge { display: inline-flex; align-items: center; gap: 4px; background: rgba(251, 191, 36, 0.15); color: var(--gold); padding: 4px 10px; border-radius: 20px; font-weight: 700; font-size: 0.9rem; border: 1px solid rgba(251, 191, 36, 0.3); }
+    
+    .btn { background: var(--sur); border: 1px solid var(--bdr2); color: var(--text); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.2s; }
+    .btn:hover { background: rgba(255,255,255,0.05); border-color: var(--t3); }
+    .btn.primary { background: var(--blue); border-color: var(--blue); color: white; }
+    .btn.primary:hover { background: var(--blue-hover); border-color: var(--blue-hover); }
+    .btn-group { display: flex; gap: 8px; }
+    
+    /* Modals */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; z-index: 100; opacity: 0; transition: opacity 0.2s; }
+    .modal-overlay.show { display: flex; opacity: 1; }
+    .modal { background: var(--card); border: 1px solid var(--bdr2); border-radius: 16px; width: 440px; max-width: 90vw; box-shadow: 0 10px 25px rgba(0,0,0,0.5); transform: translateY(20px); transition: transform 0.2s; display: flex; flex-direction: column; max-height: 85vh; }
+    .modal-overlay.show .modal { transform: translateY(0); }
+    
+    .modal-hd { padding: 16px 24px; border-bottom: 1px solid var(--bdr); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+    .modal-hd h2 { font-size: 1.1rem; font-weight: 700; }
+    .close-btn { background: none; border: none; color: var(--t3); font-size: 1.2rem; cursor: pointer; padding: 4px; }
+    .close-btn:hover { color: var(--text); }
+    
+    .modal-bd { padding: 24px; overflow-y: auto; }
+    .modal-ft { padding: 16px 24px; border-top: 1px solid var(--bdr); display: flex; justify-content: flex-end; gap: 12px; flex-shrink: 0; background: rgba(0,0,0,0.1); border-radius: 0 0 16px 16px; }
+    
+    /* Form Elements */
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 0.85rem; color: var(--t2); margin-bottom: 8px; font-weight: 600; }
+    .form-control { width: 100%; background: rgba(0,0,0,0.2); border: 1px solid var(--bdr2); color: var(--text); padding: 10px 12px; border-radius: 8px; outline: none; font-size: 0.95rem; }
+    .form-control:focus { border-color: var(--blue); }
+    
+    .type-toggle { display: flex; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 4px; gap: 4px; }
+    .type-btn { flex: 1; text-align: center; padding: 8px 0; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 600; color: var(--t3); transition: all 0.2s; border: 1px solid transparent; }
+    .type-btn.active[data-type="add"] { background: rgba(16, 185, 129, 0.15); color: var(--green); border-color: rgba(16, 185, 129, 0.3); }
+    .type-btn.active[data-type="sub"] { background: rgba(239, 68, 68, 0.15); color: var(--red); border-color: rgba(239, 68, 68, 0.3); }
+    
+    /* History List */
+    .history-list { display: flex; flex-direction: column; gap: 12px; }
+    .history-item { background: rgba(0,0,0,0.2); border: 1px solid var(--bdr); border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; align-items: center; }
+    .hi-left { display: flex; flex-direction: column; gap: 4px; }
+    .hi-reason { font-size: 0.95rem; font-weight: 600; color: var(--text); }
+    .hi-meta { font-size: 0.75rem; color: var(--t3); display: flex; gap: 8px; }
+    .hi-tag { padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; background: rgba(255,255,255,0.1); }
+    .hi-tag.auto { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+    .hi-amount { font-size: 1.1rem; font-weight: 800; }
+    .hi-amount.pos { color: var(--green); }
+    .hi-amount.neg { color: var(--red); }
+    .hi-empty { text-align: center; color: var(--t3); padding: 20px 0; font-size: 0.9rem; }
+
+    /* Toast */
+    #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: var(--green); color: white; padding: 10px 20px; border-radius: 8px; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.3); opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 1000; }
+    #toast.show { opacity: 1; }
+    #toast.error { background: var(--red); }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1><span>🎵</span> 音符币管理后台</h1>
+    <div style="font-size: 0.85rem; color: var(--t3);">
+      连接状态: <span id="connStatus" style="color: var(--yellow);">检查中...</span>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="searchInput" class="search-input" placeholder="搜索姓名或专业..." oninput="renderTable()">
+    <button class="btn" onclick="loadData()">刷新数据</button>
+  </div>
+
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>学生姓名</th>
+          <th>专业</th>
+          <th>年级</th>
+          <th>当前音符币</th>
+          <th style="text-align: right;">操作</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr><td colspan="5" style="text-align: center; color: var(--t3);">加载中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 调整音符币弹窗 -->
+  <div class="modal-overlay" id="adjustModalMask" onclick="if(event.target===this) closeAdjustModal()">
+    <div class="modal">
+      <div class="modal-hd">
+        <h2>调整音符币 - <span id="adjName" style="color: var(--blue);"></span></h2>
+        <button class="close-btn" onclick="closeAdjustModal()">✕</button>
+      </div>
+      <div class="modal-bd">
+        <div class="form-group">
+          <label>当前余额</label>
+          <div class="coin-badge" id="adjCurrentCoins">0</div>
+        </div>
+        <div class="form-group">
+          <label>操作类型</label>
+          <div class="type-toggle">
+            <div class="type-btn active" data-type="add" onclick="setAdjType('add')">增加 (+)</div>
+            <div class="type-btn" data-type="sub" onclick="setAdjType('sub')">扣除 (-)</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>变动数量 (正整数)</label>
+          <input type="number" id="adjAmount" class="form-control" placeholder="例如: 10" min="1">
+        </div>
+        <div class="form-group">
+          <label>备注说明 (必填)</label>
+          <input type="text" id="adjReason" class="form-control" placeholder="例如: 帮老师打扫琴房 / 违规扣除">
+        </div>
+      </div>
+      <div class="modal-ft">
+        <button class="btn" onclick="closeAdjustModal()">取消</button>
+        <button class="btn primary" onclick="submitAdjustment()" id="adjSubmitBtn">确认提交</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 历史记录弹窗 -->
+  <div class="modal-overlay" id="historyModalMask" onclick="if(event.target===this) closeHistoryModal()">
+    <div class="modal" style="width: 500px;">
+      <div class="modal-hd">
+        <h2>流水记录 - <span id="histName" style="color: var(--blue);"></span></h2>
+        <button class="close-btn" onclick="closeHistoryModal()">✕</button>
+      </div>
+      <div class="modal-bd" style="background: rgba(0,0,0,0.1);">
+        <div class="history-list" id="historyList">
+          <div class="hi-empty">加载中...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast">操作成功</div>
+
+  <script>
+    // ---------------------------------------------------------
+    // 1. 初始化 Supabase
+    // ---------------------------------------------------------
+    const DEFAULT_URL = 'https://waesizzoqodntrlvrwhw.supabase.co';
+    const DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhZXNpenpvcW9kbnRybHZyd2h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc4MjIyOTYsImV4cCI6MjA3MzM5ODI5Nn0.kE5gSV68q1nLo4z2IqgwqfTBVqNOJw5qs08f6r0SQH0';
+    
+    let supabaseClient = null;
+    let allStudents = [];
+    let currentAdjType = 'add';
+    let currentAdjStudent = '';
+
+    function showToast(msg, isError = false) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = isError ? 'error show' : 'show';
+      setTimeout(() => t.className = t.className.replace('show', ''), 3000);
+    }
+
+    async function init() {
+      // 尝试从 localStorage 获取，如果没有则使用默认值
+      let cfg = null;
+      try { cfg = JSON.parse(localStorage.getItem('pr_cfg')); } catch(e) {}
+      
+      const url = (cfg && cfg.url) ? cfg.url : DEFAULT_URL;
+      const key = (cfg && cfg.key) ? cfg.key : DEFAULT_KEY;
+      
+      supabaseClient = window.supabase.createClient(url, key);
+      document.getElementById('connStatus').textContent = '已连接';
+      document.getElementById('connStatus').style.color = 'var(--green)';
+      
+      await loadData();
+    }
+
+    // ---------------------------------------------------------
+    // 2. 数据加载与渲染
+    // ---------------------------------------------------------
+    async function loadData() {
+      if (!supabaseClient) return;
+      try {
+        // 调用我们刚刚在 SQL 中创建的视图
+        const { data, error } = await supabaseClient
+          .from('vw_student_coin_balances')
+          .select('*')
+          .order('balance', { ascending: false });
+          
+        if (error) throw error;
+        allStudents = data || [];
+        renderTable();
+      } catch (err) {
+        console.error('加载数据失败:', err);
+        showToast('加载数据失败: ' + err.message, true);
+      }
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('tableBody');
+      const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
+      
+      const filtered = allStudents.filter(s => 
+        (s.student_name && s.student_name.toLowerCase().includes(keyword)) ||
+        (s.student_major && s.student_major.toLowerCase().includes(keyword))
+      );
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--t3);">没有找到匹配的学生</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(s => `
+        <tr>
+          <td style="font-weight: 700;">${s.student_name}</td>
+          <td>${s.student_major || '-'}</td>
+          <td>${s.student_grade || '-'}</td>
+          <td><div class="coin-badge">🎵 ${s.balance}</div></td>
+          <td style="text-align: right;">
+            <div class="btn-group" style="justify-content: flex-end;">
+              <button class="btn primary" onclick="openAdjustModal('${s.student_name}', ${s.balance})">加减币</button>
+              <button class="btn" onclick="openHistoryModal('${s.student_name}')">流水记录</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // ---------------------------------------------------------
+    // 3. 加减币操作逻辑
+    // ---------------------------------------------------------
+    function openAdjustModal(name, balance) {
+      currentAdjStudent = name;
+      document.getElementById('adjName').textContent = name;
+      document.getElementById('adjCurrentCoins').textContent = `🎵 ${balance}`;
+      document.getElementById('adjAmount').value = '';
+      document.getElementById('adjReason').value = '';
+      setAdjType('add');
+      
+      document.getElementById('adjustModalMask').classList.add('show');
+    }
+
+    function closeAdjustModal() {
+      document.getElementById('adjustModalMask').classList.remove('show');
+    }
+
+    function setAdjType(type) {
+      currentAdjType = type;
+      document.querySelectorAll('.type-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.type === type);
+      });
+    }
+
+    async function submitAdjustment() {
+      const amountInput = parseInt(document.getElementById('adjAmount').value);
+      const reason = document.getElementById('adjReason').value.trim();
+      
+      if (!amountInput || amountInput <= 0) {
+        showToast('请输入有效的变动数量 (正整数)', true);
+        return;
+      }
+      if (!reason) {
+        showToast('请输入备注说明', true);
+        return;
+      }
+
+      const finalAmount = currentAdjType === 'add' ? amountInput : -amountInput;
+      const btn = document.getElementById('adjSubmitBtn');
+      btn.disabled = true;
+      btn.textContent = '提交中...';
+
+      try {
+        // 调用我们创建的 RPC 函数
+        const { data, error } = await supabaseClient.rpc('adjust_student_coins', {
+          p_student_name: currentAdjStudent,
+          p_amount: finalAmount,
+          p_reason: reason,
+          p_type: 'manual'
+        });
+
+        if (error) throw error;
+
+        showToast(`操作成功！${currentAdjStudent} 的余额已更新。`);
+        closeAdjustModal();
+        await loadData(); // 刷新列表
+      } catch (err) {
+        console.error('操作失败:', err);
+        showToast('操作失败: ' + err.message, true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '确认提交';
+      }
+    }
+
+    // ---------------------------------------------------------
+    // 4. 流水记录逻辑
+    // ---------------------------------------------------------
+    async function openHistoryModal(name) {
+      document.getElementById('histName').textContent = name;
+      const listEl = document.getElementById('historyList');
+      listEl.innerHTML = '<div class="hi-empty">加载中...</div>';
+      document.getElementById('historyModalMask').classList.add('show');
+
+      try {
+        const { data, error } = await supabaseClient
+          .from('coin_transactions')
+          .select('*')
+          .eq('student_name', name)
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+          listEl.innerHTML = '<div class="hi-empty">暂无流水记录</div>';
+          return;
+        }
+
+        listEl.innerHTML = data.map(tx => {
+          const isPos = tx.amount > 0;
+          const sign = isPos ? '+' : '';
+          const cls = isPos ? 'pos' : 'neg';
+          const date = new Date(tx.created_at).toLocaleString('zh-CN', {
+            month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+          });
+          const typeTag = tx.transaction_type === 'auto_reward' 
+            ? '<span class="hi-tag auto">系统结算</span>' 
+            : '<span class="hi-tag">手动操作</span>';
+
+          return `
+            <div class="history-item">
+              <div class="hi-left">
+                <div class="hi-reason">${tx.reason || '无备注'}</div>
+                <div class="hi-meta">
+                  <span>${date}</span>
+                  ${typeTag}
+                  <span>余额: ${tx.balance_after}</span>
+                </div>
+              </div>
+              <div class="hi-amount ${cls}">${sign}${tx.amount}</div>
+            </div>
+          `;
+        }).join('');
+
+      } catch (err) {
+        listEl.innerHTML = `<div class="hi-empty" style="color: var(--red)">加载失败: ${err.message}</div>`;
+      }
+    }
+
+    function closeHistoryModal() {
+      document.getElementById('historyModalMask').classList.remove('show');
+    }
+
+    // 启动
+    init();
+  </script>
+</body>
+</html>
