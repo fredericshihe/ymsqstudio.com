@@ -1324,18 +1324,13 @@ async function loadAll(){
     // weekMap: 本周已有快照（DB 侧写了快照）的学生及其全校排名分/原始成长值
     const weekMap={};
     (weekScores||[]).forEach(r=>{weekMap[r.student_name]={composite_score:r.composite_score,raw_score:r.raw_score};});
-    // rankMap: 仅对本周有练琴且已有快照的学生，按全校排名分降序计算名次
-    const rankMap={};
-    const rankedRows=[...(weekScores||[])]
-      .filter(r=>(r.composite_score??0)>0)
-      .sort((a,b)=>(b.composite_score??-1)-(a.composite_score??-1));
-    let lastScore=null,lastRank=0;
-    rankedRows.forEach((r,idx)=>{
-      const sc=r.composite_score??0;
-      if(lastScore===null||sc!==lastScore){lastRank=idx+1;lastScore=sc;}
-      rankMap[r.student_name]=lastRank;
+
+    // lbCompMap: 直接从综合榜 RPC 结果取排名和分数，与排行榜完全一致
+    const lbCompMap={};
+    (lbRows||[]).filter(r=>r.board==='综合榜').forEach(r=>{
+      lbCompMap[r.student_name]={rank_no:r.rank_no, display_score:r.display_score};
     });
-    const activeRankedTotal=rankedRows.length;
+    const activeRankedTotal=Object.keys(lbCompMap).length;
 
     students.forEach(s=>{
       const name=s.student_name;
@@ -1344,9 +1339,10 @@ async function loadAll(){
         : (name in weekMap && ((weekMap[name].composite_score||0)>0 || (weekMap[name].raw_score||0)>0));
 
       if(practicedThisWeek){
-        s.display_score = name in weekMap ? weekMap[name].composite_score : s.composite_score;
+        // 优先用综合榜 display_score，与排行榜一致；raw_score 仍从快照取
+        s.display_score = lbCompMap[name]?.display_score ?? (name in weekMap ? weekMap[name].composite_score : s.composite_score);
         s.display_raw_score = name in weekMap ? weekMap[name].raw_score : s.raw_score;
-        s.display_rank = rankMap[name] ?? null;
+        s.display_rank = lbCompMap[name]?.rank_no ?? null;
         s.display_rank_total = activeRankedTotal || null;
         s.has_week_snapshot = false;
       } else {
