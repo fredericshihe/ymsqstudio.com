@@ -295,7 +295,112 @@
             .a4-page:last-child { page-break-after: auto !important; break-after: auto !important; }
             .ticket { page-break-inside: avoid !important; break-inside: avoid !important; }
         }
+
+        /* 终极大奖证书样式 */
+        .certificate-wrapper {
+            width: 100%;
+            height: 100%;
+            padding: 15mm;
+            box-sizing: border-box;
+            background: #fff;
+        }
+        .certificate {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: 12px double #d4af37;
+            border-radius: 15px;
+            box-sizing: border-box;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #d4af37;
+            text-align: center;
+            padding: 50px;
+            overflow: hidden;
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.5);
+        }
+        .certificate::before {
+            content: "👑";
+            position: absolute;
+            font-size: 400px;
+            opacity: 0.03;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .cert-header {
+            font-size: 28px;
+            letter-spacing: 10px;
+            margin-bottom: 30px;
+            text-transform: uppercase;
+            border-bottom: 2px solid #d4af37;
+            padding-bottom: 15px;
+            z-index: 1;
+        }
+        .cert-title {
+            font-size: 72px;
+            font-weight: 900;
+            margin: 40px 0;
+            text-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            background: linear-gradient(to right, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            z-index: 1;
+        }
+        .cert-desc {
+            font-size: 26px;
+            line-height: 2;
+            max-width: 85%;
+            margin-bottom: 80px;
+            color: #fcf6ba;
+            z-index: 1;
+        }
+        .cert-footer {
+            display: flex;
+            justify-content: space-between;
+            width: 85%;
+            margin-top: auto;
+            border-top: 1px dashed rgba(212, 175, 55, 0.5);
+            padding-top: 30px;
+            font-size: 20px;
+            z-index: 1;
+        }
+        .cert-sign-box {
+            text-align: center;
+        }
+        .cert-sign-line {
+            width: 250px;
+            border-bottom: 2px solid #d4af37;
+            margin-bottom: 15px;
+            height: 50px;
+        }
+        .cert-coins {
+            position: absolute;
+            top: 50px;
+            right: 50px;
+            background: linear-gradient(135deg, #d4af37, #aa771c);
+            color: #1a1a2e;
+            padding: 15px 30px;
+            border-radius: 40px;
+            font-weight: bold;
+            font-size: 24px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            z-index: 1;
+        }
+        .cert-no {
+            position: absolute;
+            bottom: 50px;
+            left: 50px;
+            font-family: monospace;
+            font-size: 18px;
+            color: rgba(212, 175, 55, 0.6);
+            z-index: 1;
+        }
     </style>
+
 </head>
 <body>
 
@@ -308,7 +413,8 @@
         { tier: "GOLD / 黄金", coins: "180 音符币", title: "课表 DIY 日", desc: "凭此券获得一天“选课自由”，自主决定是否出席当天的非专业课和非考试类课程（每个月仅限一次）。", theme: "theme-gold", mark: "𝄡", prefix: "G-180A", stubText: "凭券核销" },
         { tier: "GOLD / 黄金", coins: "200 音符币", title: "期末加分特权", desc: "坚持练琴的最强回报！凭此券可在期末专业课考试成绩基础上额外 +0.5 分，直接计入最终成绩（每人仅可兑换一次，兑换后不可退回）。", theme: "theme-gold", mark: "𝄡", prefix: "G-200A", stubText: "凭券核销" },
         { tier: "DIAMOND / 钻石", coins: "260 音符币", title: "大师级专属 MV", desc: "由老师动用专业设备，为你精修录制并剪辑一首专属演奏视频（每学期仅限一次）。永久留存！", theme: "theme-diamond", mark: "𝅗𝅥", prefix: "D-260A", stubText: "终极特权" },
-        { tier: "DIAMOND / 钻石", coins: "300 音符币", title: "额外专业课", desc: "全场终极大奖！凭此券可和自己的专业老师多上一节专业课，享受名师加餐指导（每个月仅限一次）。", theme: "theme-diamond", mark: "𝅗𝅥", prefix: "D-300B", stubText: "终极特权" }
+        { tier: "DIAMOND / 钻石", coins: "300 音符币", title: "额外专业课", desc: "全场终极大奖！凭此券可和自己的专业老师多上一节专业课，享受名师加餐指导（每个月仅限一次）。", theme: "theme-diamond", mark: "𝅗𝅥", prefix: "D-300B", stubText: "终极特权" },
+        { tier: "CROWN / 皇冠", coins: "400 音符币", title: "星耀人物 · 官方专题报道", desc: "作为学校优秀学生代表，为你专门策划并录制一期独家官方专题报道。全方位展现你的音乐才华与成长历程，全网发布！一学期仅限一个名额，先兑换先得，登顶全校的至高荣耀！", theme: "theme-crown", mark: "👑", prefix: "C-400A", stubText: "至高荣耀", isCertificate: True }
     ];
 
     // 核心算法：生成横向条纹，从上往下堆叠
@@ -336,8 +442,34 @@
 
     let globalCounter = 1; 
 
-    // 循环生成 8 张 A4 纸
+    // 循环生成 A4 纸
     ticketData.forEach(t => {
+        if (t.isCertificate) {
+            document.write(`
+            <div class="a4-page">
+                <div class="certificate-wrapper">
+                    <div class="certificate">
+                        <div class="cert-coins">${t.coins}</div>
+                        <div class="cert-header">${t.tier}</div>
+                        <div class="cert-title">${t.title}</div>
+                        <div class="cert-desc">${t.desc}</div>
+                        <div class="cert-footer">
+                            <div class="cert-sign-box">
+                                <div class="cert-sign-line"></div>
+                                <div>授权人：青岛耶胡迪梅纽因学校教务部</div>
+                            </div>
+                            <div class="cert-sign-box">
+                                <div class="cert-sign-line"></div>
+                                <div>核销签字</div>
+                            </div>
+                        </div>
+                        <div class="cert-no">No. ${t.prefix}-01</div>
+                    </div>
+                </div>
+            </div>`);
+            return;
+        }
+
         document.write('<div class="a4-page"><div class="ticket-grid">');
         
         for(let i = 1; i <= 8; i++) {
