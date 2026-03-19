@@ -11,7 +11,7 @@
 --   student_grade         TEXT    年级
 --   display_score         NUMERIC 综合排名分（本周快照 or 基线值）
 --   alpha                 NUMERIC 基线可信度 α
---   trend_score           NUMERIC 进步榜：本周综合分 - 上周综合分（delta）；其他榜：趋势分
+--   trend_score           NUMERIC 进步榜：(本周综合分 - 上周综合分) / 上周综合分 × 100（百分比涨幅）；其他榜：趋势分
 --   mean_duration         NUMERIC 近期均练时长（分钟）
 --   record_count          INT     历史总记录数
 --   recent10_outlier_rate NUMERIC 近10条异常率
@@ -146,22 +146,24 @@ comp AS (
     LEFT JOIN recent10 r10 ON r10.student_name = rp.student_name
 ),
 
-/* ── ② 进步榜：本周综合分比上周涨幅最大
-   排序：(本周 display_score - 上周 composite_score) DESC
-   trend_score 列复用为进步 delta 整数，前端直接展示 "+XX 分"
-   过滤：必须上周有数据 + 本周真的比上周进步 + α ≥ 0.50 + 近10条异常率 ≤ 0.70 + 综合分 ≥ 15 ── */
+/* ── ② 进步榜：本周综合分相对上周涨幅（%）最大
+   排序：(本周 - 上周) / 上周 × 100 DESC（百分比涨幅）
+   trend_score 列复用为百分比涨幅，前端展示 "+XX.X%"
+   过滤：必须上周有数据且 ≥ 10 分 + 本周真的比上周进步 + α ≥ 0.50 + 近10条异常率 ≤ 0.70 + 综合分 ≥ 15 ── */
 prog AS (
     SELECT
         '进步榜'::TEXT                                               AS board,
         RANK() OVER (
-            ORDER BY (rp.display_score - lws.lw_composite) DESC NULLS LAST,
+            ORDER BY (rp.display_score - lws.lw_composite)
+                     / lws.lw_composite * 100              DESC NULLS LAST,
                      rp.display_score                       DESC NULLS LAST,
                      rp.mean_duration                       DESC NULLS LAST
         )::INTEGER                                                   AS rank_no,
         rp.student_name, rp.student_major, rp.student_grade,
         rp.display_score, rp.alpha,
-        /* trend_score 复用为进步 delta（整数差值），前端读此字段显示 "+XX 分" */
-        (rp.display_score - lws.lw_composite)::NUMERIC               AS trend_score,
+        /* trend_score 复用为百分比涨幅，保留1位小数，前端显示 "+XX.X%" */
+        ROUND((rp.display_score - lws.lw_composite)
+              / lws.lw_composite * 100, 1)                           AS trend_score,
         rp.mean_duration, rp.record_count,
         r10.outlier_rate  AS recent10_outlier_rate,
         r10.mean_dur      AS recent10_mean_dur,
@@ -170,19 +172,20 @@ prog AS (
     INNER JOIN last_week_scores lws ON lws.student_name = rp.student_name
     LEFT JOIN  recent10         r10 ON r10.student_name = rp.student_name
     WHERE (rp.display_score - lws.lw_composite)      > 0
+      AND lws.lw_composite                            >= 10   -- 防止基数过小导致百分比虚高
       AND COALESCE(rp.alpha, 0)                       >= 0.50
       AND COALESCE(r10.outlier_rate, 1)               <= 0.70
       AND rp.display_score                            >= 15
 ),
 
-/* ── ③ 稳定榜 Top 6：α 最高，并列时 mean_duration 降序
+/* ── ③ 稳定榜 Top 6：近10次均时最长（代表持续踏实练习），并列时 α 降序
    过滤：α ≥ 0.65 + 近10条 ≥ 10 条 + 近10条异常率 ≤ 0.35 ── */
 stable AS (
     SELECT
         '稳定榜'::TEXT                                               AS board,
         RANK() OVER (
-            ORDER BY rp.alpha DESC NULLS LAST,
-                     rp.mean_duration DESC NULLS LAST
+            ORDER BY COALESCE(r10.mean_dur, 0) DESC NULLS LAST,
+                     rp.alpha                  DESC NULLS LAST
         )::INTEGER                                                   AS rank_no,
         rp.student_name, rp.student_major, rp.student_grade,
         rp.display_score, rp.alpha, rp.trend_score, rp.mean_duration, rp.record_count,
@@ -196,7 +199,7 @@ stable AS (
       AND COALESCE(r10.outlier_rate, 1) <= 0.35
 ),
 
-/* ── ④ 守则榜 Top 6：近10条异常率最低（ASC），并列时记录数↓、均时↓
+/* ── ④ 守则榜 Top 6：近10条异常率最低（ASC），并列时本周练琴次数↓、均时↓
    过滤：近10条 ≥ 5条 + 均时 > 30min + 异常率 ≤ 50% + α ≥ 0.60 + 本周 ≥ 5 次 ── */
 rules AS (
     SELECT
@@ -204,8 +207,8 @@ rules AS (
         RANK() OVER (
             ORDER BY
                 COALESCE(r10.outlier_rate, 1) ASC,
-                rp.record_count DESC NULLS LAST,
-                COALESCE(r10.mean_dur, 0) DESC
+                rp.week_sessions              DESC NULLS LAST,
+                COALESCE(r10.mean_dur, 0)     DESC
         )::INTEGER                                                   AS rank_no,
         rp.student_name, rp.student_major, rp.student_grade,
         rp.display_score, rp.alpha, rp.trend_score, rp.mean_duration, rp.record_count,

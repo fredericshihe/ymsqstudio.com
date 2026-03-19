@@ -573,7 +573,7 @@ tbody td.b{color:var(--t1);font-weight:700}
           <div class="cat-board-icon" style="background:linear-gradient(135deg,rgba(16,185,129,.25),rgba(16,185,129,.1));border:1px solid rgba(16,185,129,.3)">📈</div>
           <div>
             <div class="cat-board-title" style="color:#34d399">进步榜</div>
-            <div class="cat-board-sub">本周综合分比上周涨幅最大 · 比上周进步 · α ≥0.50</div>
+            <div class="cat-board-sub">本周综合分相对涨幅最大 · 比上周进步 · α ≥0.50</div>
           </div>
           <button class="cbl-view-all-btn" onclick="openLbModal('进步榜')">查看全部</button>
         </div>
@@ -585,7 +585,7 @@ tbody td.b{color:var(--t1);font-weight:700}
           <div class="cat-board-icon" style="background:linear-gradient(135deg,rgba(79,142,247,.25),rgba(79,142,247,.1));border:1px solid rgba(79,142,247,.3)">🎯</div>
           <div>
             <div class="cat-board-title" style="color:#93c5fd">稳定榜</div>
-            <div class="cat-board-sub">α 最高 · α ≥0.65 · 近10条异常率 ≤35% · 近10条 ≥10条</div>
+            <div class="cat-board-sub">近10次均时最长 · α ≥0.65 · 近10条异常率 ≤35% · 近10条 ≥10条</div>
           </div>
           <button class="cbl-view-all-btn" onclick="openLbModal('稳定榜')">查看全部</button>
         </div>
@@ -1482,16 +1482,16 @@ function renderCatBoards(lbMap){
   const valFns={};
 
   valFns['进步榜']=r=>{
-    const delta=Number(r.trend_score??0);
-    const c=delta>=20?'#34d399':delta>=10?'#86efac':'#93c5fd';
-    const label=delta>=20?'大幅跃升':delta>=10?'明显进步':'稳步上升';
-    return`<div class="cbl-right"><div class="cbl-val" style="color:${c}">+${delta}</div><div class="cbl-val-sub">${label}</div></div>`;
+    const pct=Number(r.trend_score??0);
+    const c=pct>=30?'#34d399':pct>=15?'#86efac':'#93c5fd';
+    const label=pct>=30?'大幅跃升':pct>=15?'明显进步':'稳步上升';
+    return`<div class="cbl-right"><div class="cbl-val" style="color:${c}">+${pct.toFixed(1)}%</div><div class="cbl-val-sub">${label}</div></div>`;
   };
   valFns['稳定榜']=r=>{
+    const dur=Number(r.recent10_mean_dur??r.mean_duration??0).toFixed(1);
     const al=Number(r.alpha??0);
-    const alC=al>=0.9?'#93c5fd':al>=0.75?'#a5b4fc':'#94a3b8';
-    const dur=Number(r.mean_duration??0).toFixed(1);
-    return`<div class="cbl-right"><div class="cbl-val" style="color:${alC}">${al.toFixed(3)}</div><div class="cbl-val-sub">${dur}min/次</div></div>`;
+    const durC=Number(dur)>=60?'#34d399':Number(dur)>=45?'#86efac':'#93c5fd';
+    return`<div class="cbl-right"><div class="cbl-val" style="color:${durC}">${dur}min</div><div class="cbl-val-sub">α ${al.toFixed(3)}</div></div>`;
   };
   valFns['守则榜']=r=>{
     const or=Number(r.recent10_outlier_rate??0);
