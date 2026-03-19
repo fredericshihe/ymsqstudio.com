@@ -24,7 +24,46 @@
 
 
 -- ============================================================
--- 1. 防重复结算记录表
+-- 1. 系统全局配置表（key-value）
+--    用于存储管理员可控开关，如自动结算开关
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.system_settings (
+    key        TEXT        PRIMARY KEY,
+    value      TEXT        NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE public.system_settings IS '系统全局配置，key-value 结构';
+
+-- 默认：自动结算开关 = 开启
+INSERT INTO public.system_settings (key, value)
+VALUES ('auto_coin_reward_enabled', 'true')
+ON CONFLICT (key) DO NOTHING;
+
+-- 允许前端读取配置
+GRANT SELECT ON public.system_settings TO anon, authenticated;
+
+-- 切换开关的 RPC（SECURITY DEFINER 保证权限安全）
+CREATE OR REPLACE FUNCTION public.set_auto_reward_enabled(p_enabled BOOLEAN)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    INSERT INTO public.system_settings (key, value, updated_at)
+    VALUES ('auto_coin_reward_enabled', p_enabled::TEXT, NOW())
+    ON CONFLICT (key) DO UPDATE
+        SET value      = p_enabled::TEXT,
+            updated_at = NOW();
+    RETURN p_enabled;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.set_auto_reward_enabled(BOOLEAN) TO anon, authenticated;
+
+
+-- ============================================================
+-- 2. 防重复结算记录表
 --    UNIQUE(week_monday) 确保同一周只执行一次
 -- ============================================================
 CREATE TABLE IF NOT EXISTS public.weekly_coin_reward_log (
@@ -75,17 +114,26 @@ DECLARE
     v_prog_cnt      INTEGER := 0;  v_prog_coins    INTEGER := 0;
 BEGIN
 
-    /* ── ① 计算本周时间 ── */
+    /* ── ① 检查自动结算开关（管理员可在后台关闭）── */
+    IF NOT COALESCE(
+        (SELECT value::BOOLEAN FROM public.system_settings
+         WHERE key = 'auto_coin_reward_enabled'),
+        TRUE
+    ) THEN
+        RETURN '🔴 自动结算已关闭（管理员已在后台禁用），本次跳过。';
+    END IF;
+
+    /* ── ② 计算本周时间 ── */
     v_monday     := DATE_TRUNC('week', NOW() AT TIME ZONE 'Asia/Shanghai')::DATE;
     v_friday_bjt := v_monday + 4;   -- 周一 + 4 天 = 周五
 
-    /* ── ② 正式开始日期保护：2026-04-03 之前不运行 ── */
+    /* ── ③ 正式开始日期保护：2026-04-03 之前不运行 ── */
     IF v_friday_bjt < '2026-04-03'::DATE THEN
         RETURN '⏳ 正式结算日期为 2026年4月3日，当前周五为 '
                || TO_CHAR(v_friday_bjt, 'YYYY年MM月DD日') || '，跳过。';
     END IF;
 
-    /* ── ③ 防重复：同一周只结算一次 ── */
+    /* ── ④ 防重复：同一周只结算一次 ── */
     IF EXISTS (
         SELECT 1 FROM public.weekly_coin_reward_log
         WHERE week_monday = v_monday
@@ -95,10 +143,10 @@ BEGIN
                || v_monday::TEXT || ''';）';
     END IF;
 
-    /* ── ④ 生成流水说明中的周标签，例如 "2026年04月03日当周" ── */
+    /* ── ⑤ 生成流水说明中的周标签，例如 "2026年04月03日当周" ── */
     v_week_label := TO_CHAR(v_friday_bjt, 'YYYY年MM月DD日') || '当周';
 
-    /* ── ⑤ 遍历四榜所有上榜学生，逐一发币 ── */
+    /* ── ⑥ 遍历四榜所有上榜学生，逐一发币 ── */
     FOR r IN
         SELECT
             board,
@@ -190,7 +238,7 @@ BEGIN
 
     END LOOP; -- 遍历榜单结束
 
-    /* ── ⑥ 写入本周结算记录（防止下次重复执行）── */
+    /* ── ⑦ 写入本周结算记录（防止下次重复执行）── */
     INSERT INTO public.weekly_coin_reward_log
         (week_monday, total_events, total_coins, summary)
     VALUES (
@@ -205,7 +253,7 @@ BEGIN
         )
     );
 
-    /* ── ⑦ 返回本次结算摘要 ── */
+    /* ── ⑧ 返回本次结算摘要 ── */
     RETURN '✅ ' || v_week_label || ' 周榜结算完成'
         || ' | 总计 ' || v_total_events::TEXT || ' 次发放，共 ' || v_total_coins::TEXT || ' 枚音符币'
         || ' | 综合榜 ' || v_comp_cnt::TEXT   || '人/' || v_comp_coins::TEXT   || '币'

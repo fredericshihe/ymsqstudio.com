@@ -80,6 +80,43 @@
     .hi-amount.neg { color: var(--red); }
     .hi-empty { text-align: center; color: var(--t3); padding: 20px 0; font-size: 0.9rem; }
 
+    /* 自动结算开关卡片 */
+    .settings-card {
+      background: var(--card); border: 1px solid var(--bdr); border-radius: var(--r);
+      padding: 16px 20px; margin-bottom: 20px;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    }
+    .settings-card-left { display: flex; align-items: center; gap: 14px; }
+    .settings-icon { font-size: 1.4rem; line-height: 1; }
+    .settings-info { display: flex; flex-direction: column; gap: 3px; }
+    .settings-title { font-size: 0.95rem; font-weight: 700; color: var(--text); }
+    .settings-desc  { font-size: 0.78rem; color: var(--t3); }
+    .settings-card-right { display: flex; align-items: center; gap: 12px; }
+    .reward-status-badge {
+      font-size: 0.75rem; font-weight: 700; padding: 3px 10px; border-radius: 20px;
+      border: 1px solid; transition: all 0.3s;
+    }
+    .reward-status-badge.on  { background: rgba(16,185,129,0.12); color: var(--green); border-color: rgba(16,185,129,0.35); }
+    .reward-status-badge.off { background: rgba(239,68,68,0.12);  color: var(--red);   border-color: rgba(239,68,68,0.35); }
+
+    /* iOS 风格拨动开关 */
+    .ios-toggle { position: relative; display: inline-block; width: 50px; height: 28px; flex-shrink: 0; }
+    .ios-toggle input { opacity: 0; width: 0; height: 0; }
+    .ios-toggle .slider {
+      position: absolute; inset: 0; cursor: pointer;
+      background: rgba(255,255,255,0.15); border-radius: 28px;
+      transition: background 0.3s;
+    }
+    .ios-toggle .slider::before {
+      content: ''; position: absolute;
+      width: 22px; height: 22px; left: 3px; top: 3px;
+      background: white; border-radius: 50%;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+      transition: transform 0.3s;
+    }
+    .ios-toggle input:checked + .slider { background: var(--green); }
+    .ios-toggle input:checked + .slider::before { transform: translateX(22px); }
+
     /* Toast */
     #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: var(--green); color: white; padding: 10px 20px; border-radius: 8px; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.3); opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 1000; }
     #toast.show { opacity: 1; }
@@ -92,6 +129,24 @@
     <h1><span>🎵</span> 音符币管理后台</h1>
     <div style="font-size: 0.85rem; color: var(--t3);">
       连接状态: <span id="connStatus" style="color: var(--yellow);">检查中...</span>
+    </div>
+  </div>
+
+  <!-- 自动结算开关卡片 -->
+  <div class="settings-card">
+    <div class="settings-card-left">
+      <div class="settings-icon">⚙️</div>
+      <div class="settings-info">
+        <div class="settings-title">每周五自动发放音符币</div>
+        <div class="settings-desc" id="rewardSettingDesc">正在读取...</div>
+      </div>
+    </div>
+    <div class="settings-card-right">
+      <span class="reward-status-badge" id="rewardStatusBadge">—</span>
+      <label class="ios-toggle" title="切换自动结算开关">
+        <input type="checkbox" id="autoRewardToggle" onchange="toggleAutoReward(this.checked)">
+        <span class="slider"></span>
+      </label>
     </div>
   </div>
 
@@ -199,8 +254,8 @@
       supabaseClient = window.supabase.createClient(url, key);
       document.getElementById('connStatus').textContent = '已连接';
       document.getElementById('connStatus').style.color = 'var(--green)';
-      
-      await loadData();
+
+      await Promise.all([loadData(), loadAutoRewardSetting()]);
     }
 
     // ---------------------------------------------------------
@@ -377,6 +432,65 @@
 
     function closeHistoryModal() {
       document.getElementById('historyModalMask').classList.remove('show');
+    }
+
+    // ---------------------------------------------------------
+    // 5. 自动结算开关
+    // ---------------------------------------------------------
+    async function loadAutoRewardSetting() {
+      try {
+        const { data, error } = await supabaseClient
+          .from('system_settings')
+          .select('value, updated_at')
+          .eq('key', 'auto_coin_reward_enabled')
+          .single();
+
+        if (error) throw error;
+
+        const enabled = data.value === 'true';
+        const updatedAt = data.updated_at
+          ? new Date(data.updated_at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+          : '—';
+
+        document.getElementById('autoRewardToggle').checked = enabled;
+        updateRewardSettingUI(enabled, updatedAt);
+      } catch (err) {
+        document.getElementById('rewardSettingDesc').textContent = '读取失败：' + err.message;
+      }
+    }
+
+    function updateRewardSettingUI(enabled, updatedAt) {
+      const badge = document.getElementById('rewardStatusBadge');
+      const desc  = document.getElementById('rewardSettingDesc');
+
+      badge.textContent = enabled ? '已开启' : '已关闭';
+      badge.className   = 'reward-status-badge ' + (enabled ? 'on' : 'off');
+      desc.textContent  = enabled
+        ? `每周五 BJT 21:32 自动结算 · 上次修改：${updatedAt}`
+        : `自动结算已暂停，不会发放音符币 · 上次修改：${updatedAt}`;
+    }
+
+    async function toggleAutoReward(enabled) {
+      // 立即更新 UI（乐观更新）
+      const toggle = document.getElementById('autoRewardToggle');
+      toggle.disabled = true;
+
+      try {
+        const { error } = await supabaseClient.rpc('set_auto_reward_enabled', {
+          p_enabled: enabled
+        });
+        if (error) throw error;
+
+        const now = new Date().toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        updateRewardSettingUI(enabled, now);
+        showToast(enabled ? '✅ 自动结算已开启' : '🔴 自动结算已关闭');
+      } catch (err) {
+        // 回滚开关状态
+        toggle.checked = !enabled;
+        showToast('操作失败：' + err.message, true);
+      } finally {
+        toggle.disabled = false;
+      }
     }
 
     // 启动
