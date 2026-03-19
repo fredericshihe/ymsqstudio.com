@@ -78,13 +78,17 @@ hist_recent10 AS (
 
 /* ─────────────────────────────────────────────────────────
    D. 每周得分快照（来自 student_score_history）
+      alpha 不在历史快照表中，按公式从 record_count 还原：
+      alpha = record_count / (record_count + 8)
    ───────────────────────────────────────────────────────── */
 hist_scores AS (
     SELECT
-        snapshot_date         AS week_monday,
+        snapshot_date                                                        AS week_monday,
         student_name,
-        composite_score       AS display_score,
-        alpha,
+        composite_score                                                      AS display_score,
+        ROUND(
+            record_count::NUMERIC / NULLIF(record_count + 8, 0)::NUMERIC, 6
+        )                                                                    AS alpha,
         mean_duration,
         record_count::INTEGER
     FROM public.student_score_history
