@@ -93,20 +93,30 @@ week_scores AS (
       AND ssh.composite_score > 0
 ),
 
-/* ── 上一个有练琴的活跃周快照（进步榜基准）
-   不固定查"上周"，而是取每位学生本周之前最近一次 composite_score > 0 的快照
-   最多回溯 12 周，覆盖寒暑假等长假期后返校的场景 ── */
+/* ── 进步榜基准：最近 2 个活跃周的最高综合分
+   取最大值而非最近一周，防止"节后低分周"或偶发低分周被当作基准导致涨幅虚高
+   逻辑：本周之前最多回溯 12 周，找 composite_score > 0 的最近 2 周，取 MAX
+   这样必须真正超越近期最佳表现才能上进步榜 ── */
 last_week_scores AS (
-    SELECT DISTINCT ON (ssh.student_name)
-        ssh.student_name,
-        ssh.composite_score AS lw_composite,
-        ssh.snapshot_date   AS lw_date
-    FROM public.student_score_history ssh
-    CROSS JOIN week_monday wm
-    WHERE ssh.snapshot_date <  wm.monday                       -- 必须是本周之前
-      AND ssh.snapshot_date >= wm.monday - INTERVAL '12 weeks' -- 最多回溯 12 周
-      AND ssh.composite_score > 0                              -- 必须有实际练琴
-    ORDER BY ssh.student_name, ssh.snapshot_date DESC          -- 取最近一个有效周
+    SELECT
+        student_name,
+        MAX(composite_score) AS lw_composite  -- 近2个有效周的最高分作为基准
+    FROM (
+        SELECT
+            ssh.student_name,
+            ssh.composite_score,
+            ROW_NUMBER() OVER (
+                PARTITION BY ssh.student_name
+                ORDER BY ssh.snapshot_date DESC
+            ) AS rn
+        FROM public.student_score_history ssh
+        CROSS JOIN week_monday wm
+        WHERE ssh.snapshot_date <  wm.monday
+          AND ssh.snapshot_date >= wm.monday - INTERVAL '12 weeks'
+          AND ssh.composite_score > 0
+    ) recent
+    WHERE rn <= 2                              -- 只取最近 2 个有效周
+    GROUP BY student_name
 ),
 
 /* ── 综合排行榜候选池：本周有练琴 + composite_score > 0 ── */
