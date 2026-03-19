@@ -573,7 +573,7 @@ tbody td.b{color:var(--t1);font-weight:700}
           <div class="cat-board-icon" style="background:linear-gradient(135deg,rgba(16,185,129,.25),rgba(16,185,129,.1));border:1px solid rgba(16,185,129,.3)">📈</div>
           <div>
             <div class="cat-board-title" style="color:#34d399">进步榜</div>
-            <div class="cat-board-sub">进步幅度最大 · 近10条异常率 ≤60% · α ≥0.60</div>
+            <div class="cat-board-sub">本周综合分比上周涨幅最大 · 比上周进步 · α ≥0.50</div>
           </div>
           <button class="cbl-view-all-btn" onclick="openLbModal('进步榜')">查看全部</button>
         </div>
@@ -1482,11 +1482,10 @@ function renderCatBoards(lbMap){
   const valFns={};
 
   valFns['进步榜']=r=>{
-    const bt=Number(r.trend_score??0);
-    const btPct=(bt*100).toFixed(1);
-    const btC=bt>0.65?'#34d399':bt>0.5?'#86efac':'#94a3b8';
-    const label=bt>0.65?'强势上升':bt>0.5?'稳步向好':'持平';
-    return`<div class="cbl-right"><div class="cbl-val" style="color:${btC}">${btPct}</div><div class="cbl-val-sub">${label}</div></div>`;
+    const delta=Number(r.trend_score??0);
+    const c=delta>=20?'#34d399':delta>=10?'#86efac':'#93c5fd';
+    const label=delta>=20?'大幅跃升':delta>=10?'明显进步':'稳步上升';
+    return`<div class="cbl-right"><div class="cbl-val" style="color:${c}">+${delta}</div><div class="cbl-val-sub">${label}</div></div>`;
   };
   valFns['稳定榜']=r=>{
     const al=Number(r.alpha??0);

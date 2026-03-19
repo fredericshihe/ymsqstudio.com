@@ -11,7 +11,7 @@
 --   student_grade         TEXT    年级
 --   display_score         NUMERIC 综合排名分（本周快照 or 基线值）
 --   alpha                 NUMERIC 基线可信度 α
---   trend_score           NUMERIC 趋势分（进步榜用）
+--   trend_score           NUMERIC 进步榜：本周综合分 - 上周综合分（delta）；其他榜：趋势分
 --   mean_duration         NUMERIC 近期均练时长（分钟）
 --   record_count          INT     历史总记录数
 --   recent10_outlier_rate NUMERIC 近10条异常率
@@ -93,6 +93,17 @@ week_scores AS (
       AND ssh.composite_score > 0
 ),
 
+/* ── 上周成长分快照（进步榜基准：要求上周本身有练琴）── */
+last_week_scores AS (
+    SELECT
+        ssh.student_name,
+        ssh.composite_score AS lw_composite
+    FROM public.student_score_history ssh
+    CROSS JOIN week_monday wm
+    WHERE ssh.snapshot_date = wm.monday - INTERVAL '7 days'
+      AND ssh.composite_score > 0
+),
+
 /* ── 综合排行榜候选池：本周有练琴 + composite_score > 0 ── */
 ranked_pool AS (
     SELECT
@@ -130,26 +141,33 @@ comp AS (
     LEFT JOIN recent10 r10 ON r10.student_name = rp.student_name
 ),
 
-/* ── ② 进步榜：trend_score 最高，同分时 display_score 降序、mean_duration 降序
-   过滤：trend_score 非空 + α ≥ 0.60 + 近10条异常率 ≤ 0.60 ── */
+/* ── ② 进步榜：本周综合分比上周涨幅最大
+   排序：(本周 display_score - 上周 composite_score) DESC
+   trend_score 列复用为进步 delta 整数，前端直接展示 "+XX 分"
+   过滤：必须上周有数据 + 本周真的比上周进步 + α ≥ 0.50 + 近10条异常率 ≤ 0.70 + 综合分 ≥ 15 ── */
 prog AS (
     SELECT
         '进步榜'::TEXT                                               AS board,
         RANK() OVER (
-            ORDER BY rp.trend_score    DESC NULLS LAST,
-                     rp.display_score  DESC NULLS LAST,
-                     rp.mean_duration  DESC NULLS LAST
+            ORDER BY (rp.display_score - lws.lw_composite) DESC NULLS LAST,
+                     rp.display_score                       DESC NULLS LAST,
+                     rp.mean_duration                       DESC NULLS LAST
         )::INTEGER                                                   AS rank_no,
         rp.student_name, rp.student_major, rp.student_grade,
-        rp.display_score, rp.alpha, rp.trend_score, rp.mean_duration, rp.record_count,
+        rp.display_score, rp.alpha,
+        /* trend_score 复用为进步 delta（整数差值），前端读此字段显示 "+XX 分" */
+        (rp.display_score - lws.lw_composite)::NUMERIC               AS trend_score,
+        rp.mean_duration, rp.record_count,
         r10.outlier_rate  AS recent10_outlier_rate,
         r10.mean_dur      AS recent10_mean_dur,
         r10.cnt           AS recent10_count
     FROM ranked_pool rp
-    LEFT JOIN recent10 r10 ON r10.student_name = rp.student_name
-    WHERE rp.trend_score IS NOT NULL
-      AND COALESCE(rp.alpha, 0)         >= 0.60
-      AND COALESCE(r10.outlier_rate, 1) <= 0.60
+    INNER JOIN last_week_scores lws ON lws.student_name = rp.student_name
+    LEFT JOIN  recent10         r10 ON r10.student_name = rp.student_name
+    WHERE (rp.display_score - lws.lw_composite)      > 0
+      AND COALESCE(rp.alpha, 0)                       >= 0.50
+      AND COALESCE(r10.outlier_rate, 1)               <= 0.70
+      AND rp.display_score                            >= 15
 ),
 
 /* ── ③ 稳定榜 Top 6：α 最高，并列时 mean_duration 降序
