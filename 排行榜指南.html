@@ -99,17 +99,28 @@
         .grid-2 {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 8px;
+            gap: 10px;
             margin-bottom: 8px;
         }
         .card {
             background: #ffffff;
             border: 1px solid #eaeaea;
-            border-top: 3px solid var(--gold-color);
-            padding: 8px 12px;
-            border-radius: 6px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+            padding: 10px 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            position: relative;
+            overflow: hidden;
         }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 3px;
+        }
+        .tier-bronze::before { background: linear-gradient(90deg, #d4af37, #b87333); }
+        .tier-silver::before { background: linear-gradient(90deg, #e2e8f0, #94a3b8); }
+        .tier-gold::before { background: linear-gradient(90deg, #fde047, #c5a059); }
+        .tier-diamond::before { background: linear-gradient(90deg, #a855f7, #6366f1); }
+
         .card h3 {
             margin: 0 0 6px 0;
             color: var(--primary-color);
@@ -117,17 +128,21 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 1px dashed #eee;
-            padding-bottom: 4px;
+            border-bottom: 1px solid rgba(0,0,0,0.04);
+            padding-bottom: 6px;
         }
         .card h3 span {
             font-size: 10px;
-            background: var(--gold-color);
-            color: #fff;
-            padding: 2px 6px;
-            border-radius: 10px;
-            font-weight: normal;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: bold;
+            letter-spacing: 0.5px;
         }
+        .tier-bronze h3 span { background: rgba(184,115,51,0.1); color: #b87333; }
+        .tier-silver h3 span { background: rgba(148,163,184,0.15); color: #64748b; }
+        .tier-gold h3 span { background: rgba(197,160,89,0.15); color: #b8860b; }
+        .tier-diamond h3 span { background: rgba(99,102,241,0.1); color: #6366f1; }
+
         .card ul {
             margin: 0;
             padding-left: 16px;
@@ -326,32 +341,32 @@
     <!-- 第一部分：特权商城 -->
     <div class="section-title" style="margin: 10px 0 8px 0;">星耀特权商城 (兑换清单)</div>
     <div class="grid-2" style="margin-bottom: 0;">
-        <div class="card">
-            <h3 style="margin-bottom: 6px; padding-bottom: 6px;">🟢 青铜区 <span>前三就送，快乐加倍</span></h3>
+        <div class="card tier-bronze">
+            <h3 style="margin-bottom: 6px; padding-bottom: 6px;">🥉 青铜区 <span>专属体验，触手可及</span></h3>
             <ul>
                 <li style="margin-bottom: 4px;"><strong>专属琴房冠名权 · 80 音符币</strong>获得三天专属琴房使用权，彰显专属排面（每个月仅限一次）！</li>
                 <li style="margin-bottom: 0;"><strong>施坦威体验日 · 100 音符币</strong>在老师空闲无课时段，独享一天教师教室施坦威三角钢琴琴房练习特权（如周六周日，每周仅限一次）。</li>
             </ul>
         </div>
-        <div class="card">
-            <h3 style="margin-bottom: 6px; padding-bottom: 6px;">🟡 白银区 <span>稍微攒攒，体验升级</span></h3>
+        <div class="card tier-silver">
+            <h3 style="margin-bottom: 6px; padding-bottom: 6px;">🥈 白银区 <span>进阶特权，学业助力</span></h3>
             <ul>
                 <li style="margin-bottom: 4px;"><strong>旁听神仙课 · 120 音符币</strong>特批进入教室旁听任何一节其他老师的课程（如音乐素养课、专业课、室内乐课等），需提前 1 天与老师预约。</li>
                 <li style="margin-bottom: 0;"><strong>作业豁免券 · 150 音符币</strong>合法免除一次常规作业（具体科目需提前与老师协商，每个月仅限一次）</li>
             </ul>
         </div>
-        <div class="card">
-            <h3 style="margin-bottom: 6px; padding-bottom: 6px;">🔴 黄金区 <span>劳逸结合，自主掌控</span></h3>
+        <div class="card tier-gold">
+            <h3 style="margin-bottom: 6px; padding-bottom: 6px;">🥇 黄金区 <span>核心权益，成绩跃升</span></h3>
             <ul>
                 <li style="margin-bottom: 4px;"><strong>课表 DIY 日 · 180 音符币</strong>获得一天"选课自由"，自主决定是否出席当天的非专业课和非考试类课程（每个月仅可以使用一次）。</li>
                 <li style="margin-bottom: 0;"><strong>期末加分特权 · 200 音符币</strong>在期末专业课考试成绩基础上额外 <strong>+0.5 分</strong>，直接计入最终成绩。坚持练琴的你，让期末成绩再进一步！（每人仅可兑换一次，兑换后不可退回）</li>
             </ul>
         </div>
-        <div class="card">
-            <h3 style="margin-bottom: 6px; padding-bottom: 6px;">💎 钻石区 <span>终极荣耀，专业巅峰</span></h3>
+        <div class="card tier-diamond">
+            <h3 style="margin-bottom: 6px; padding-bottom: 6px;">💎 钻石区 <span>顶配资源，艺术巅峰</span></h3>
             <ul>
                 <li style="margin-bottom: 4px;"><strong>大师级专属 MV · 260 音符币</strong>老师动用专业设备，为你精修录制并剪辑一首专属演奏视频（每学期仅限一次）。朋友圈炫技必备，永久留存！</li>
-                <li style="margin-bottom: 0;"><strong>额外专业课 · 300 音符币</strong>全场终极大奖！和自己的专业老师多上一节专业课，名师一对一加餐指导（每个月仅限一次）。</li>
+                <li style="margin-bottom: 0;"><strong>额外专业课 · 300 音符币</strong>超级大奖！和自己的专业老师多上一节专业课，名师一对一加餐指导（每个月仅限一次）。</li>
             </ul>
         </div>
     </div>
@@ -380,7 +395,7 @@
 <!-- ================= 第二页 ================= -->
 <div class="a4-page">
     <!-- 第二部分：排名算法 -->
-    <div class="section-title" style="margin-top: 0;">第二章：练琴排名分——怎么算出来的？</div>
+    <div class="section-title" style="margin-top: 0;">第二章：综合榜排名分——怎么算出来的？</div>
     <p style="font-size: 12px; margin-top: 0; margin-bottom: 10px;">总分 = <strong>五项指标加权合计 × 100</strong>，每项各有各的玩法 👇</p>
     
     <div class="formula-box">
