@@ -471,7 +471,7 @@
         { tier: "GOLD / 黄金", coins: "200 音符币", title: "期末加分特权", desc: "坚持练琴的最强回报！凭此券可在期末专业课考试成绩基础上额外 +0.5 分，直接计入最终成绩（每人仅可兑换一次，兑换后不可退回）。", theme: "theme-gold", mark: "𝄡", prefix: "G-200A", stubText: "凭券核销" },
         { tier: "DIAMOND / 钻石", coins: "260 音符币", title: "大师级专属 MV", desc: "由老师动用专业设备，为你精修录制并剪辑一首专属演奏视频（每学期仅限一次）。永久留存！", theme: "theme-diamond", mark: "𝅗𝅥", prefix: "D-260A", stubText: "终极特权" },
         { tier: "DIAMOND / 钻石", coins: "300 音符币", title: "额外专业课", desc: "超级大奖！凭此券可和自己的专业老师多上一节专业课，享受名师加餐指导（每个月仅限一次）。", theme: "theme-diamond", mark: "𝅗𝅥", prefix: "D-300B", stubText: "终极特权" },
-        { fullPage: true, coins: "400 音符币", title: "「梅纽因之星」荣耀专题", prefix: "LEGEND-400" }
+        { fullPage: true, coins: "本学期排行榜累计 ≥ 400 音符币", title: "「梅纽因之星」荣耀专题", prefix: "LEGEND-400" }
     ];
 
     // 核心算法：生成横向条纹，从上往下堆叠
@@ -519,13 +519,19 @@
                         <div class="cert-school">青岛耶胡迪梅纽因学校 · 教务部荣誉出品</div>
                         <div class="cert-divider"></div>
                         <div class="cert-title">${t.title}</div>
-                        <div class="cert-subtitle">荣耀专题兑换证书</div>
+                        <div class="cert-subtitle">学期终极荣誉 · 学校自动颁发</div>
                         <div class="cert-divider2"></div>
-                        <p class="cert-desc">
-                            凭此证书，持有人将以<strong>优秀学生代表</strong>身份，由学校教务部专程安排专业团队，为其录制<strong>独家官方专题报道</strong>。<br>内容将记录持有人的练琴故事、成长历程与艺术追求，作为学校典范档案<strong>永久珍藏</strong>并在校内展示宣传。
+                        <p class="cert-desc" style="text-align:center; line-height:1.9;">
+                            本荣誉由学校教务部于<br>
+                            <strong>每学期末审核后自动颁发</strong><br>
+                            授予本学期通过排行榜累计获得音符币最多的同学。<br><br>
+                            获奖同学将以<strong>优秀学生代表</strong>身份<br>
+                            由专业团队录制<strong>独家官方专题报道</strong><br>
+                            记录练琴故事与成长历程<br>
+                            作为学校典范档案<strong>永久珍藏</strong>并在校内展示宣传。
                         </p>
-                        <div class="cert-highlight">✦ &nbsp; 全校仅此一张 · 一学期唯一名额 · 先兑换先得 &nbsp; ✦</div>
-                        <div style="font-size:11px; color:#c5a059; letter-spacing:1px;">${t.coins}</div>
+                        <div class="cert-highlight">✦ &nbsp; 全校唯一 · 学期末由学校审核颁发给本学期最努力的练琴者 &nbsp; ✦</div>
+                        <div style="font-size:11px; color:#c5a059; letter-spacing:1px; text-align:center;">本学期排行榜音符币累计第一名即具备获奖资格</div>
                     </div>
                     <div class="cert-footer">
                         <div class="cert-seal">VALID<br>YMSQ<br>认证</div>

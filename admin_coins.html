@@ -80,6 +80,68 @@
     .hi-amount.neg { color: var(--red); }
     .hi-empty { text-align: center; color: var(--t3); padding: 20px 0; font-size: 0.9rem; }
 
+    /* 学期管理卡片 */
+    .semester-card {
+      background: var(--card); border: 1px solid var(--bdr); border-radius: var(--r);
+      padding: 16px 20px; margin-bottom: 20px;
+    }
+    .semester-card-hd {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 10px;
+      cursor: pointer; user-select: none;
+    }
+    .semester-card-hd:hover { opacity: .85; }
+    .semester-card-body {
+      overflow: hidden;
+      max-height: 0;
+      transition: max-height .35s ease, padding .35s ease;
+      padding-top: 0;
+    }
+    .semester-card-body.open {
+      max-height: 2000px;
+      padding-top: 14px;
+      border-top: 1px solid var(--bdr);
+      margin-top: 12px;
+    }
+    .sem-toggle-icon {
+      font-size: .85rem; color: var(--t3); transition: transform .3s; display: inline-block;
+    }
+    .sem-toggle-icon.open { transform: rotate(180deg); }
+    .semester-card-hd-left { display: flex; align-items: center; gap: 10px; }
+    .semester-card-title { font-size: 0.95rem; font-weight: 700; }
+    .semester-card-sub   { font-size: 0.75rem; color: var(--t3); margin-top: 2px; }
+    .semester-card-hd-right { display: flex; gap: 8px; flex-wrap: wrap; }
+    /* 学期排名表 */
+    .sem-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .sem-table th { color: var(--t3); font-weight: 600; text-transform: uppercase;
+      font-size: 0.75rem; letter-spacing: .04em; padding: 6px 10px;
+      border-bottom: 1px solid var(--bdr); text-align: left; }
+    .sem-table td { padding: 8px 10px; border-bottom: 1px solid var(--bdr); }
+    .sem-table tr:last-child td { border-bottom: none; }
+    .sem-table tr:hover td { background: rgba(255,255,255,.02); }
+    .sem-rank { font-weight: 800; color: var(--gold); min-width: 24px; display: inline-block; }
+    .sem-bar-wrap { background: rgba(255,255,255,.06); border-radius: 4px; height: 6px;
+      width: 120px; overflow: hidden; display: inline-block; vertical-align: middle; margin-left: 8px; }
+    .sem-bar { height: 100%; border-radius: 4px; background: var(--green); transition: width .4s; }
+    .star-badge { display: inline-flex; align-items: center; gap: 4px;
+      background: rgba(251,191,36,.15); color: var(--gold);
+      border: 1px solid rgba(251,191,36,.3); padding: 2px 8px;
+      border-radius: 20px; font-size: 0.72rem; font-weight: 700; }
+    /* 学期输入弹窗 */
+    .sem-input-row { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+    .sem-input { background: rgba(0,0,0,.2); border: 1px solid var(--bdr2);
+      color: var(--text); padding: 7px 12px; border-radius: 8px; font-size: .9rem;
+      outline: none; width: 140px; }
+    .sem-input:focus { border-color: var(--blue); }
+    /* 梅纽因之星历史 */
+    .star-history { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--bdr); }
+    .star-history-title { font-size: .78rem; color: var(--t3); font-weight: 600;
+      text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
+    .star-item { display: flex; align-items: center; gap: 10px; padding: 6px 0;
+      border-bottom: 1px solid var(--bdr); font-size: .85rem; }
+    .star-item:last-child { border-bottom: none; }
+    .star-sem { color: var(--t3); font-size: .78rem; min-width: 60px; }
+
     /* 自动结算开关卡片 */
     .settings-card {
       background: var(--card); border: 1px solid var(--bdr); border-radius: var(--r);
@@ -132,6 +194,61 @@
     </div>
   </div>
 
+  <!-- 学期管理卡片 -->
+  <div class="semester-card">
+    <div class="semester-card-hd" onclick="toggleSemesterCard()">
+      <div class="semester-card-hd-left">
+        <div style="font-size:1.3rem">🌟</div>
+        <div>
+          <div class="semester-card-title">梅纽因之星 · 学期管理</div>
+          <div class="semester-card-sub">学期累积音符币获得排名 · 点击展开管理</div>
+        </div>
+      </div>
+      <span class="sem-toggle-icon" id="semToggleIcon">▼</span>
+    </div>
+
+    <!-- 可折叠区域（默认收起） -->
+    <div class="semester-card-body" id="semesterCardBody">
+
+      <!-- 操作区 -->
+      <div style="display:flex;align-items:flex-start;justify-content:flex-end;margin-bottom:12px">
+        <div>
+          <div class="sem-input-row">
+            <input type="text" id="semesterInput" class="sem-input" placeholder="学期标识，如：2026春">
+            <button class="btn" onclick="confirmNewSemester()" id="newSemBtn" style="border-color:var(--red);color:var(--red)">开启新学期</button>
+          </div>
+          <div style="font-size:0.72rem;color:var(--t3);margin-top:4px;text-align:right">
+            在排名表中点击「颁发 🌟」选择获奖学生 · 开启新学期会将所有人本学期累积清零
+          </div>
+        </div>
+      </div>
+
+      <!-- 本学期累积排名 -->
+      <table class="sem-table" id="semTable">
+        <thead>
+          <tr>
+            <th>名次</th>
+            <th>学生</th>
+            <th>专业</th>
+            <th>本学期累积</th>
+            <th>资格</th>
+            <th>颁发</th>
+          </tr>
+        </thead>
+        <tbody id="semTableBody">
+          <tr><td colspan="6" style="color:var(--t3);text-align:center">加载中...</td></tr>
+        </tbody>
+      </table>
+
+      <!-- 历届梅纽因之星记录 -->
+      <div class="star-history" id="starHistorySection" style="display:none">
+        <div class="star-history-title">🏆 历届梅纽因之星</div>
+        <div id="starHistoryList"></div>
+      </div>
+
+    </div>
+  </div>
+
   <!-- 自动结算开关卡片 -->
   <div class="settings-card">
     <div class="settings-card-left">
@@ -163,11 +280,12 @@
           <th>专业</th>
           <th>年级</th>
           <th>当前音符币</th>
+          <th>本学期获得</th>
           <th style="text-align: right;">操作</th>
         </tr>
       </thead>
       <tbody id="tableBody">
-        <tr><td colspan="5" style="text-align: center; color: var(--t3);">加载中...</td></tr>
+        <tr><td colspan="6" style="text-align: center; color: var(--t3);">加载中...</td></tr>
       </tbody>
     </table>
   </div>
@@ -289,7 +407,7 @@
       );
 
       if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--t3);">没有找到匹配的学生</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--t3);">没有找到匹配的学生</td></tr>`;
         return;
       }
 
@@ -299,6 +417,7 @@
           <td>${s.student_major || '-'}</td>
           <td>${s.student_grade || '-'}</td>
           <td><div class="coin-badge">🎵 ${s.balance}</div></td>
+          <td><div style="font-size:0.82rem;color:var(--t3)">本学期 <span style="color:${(s.semester_earned||0)>=400?'var(--green)':'var(--t2)'};font-weight:700">${s.semester_earned || 0}</span></div></td>
           <td style="text-align: right;">
             <div class="btn-group" style="justify-content: flex-end;">
               <button class="btn primary" onclick="openAdjustModal('${s.student_name}', ${s.balance})">加减币</button>
@@ -348,6 +467,10 @@
       }
 
       const finalAmount = currentAdjType === 'add' ? amountInput : -amountInput;
+      const actionText = currentAdjType === 'add' ? `+${amountInput}` : `-${amountInput}`;
+      if (!confirm(`确认对「${currentAdjStudent}」${actionText} 音符币？\n备注：${reason}`)) return;
+      if (!confirm(`二次确认：此操作将直接写入流水记录，无法撤销。`)) return;
+
       const btn = document.getElementById('adjSubmitBtn');
       btn.disabled = true;
       btn.textContent = '提交中...';
@@ -435,7 +558,137 @@
     }
 
     // ---------------------------------------------------------
-    // 5. 自动结算开关
+    // 5. 学期管理：折叠控制 + 排名渲染 + 颁奖 + 重置
+    // ---------------------------------------------------------
+    function toggleSemesterCard() {
+      const body = document.getElementById('semesterCardBody');
+      const icon = document.getElementById('semToggleIcon');
+      const isOpen = body.classList.toggle('open');
+      icon.classList.toggle('open', isOpen);
+      // 首次展开时加载数据
+      if (isOpen && document.getElementById('semTableBody').textContent.includes('加载中')) {
+        loadSemesterData();
+      }
+    }
+    async function loadSemesterData() {
+      try {
+        // 读取所有学生的 semester_earned（从已更新的视图）
+        const { data, error } = await supabaseClient
+          .from('vw_student_coin_balances')
+          .select('student_name, student_major, semester_earned')
+          .order('semester_earned', { ascending: false })
+          .limit(20);
+        if (error) throw error;
+
+        const tbody = document.getElementById('semTableBody');
+        const maxEarned = data[0]?.semester_earned || 1;
+
+        tbody.innerHTML = data.map((s, i) => {
+          const earned = s.semester_earned || 0;
+          const pct    = Math.min(100, Math.round(earned / 400 * 100));
+          const barPct = Math.min(100, Math.round(earned / maxEarned * 100));
+          const rankLabel = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}`;
+          const starTag  = earned >= 400
+            ? `<span class="star-badge">🌟 已达标</span>`
+            : `<span style="font-size:.8rem;color:var(--t3)">${400 - earned} 币</span>`;
+          return `
+            <tr>
+              <td><span class="sem-rank">${rankLabel}</span></td>
+              <td style="font-weight:700">${s.student_name}</td>
+              <td style="color:var(--t3);font-size:.82rem">${s.student_major || '-'}</td>
+              <td>
+                <span style="font-weight:700;color:${earned>=400?'var(--green)':'var(--text)'}">${earned}</span>
+                <span class="sem-bar-wrap"><span class="sem-bar" style="width:${barPct}%;background:${earned>=400?'var(--green)':'#3b82f6'}"></span></span>
+              </td>
+              <td>${starTag}</td>
+              <td>
+                <button class="btn primary" style="font-size:.78rem;padding:4px 10px"
+                  onclick="awardMeiyinStar('${s.student_name.replace(/'/g, "\\'")}')">颁发 🌟</button>
+              </td>
+            </tr>`;
+        }).join('');
+
+        // 加载梅纽因之星历史
+        await loadStarHistory();
+      } catch (err) {
+        document.getElementById('semTableBody').innerHTML =
+          `<tr><td colspan="6" style="color:var(--red);text-align:center">加载失败: ${err.message}</td></tr>`;
+      }
+    }
+
+    async function loadStarHistory() {
+      try {
+        const { data, error } = await supabaseClient
+          .from('meiyin_star_log')
+          .select('semester, student_name, semester_earned, awarded_at')
+          .order('awarded_at', { ascending: false });
+        if (error) throw error;
+
+        const section = document.getElementById('starHistorySection');
+        const list    = document.getElementById('starHistoryList');
+        if (!data || data.length === 0) { section.style.display = 'none'; return; }
+
+        section.style.display = 'block';
+        list.innerHTML = data.map(r => {
+          const date = new Date(r.awarded_at).toLocaleDateString('zh-CN', { year:'numeric', month:'2-digit', day:'2-digit' });
+          return `<div class="star-item">
+            <span style="font-size:1.1rem">🌟</span>
+            <span class="sem-sem" style="color:var(--t3);font-size:.8rem;min-width:60px">${r.semester}</span>
+            <span style="font-weight:700;flex:1">${r.student_name}</span>
+            <span style="font-size:.8rem;color:var(--t3)">${r.semester_earned} 币 · ${date}</span>
+          </div>`;
+        }).join('');
+      } catch (e) { /* 静默失败 */ }
+    }
+
+    async function awardMeiyinStar(studentName) {
+      const semester = document.getElementById('semesterInput').value.trim();
+      if (!semester) {
+        showToast('请先在右上角填写学期标识（如 "2026春"），再点击颁发', true);
+        document.getElementById('semesterInput').focus();
+        return;
+      }
+      if (!confirm(`确认为「${semester}」将梅纽因之星颁发给「${studentName}」？\n颁发后该学期不可重新颁发。`)) return;
+      if (!confirm(`二次确认：将「${semester}」梅纽因之星永久颁发给「${studentName}」？`)) return;
+
+      try {
+        const { data, error } = await supabaseClient.rpc('award_meiyin_star', {
+          p_semester:     semester,
+          p_student_name: studentName,
+          p_note:         null
+        });
+        if (error) throw error;
+        showToast(data);
+        await loadSemesterData();
+      } catch (err) {
+        showToast('颁发失败：' + err.message, true);
+      }
+    }
+
+    async function confirmNewSemester() {
+      const semester = document.getElementById('semesterInput').value.trim();
+      const hint = semester ? `（即将开启「${semester}」）` : '';
+      if (!confirm(`⚠️ 开启新学期${hint}\n\n所有学生的「本学期已获得」将归零（总余额 balance 不变）。\n\n此操作不可撤销，请确认已完成本学期梅纽因之星颁发。`)) return;
+      if (!confirm('二次确认：确定要重置全员 semester_earned 为 0？')) return;
+
+      const btn = document.getElementById('newSemBtn');
+      btn.disabled = true; btn.textContent = '重置中...';
+      try {
+        const { data, error } = await supabaseClient.rpc('start_new_semester', {
+          p_confirm: 'CONFIRM_NEW_SEMESTER'
+        });
+        if (error) throw error;
+        showToast(data);
+        await Promise.all([loadData(), loadSemesterData()]);
+      } catch (err) {
+        showToast('重置失败：' + err.message, true);
+      } finally {
+        btn.disabled = false; btn.textContent = '开启新学期';
+      }
+    }
+
+    // ---------------------------------------------------------
+    // 6. 自动结算开关
     // ---------------------------------------------------------
     async function loadAutoRewardSetting() {
       try {
