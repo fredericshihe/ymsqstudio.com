@@ -93,15 +93,20 @@ week_scores AS (
       AND ssh.composite_score > 0
 ),
 
-/* ── 上周成长分快照（进步榜基准：要求上周本身有练琴）── */
+/* ── 上一个有练琴的活跃周快照（进步榜基准）
+   不固定查"上周"，而是取每位学生本周之前最近一次 composite_score > 0 的快照
+   最多回溯 12 周，覆盖寒暑假等长假期后返校的场景 ── */
 last_week_scores AS (
-    SELECT
+    SELECT DISTINCT ON (ssh.student_name)
         ssh.student_name,
-        ssh.composite_score AS lw_composite
+        ssh.composite_score AS lw_composite,
+        ssh.snapshot_date   AS lw_date
     FROM public.student_score_history ssh
     CROSS JOIN week_monday wm
-    WHERE ssh.snapshot_date = wm.monday - INTERVAL '7 days'
-      AND ssh.composite_score > 0
+    WHERE ssh.snapshot_date <  wm.monday                       -- 必须是本周之前
+      AND ssh.snapshot_date >= wm.monday - INTERVAL '12 weeks' -- 最多回溯 12 周
+      AND ssh.composite_score > 0                              -- 必须有实际练琴
+    ORDER BY ssh.student_name, ssh.snapshot_date DESC          -- 取最近一个有效周
 ),
 
 /* ── 综合排行榜候选池：本周有练琴 + composite_score > 0 ── */
