@@ -33,14 +33,18 @@ SELECT
     tg.tgname                          AS "触发器名",
     c.relname                          AS "所属表",
     CASE tg.tgtype & 2  WHEN 2 THEN 'BEFORE' ELSE 'AFTER'  END AS "时机",
+    -- PostgreSQL tgtype 位定义：INSERT=4(bit2), DELETE=8(bit3), UPDATE=16(bit4)
+    -- & 28 (0b11100) 提取事件位：4=INSERT, 8=DELETE, 12=INSERT+DELETE,
+    --   16=UPDATE, 20=INSERT+UPDATE, 24=DELETE+UPDATE, 28=INSERT+UPDATE+DELETE
     CASE tg.tgtype & 28
         WHEN 4  THEN 'INSERT'
         WHEN 8  THEN 'DELETE'
         WHEN 16 THEN 'UPDATE'
-        WHEN 20 THEN 'INSERT+DELETE'
+        WHEN 12 THEN 'INSERT+DELETE'
+        WHEN 20 THEN 'INSERT+UPDATE'         -- 4+16，trg_update_baseline 应为此值
+        WHEN 24 THEN 'DELETE+UPDATE'
         WHEN 28 THEN 'INSERT+UPDATE+DELETE'
-        WHEN 18 THEN 'INSERT+UPDATE'         -- 0x12
-        ELSE tg.tgtype::TEXT
+        ELSE (tg.tgtype & 28)::TEXT
     END                                AS "事件",
     p.proname                          AS "触发函数",
     CASE tg.tgenabled WHEN 'O' THEN '✅ 启用' ELSE '❌ 禁用' END AS "状态",
@@ -389,6 +393,32 @@ checks AS (
             WHEN (SELECT def FROM func_defs WHERE func_name = 'get_auto_reward_setting')
                  LIKE '%auto_coin_reward_enabled%'
                 THEN '✅ 最新'
+            ELSE '❌ 需重新部署'
+        END
+
+    UNION ALL
+
+    -- ⑫ trigger_compute_student_score（触发链第三环，最关键）
+    -- 最新版：baseline_fixes_v1.sql（由 FIX-23 更新，追加 compute_and_store_w_score）
+    -- 最新特征：SECURITY DEFINER + skip_score_trigger 保护 + compute_and_store_w_score 调用
+    -- 缺少此函数/触发器：学生还卡后 composite_score 不会更新，排行榜无变化
+    SELECT
+        'trigger_compute_student_score',
+        'baseline_fixes_v1.sql（FIX-23 段）',
+        'FIX-23（含 compute_and_store_w_score）+ FIX-22（SECURITY DEFINER）',
+        CASE
+            WHEN NOT EXISTS (SELECT 1 FROM func_defs WHERE func_name = 'trigger_compute_student_score')
+                THEN '⚠️  函数不存在 — 触发链断裂！排行榜不会实时更新！'
+            WHEN (SELECT def FROM func_defs WHERE func_name = 'trigger_compute_student_score')
+                 LIKE '%compute_and_store_w_score%'
+             AND (SELECT def FROM func_defs WHERE func_name = 'trigger_compute_student_score')
+                 LIKE '%skip_score_trigger%'
+             AND (SELECT def FROM func_defs WHERE func_name = 'trigger_compute_student_score')
+                 LIKE '%SECURITY DEFINER%'
+                THEN '✅ 最新'
+            WHEN (SELECT def FROM func_defs WHERE func_name = 'trigger_compute_student_score')
+                 NOT LIKE '%SECURITY DEFINER%'
+                THEN '❌ 缺少 SECURITY DEFINER — RLS 可能拦截触发链'
             ELSE '❌ 需重新部署'
         END
 )

@@ -81,6 +81,7 @@ ORDER BY student_name;
 CREATE OR REPLACE FUNCTION public.trigger_insert_session()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER   -- FIX-22: anon 角色触发时以函数 owner 权限执行，绕过 RLS 对 practice_sessions 的写限制
 AS $$
 DECLARE
     v_assign           RECORD;

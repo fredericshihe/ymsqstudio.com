@@ -1,7 +1,7 @@
 # 学生练琴基线监控 — 函数备份与架构说明
 
 > 项目：menuhin-school-system（Supabase 项目 ID：waesizzoqodntrlvrwhw）
-> 备份日期：2026-03-10 | 最后更新：2026-03-20（FIX-72 饭点检测时区Bug+历史误判修复；FIX-71 trigger每次练琴必触发；FIX-70 composite_score改NUMERIC精度；FIX-69 进步榜显示绝对涨分；FIX-68 自动结算开关RLS修复；FIX-67 admin_coins单行查询406修复；FIX-65 综合榜Top10退专项榜；FIX-64 稳定/守则榜科学重设计；FIX-63 进步榜最小必要门槛；FIX-62 backfill基线覆写bug）
+> 备份日期：2026-03-10 | 最后更新：2026-03-20（FIX-73 trigger_insert_session/trigger_update_student_baseline 补回 SECURITY DEFINER；FIX-72 饭点检测时区Bug+历史误判修复；FIX-71 trigger每次练琴必触发；FIX-70 composite_score改NUMERIC精度；FIX-69 进步榜显示绝对涨分；FIX-68 自动结算开关RLS修复；FIX-65 综合榜Top10退专项榜；FIX-64 稳定/守则榜科学重设计；FIX-63 进步榜最小必要门槛；FIX-62 backfill基线覆写bug）
 > 说明：本文件汇总了所有与学生练琴基线监控相关的 SQL 函数，包含完整代码、参数说明和调用关系。
 
 ---
@@ -6514,3 +6514,48 @@ $$;
 | `clean_duration`（旧） | ⚠️ 旧重载 | 已废弃 | 旧签名 (raw_dur, student)，保留兼容 |
 | `compute_and_store_w_score` | ✅ 最新 | `fix54_w_score_sunday.sql` | FIX-54 WHEN 0 THEN 5 |
 
+
+---
+
+## FIX-73：trigger_insert_session / trigger_update_student_baseline 补回 SECURITY DEFINER
+
+**日期**：2026-03-20
+**文件**：`fix_stale_cleaned_duration.sql`、`fix60_weekly_update_and_baseline_trigger.sql`
+
+### 问题
+
+触发链诊断发现 `trigger_insert_session` 和 `trigger_update_student_baseline` 均缺少 `SECURITY DEFINER`，安全模式为普通权限。
+
+**根因**：FIX-22（2026-03-16）通过 `ALTER FUNCTION ... SECURITY DEFINER` 为这两个函数添加了权限，但后续的 FIX-72（trigger_insert_session）和 FIX-71（trigger_update_student_baseline）使用 `CREATE OR REPLACE FUNCTION` 重新定义函数时，没有携带 `SECURITY DEFINER` 关键字，导致属性被覆盖清除。
+
+### 影响
+
+不带 SECURITY DEFINER 时，anon 角色触发这两个函数会以 anon 身份执行。若 `practice_sessions` 或 `student_baseline` 表启用了 RLS 限制 anon 写入，整个触发链会因权限不足而中断，导致练琴记录无法写入或分数无法更新。
+
+### 修复内容
+
+两个文件均补充 `SECURITY DEFINER`：
+
+```sql
+-- fix_stale_cleaned_duration.sql
+CREATE OR REPLACE FUNCTION public.trigger_insert_session()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER   -- FIX-22 补回：绕过 anon 角色 RLS 限制
+AS $$ ... $$;
+
+-- fix60_weekly_update_and_baseline_trigger.sql
+CREATE OR REPLACE FUNCTION public.trigger_update_student_baseline()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER   -- FIX-22 补回：绕过 anon 角色 RLS 限制
+AS $$ ... $$;
+```
+
+### 部署步骤
+
+在 Supabase SQL Editor 依次运行：
+1. `fix_stale_cleaned_duration.sql`（重新部署 trigger_insert_session）
+2. `fix60_weekly_update_and_baseline_trigger.sql`（重新部署 trigger_update_student_baseline）
+
+运行后用 `check_db_versions.sql` 第零部分 B 段验证三个触发函数均为 SECURITY DEFINER。

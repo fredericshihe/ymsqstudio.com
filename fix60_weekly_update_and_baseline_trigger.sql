@@ -110,7 +110,9 @@ $$;
 -- 代价：compute_student_score 每次练琴后都重算，计算量略增，但可接受。
 CREATE OR REPLACE FUNCTION public.trigger_update_student_baseline()
 RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql
+SECURITY DEFINER   -- FIX-22: anon 角色触发时以函数 owner 权限执行，绕过 RLS 对 student_baseline 的写限制
+AS $$
 BEGIN
     PERFORM public.update_student_baseline(NEW.student_name);
     RETURN NEW;
