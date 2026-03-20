@@ -1,7 +1,7 @@
 # 学生练琴基线监控 — 函数备份与架构说明
 
 > 项目：menuhin-school-system（Supabase 项目 ID：waesizzoqodntrlvrwhw）
-> 备份日期：2026-03-10 | 最后更新：2026-03-19（FIX-65 综合榜Top10退专项榜；FIX-64 稳定/守则榜科学重设计；FIX-63 进步榜最小必要门槛；FIX-62 backfill基线覆写bug；FIX-61 进步榜门槛平衡化；FIX-60 独立部署run_weekly/trigger；FIX-59 综合榜Top5退专项榜；FIX-58 进步榜改绝对涨分；FIX-57 A维度新生保护；FIX-56 反霸榜；FIX-55/54/53）
+> 备份日期：2026-03-10 | 最后更新：2026-03-20（FIX-70 composite_score改NUMERIC精度；FIX-69 进步榜显示绝对涨分；FIX-68 自动结算开关RLS修复；FIX-67 admin_coins单行查询406修复；FIX-66 进步榜趋势分字段语义修正；FIX-65 综合榜Top10退专项榜；FIX-64 稳定/守则榜科学重设计；FIX-63 进步榜最小必要门槛；FIX-62 backfill基线覆写bug）
 > 说明：本文件汇总了所有与学生练琴基线监控相关的 SQL 函数，包含完整代码、参数说明和调用关系。
 
 ---
@@ -5242,3 +5242,211 @@ ORDER BY student_name;
 2. 执行步骤 3（重算基线）或 `SELECT public.backfill_score_history()` 全量重建
 3. 在 Supabase Dashboard > Database > Functions 中确认 `trigger_insert_session` 已更新（含 FIX-51B）
 4. 完成后在 `practiceanalyse.html` 验证不再出现"数据异常"红色标记
+
+---
+
+## FIX-67：admin_coins.html 音符币后台 406 错误修复
+
+**日期**：2026-03-20
+**文件**：`admin_coins.html`
+
+### 问题
+
+`admin_coins.html` 在加载"自动结算开关"时报错：
+```
+Failed to load resource: 406 (Cannot coerce the result to a single JSON object)
+```
+
+### 根本原因
+
+前端使用了 Supabase 的 `.single()` 方法查询 `system_settings` 表的 `auto_coin_reward_enabled` 键。`.single()` 要求查询**恰好返回 1 行**，当该键尚未写入数据库时返回 0 行，PostgREST 报 406。
+
+### 修复内容
+
+`admin_coins.html` 中 `loadAutoRewardSetting` 函数改为：
+- `.single()` → `.maybeSingle()`（允许 0 或 1 行）
+- 添加 `data` 为 `null` 时的兜底逻辑（默认为 `false`/关闭）
+
+```javascript
+const { data, error } = await supabaseClient
+  .from('system_settings')
+  .select('value, updated_at')
+  .eq('key', 'auto_coin_reward_enabled')
+  .maybeSingle(); // 改为 maybeSingle，允许记录不存在
+
+if (error) throw error;
+const enabled = data ? (data.value === 'true') : false;
+```
+
+---
+
+## FIX-68：自动结算开关 RLS 拦截——刷新后状态丢失
+
+**日期**：2026-03-20
+**文件**：`admin_coins.html`、`fix_auto_reward_rls.sql`（新增）
+
+### 问题
+
+管理员在 `admin_coins.html` 开启"自动结算"开关后，刷新页面开关恢复关闭，无法持久化。
+
+### 根本原因
+
+`system_settings` 表启用了 Row Level Security（RLS），且没有配置读取策略。虽然设置了 `GRANT SELECT`，但 RLS 默认屏蔽所有行，导致前端直接 SELECT 时返回 0 行 → `maybeSingle()` 返回 `null` → 界面显示关闭。
+
+写入（`set_auto_reward_enabled` RPC）因为是 `SECURITY DEFINER` 可以绕过 RLS 正常写入，所以数据其实保存成功了，只是读不回来。
+
+### 修复内容
+
+**新增 `fix_auto_reward_rls.sql`**：
+
+```sql
+-- 1. 确保初始记录存在（默认开启）
+INSERT INTO public.system_settings (key, value, updated_at)
+VALUES ('auto_coin_reward_enabled', 'true', NOW())
+ON CONFLICT (key) DO NOTHING;
+
+-- 2. 新增 SECURITY DEFINER 读取函数（绕过 RLS）
+CREATE OR REPLACE FUNCTION public.get_auto_reward_setting()
+RETURNS TABLE(enabled BOOLEAN, updated_at TIMESTAMPTZ)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT (value = 'true') AS enabled, s.updated_at
+    FROM public.system_settings s
+    WHERE s.key = 'auto_coin_reward_enabled'
+    LIMIT 1;
+    IF NOT FOUND THEN
+        RETURN QUERY SELECT TRUE, NOW();
+    END IF;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_auto_reward_setting() TO anon, authenticated;
+```
+
+**`admin_coins.html` `loadAutoRewardSetting` 改为调用 RPC**：
+
+```javascript
+// 使用 SECURITY DEFINER RPC 读取，绕过 RLS 策略
+const { data, error } = await supabaseClient.rpc('get_auto_reward_setting');
+if (error) throw error;
+const row = data && data.length > 0 ? data[0] : null;
+const enabled = row ? row.enabled : true;  // 默认开启
+```
+
+### 部署步骤
+
+在 Supabase SQL Editor 运行 `fix_auto_reward_rls.sql` 即可。
+
+---
+
+## FIX-69：进步榜右侧由百分比涨幅改为绝对涨分显示
+
+**日期**：2026-03-20
+**文件**：`leaderboard_rpc.sql`、`practiceanalyse.html`、`menuhin-school-system/index.html`
+
+### 问题
+
+进步榜右侧显示的百分比涨幅（`+X.X%`）大多数时候为 `+0.0%`，毫无区分度。
+
+### 根本原因
+
+综合分（`composite_score`）是整数（0-100），学生单周实际涨幅通常为 0.1~3 分。换算成百分比（如 0.5/60 × 100 = 0.8%），经 `ROUND(..., 1)` 后极易变成 `0.0%`。
+
+### 修复内容
+
+**`leaderboard_rpc.sql` — `prog` CTE 的 `trend_score` 改为绝对涨分**：
+
+```sql
+-- 旧（百分比，几乎全为 0.0%）
+ROUND((rp.display_score - lws.lw_composite)
+      / NULLIF(lws.lw_composite, 0) * 100, 1) AS trend_score
+
+-- 新（绝对涨分，单位：分）
+ROUND((rp.display_score - lws.lw_composite)::NUMERIC, 1) AS trend_score
+```
+
+**前端 `valFns['进步榜']` 颜色/标签阈值同步调整**：
+
+| 档位 | 旧（百分比） | 新（绝对分） |
+|---|---|---|
+| 高档（绿） | ≥30% | ≥8 分 |
+| 中档（浅绿）| ≥15% | ≥3 分 |
+| 低档（蓝） | <15% | <3 分 |
+
+显示由 `+3.0%` 变为 `+3.0 分`（两个前端同步修改）。
+
+同步更新副标题：
+- 进步榜：`"本周综合分相对涨幅最大 · α ≥0.50"` → `"本周综合分绝对涨分最大 · 本周 ≥2 次 · 异常率 ≤50%"`
+- 稳定榜：α 阈值 0.65→0.55，近10条 ≥10→≥8，异常率 ≤35%→≤40%
+- 守则榜：α 阈值 0.60→0.55，均时 >30→>25min，补充"近10条 ≥4条"
+
+---
+
+## FIX-70：composite_score 改为 NUMERIC(6,1) 保留小数点后一位
+
+**日期**：2026-03-20
+**文件**：`fix44_46_score_functions.sql`、`fix53_backfill_update.sql`、`migrate_composite_score_numeric.sql`（新增）、`practiceanalyse.html`、`menuhin-school-system/index.html`
+
+### 问题
+
+综合分（`composite_score`）以往存储为 `INT`（整数），前端显示 `toFixed(1)` 时全部为 `XX.0`，无法区分相近分数的学生。
+
+### 修复内容
+
+**数据库表迁移（`migrate_composite_score_numeric.sql`）**：
+
+```sql
+ALTER TABLE public.student_score_history
+    ALTER COLUMN composite_score TYPE NUMERIC(6,1)
+    USING ROUND(composite_score::NUMERIC, 1);
+
+ALTER TABLE public.student_baseline
+    ALTER COLUMN composite_score TYPE NUMERIC(6,1)
+    USING ROUND(composite_score::NUMERIC, 1);
+```
+
+**`fix44_46_score_functions.sql` — 共 4 处修改**：
+
+```sql
+-- 返回类型
+RETURNS TABLE(composite_score NUMERIC, raw_score FLOAT8)  -- INT → NUMERIC
+
+-- 变量声明（2个函数各1处）
+v_composite_score  NUMERIC;  -- INT → NUMERIC
+
+-- 赋值计算（2个函数各1处）
+v_composite_score := ROUND((composite_raw * 100)::NUMERIC, 1);
+-- 旧: ROUND(composite_raw * 100)::INT
+
+-- 早退分支返回值（修复类型匹配错误）
+RETURN QUERY SELECT COALESCE(r.composite_score, 0::NUMERIC), ...;
+RETURN QUERY SELECT 0::NUMERIC, 0.0::FLOAT8;
+```
+
+**关键细节**：PostgreSQL 的 `ROUND(x, n)` 两参数版本**只接受 `NUMERIC`**，`FLOAT8` 不支持，必须显式转型：
+```sql
+ROUND((composite_raw * 100)::NUMERIC, 1)  -- ✅ 正确
+ROUND(composite_raw * 100, 1)             -- ❌ ERROR: function round(double precision, integer) does not exist
+```
+
+**`fix53_backfill_update.sql`**：
+```sql
+SET composite_score = ROUND((raw_score * 100)::NUMERIC, 1)
+-- 旧: ROUND(raw_score * 100)::INT
+```
+
+**前端**：两个前端均恢复 `toFixed(1)` 显示（等数据库迁移完成后自动显示真实小数）。
+
+### 部署顺序（严格按序）
+
+1. **运行 `migrate_composite_score_numeric.sql`** — 修改两张表列类型
+2. **DROP 旧函数**（返回类型变了，必须先删）：
+   ```sql
+   DROP FUNCTION IF EXISTS public.compute_student_score(TEXT);
+   DROP FUNCTION IF EXISTS public.compute_student_score_as_of(TEXT, DATE);
+   ```
+3. **重新部署 `fix44_46_score_functions.sql`**
+4. **历史重算**：`SELECT public.backfill_score_history();`
