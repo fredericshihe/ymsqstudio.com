@@ -692,17 +692,17 @@
     // ---------------------------------------------------------
     async function loadAutoRewardSetting() {
       try {
+        // 使用 SECURITY DEFINER RPC 读取，绕过 RLS 策略
         const { data, error } = await supabaseClient
-          .from('system_settings')
-          .select('value, updated_at')
-          .eq('key', 'auto_coin_reward_enabled')
-          .single();
+          .rpc('get_auto_reward_setting');
 
         if (error) throw error;
 
-        const enabled = data.value === 'true';
-        const updatedAt = data.updated_at
-          ? new Date(data.updated_at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+        // RPC 返回数组，取第一行；若无记录默认开启
+        const row = data && data.length > 0 ? data[0] : null;
+        const enabled = row ? row.enabled : true;
+        const updatedAt = row && row.updated_at
+          ? new Date(row.updated_at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
           : '—';
 
         document.getElementById('autoRewardToggle').checked = enabled;
