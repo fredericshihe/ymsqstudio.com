@@ -14,6 +14,79 @@
 
 
 -- ════════════════════════════════════════════════════════════
+-- 【第零部分】触发链完整性诊断 — 最重要，先运行这一段！
+--
+-- 完整触发链条（每次学生还卡必须全部存在）：
+--   practice_logs INSERT
+--     → trg_insert_session → trigger_insert_session()
+--   practice_sessions INSERT/UPDATE
+--     → trg_update_baseline → trigger_update_student_baseline()
+--   student_baseline UPDATE
+--     → trg_compute_score_on_baseline_update → trigger_compute_student_score()
+--         → compute_student_score()  → composite_score 更新
+--         → compute_and_store_w_score() → w_score 更新
+--   前端 Realtime/轮询 → get_weekly_leaderboards() → 排行榜刷新
+-- ════════════════════════════════════════════════════════════
+
+-- A. 核查三条触发器绑定（必须全部存在且启用）
+SELECT
+    tg.tgname                          AS "触发器名",
+    c.relname                          AS "所属表",
+    CASE tg.tgtype & 2  WHEN 2 THEN 'BEFORE' ELSE 'AFTER'  END AS "时机",
+    CASE tg.tgtype & 28
+        WHEN 4  THEN 'INSERT'
+        WHEN 8  THEN 'DELETE'
+        WHEN 16 THEN 'UPDATE'
+        WHEN 20 THEN 'INSERT+DELETE'
+        WHEN 28 THEN 'INSERT+UPDATE+DELETE'
+        WHEN 18 THEN 'INSERT+UPDATE'         -- 0x12
+        ELSE tg.tgtype::TEXT
+    END                                AS "事件",
+    p.proname                          AS "触发函数",
+    CASE tg.tgenabled WHEN 'O' THEN '✅ 启用' ELSE '❌ 禁用' END AS "状态",
+    CASE p.prosecdef WHEN true THEN '✅ SECURITY DEFINER' ELSE '⚠️  普通权限' END AS "安全模式"
+FROM pg_trigger tg
+JOIN pg_class   c ON c.oid   = tg.tgrelid
+JOIN pg_proc    p ON p.oid   = tg.tgfoid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND NOT tg.tgisinternal
+  AND c.relname IN ('practice_logs', 'practice_sessions', 'student_baseline')
+ORDER BY c.relname, tg.tgname;
+
+-- 预期结果（3 行）：
+-- trg_insert_session                practice_logs      AFTER INSERT  trigger_insert_session()           ✅ 启用  ✅ SECURITY DEFINER
+-- trg_update_baseline               practice_sessions  AFTER INSERT+UPDATE  trigger_update_student_baseline()  ✅ 启用  ✅ SECURITY DEFINER
+-- trg_compute_score_on_baseline_update student_baseline AFTER UPDATE trigger_compute_student_score()    ✅ 启用  ✅ SECURITY DEFINER
+
+
+-- B. 核查触发链三个函数的 SECURITY DEFINER 属性
+SELECT proname AS "函数名",
+       CASE prosecdef WHEN true THEN '✅ SECURITY DEFINER' ELSE '❌ 缺少 SECURITY DEFINER' END AS "安全模式"
+FROM pg_proc
+WHERE pronamespace = 'public'::regnamespace
+  AND proname IN (
+      'trigger_insert_session',
+      'trigger_update_student_baseline',
+      'trigger_compute_student_score'
+  )
+ORDER BY proname;
+-- 预期：3行全部 SECURITY DEFINER，否则 anon 角色触发会被 RLS 拦截
+
+
+-- C. 查看 trigger_compute_student_score 完整定义（验证含 skip_score_trigger 保护）
+SELECT pg_get_functiondef(oid)
+FROM pg_proc
+WHERE pronamespace = 'public'::regnamespace
+  AND proname = 'trigger_compute_student_score';
+-- 关键检查：函数体中必须同时含有：
+--   1. pg_trigger_depth() > 1          ← 防无限递归
+--   2. app.skip_score_trigger = 'on'   ← 批量任务保护
+--   3. compute_student_score(...)      ← 实际计算
+--   4. compute_and_store_w_score(...)  ← W 分更新（FIX-23）
+
+
+-- ════════════════════════════════════════════════════════════
 -- 【第一部分】全量 Dump — 在 Supabase 运行后对照本地最新文件
 -- ════════════════════════════════════════════════════════════
 

@@ -6258,7 +6258,7 @@ GRANT EXECUTE ON FUNCTION public.get_auto_reward_setting() TO anon, authenticate
 |---------|--------|------|------|---------|
 | `trg_insert_session` | `practice_logs` | AFTER | INSERT | `trigger_insert_session()` |
 | `trg_update_baseline` | `practice_sessions` | AFTER | INSERT | `trigger_update_student_baseline()` |
-| `trg_fn_compute_score_on_baseline_update` | `student_baseline` | AFTER | UPDATE | `trigger_compute_score_on_baseline_update()` |
+| `trg_compute_score_on_baseline_update` | `student_baseline` | AFTER | UPDATE | `trigger_compute_student_score()` |
 
 
 ---
