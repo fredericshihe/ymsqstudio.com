@@ -172,7 +172,7 @@ BEGIN
       NULL, NULL, NULL, NULL,
       r.outlier_rate, r.short_session_rate, r.mean_duration, r.record_count
     ) ON CONFLICT DO NOTHING;
-    RETURN QUERY SELECT COALESCE(r.composite_score, 0), COALESCE(r.raw_score, 0.0)::FLOAT8;
+    RETURN QUERY SELECT COALESCE(r.composite_score, 0::NUMERIC), COALESCE(r.raw_score, 0.0)::FLOAT8;
     RETURN;
   END IF;
 
@@ -197,7 +197,7 @@ BEGIN
       NULL, NULL, NULL, NULL,
       r.outlier_rate, r.short_session_rate, r.mean_duration, r.record_count
     ) ON CONFLICT DO NOTHING;
-    RETURN QUERY SELECT 0, 0.0::FLOAT8;
+    RETURN QUERY SELECT 0::NUMERIC, 0.0::FLOAT8;
     RETURN;
   END IF;
 
