@@ -197,7 +197,7 @@ checks AS (
             WHEN (SELECT def FROM func_defs WHERE func_name = 'compute_student_score')
                  LIKE '%w_week  := 0.70%'
              AND (SELECT def FROM func_defs WHERE func_name = 'compute_student_score')
-                 LIKE '%RETURNS TABLE(composite_score NUMERIC%'
+                 LIKE '%RETURNS TABLE(composite_score numeric%'  -- pg_get_functiondef 输出小写类型名
                 THEN '✅ 最新'
             ELSE '❌ 需重新部署'
         END AS status
