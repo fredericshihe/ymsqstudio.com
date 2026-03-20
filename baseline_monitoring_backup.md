@@ -6260,3 +6260,257 @@ GRANT EXECUTE ON FUNCTION public.get_auto_reward_setting() TO anon, authenticate
 | `trg_update_baseline` | `practice_sessions` | AFTER | INSERT | `trigger_update_student_baseline()` |
 | `trg_fn_compute_score_on_baseline_update` | `student_baseline` | AFTER | UPDATE | `trigger_compute_score_on_baseline_update()` |
 
+
+---
+
+## 7. compute_baseline（最新版）
+
+> 简单 wrapper，调用 `compute_baseline_as_of(今天+1天)`，确保包含今天所有数据。
+
+```sql
+CREATE OR REPLACE FUNCTION public.compute_baseline(p_student_name text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    PERFORM public.compute_baseline_as_of(
+        p_student_name,
+        (CURRENT_DATE + INTERVAL '1 day')::DATE
+    );
+END;
+$$;
+```
+
+---
+
+## 8. update_student_baseline（最新版）
+
+> 简单 wrapper，供触发器调用。
+
+```sql
+CREATE OR REPLACE FUNCTION public.update_student_baseline(p_student_name text)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    PERFORM public.compute_baseline(p_student_name);
+END;
+$$;
+```
+
+---
+
+## 9. set_auto_reward_enabled（FIX-68 最新版）
+
+> 文件：`fix_auto_reward_rls.sql`  SECURITY DEFINER，写入 system_settings 表。
+
+```sql
+CREATE OR REPLACE FUNCTION public.set_auto_reward_enabled(p_enabled boolean)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    INSERT INTO public.system_settings (key, value, updated_at)
+    VALUES ('auto_coin_reward_enabled', p_enabled::TEXT, NOW())
+    ON CONFLICT (key) DO UPDATE
+        SET value      = p_enabled::TEXT,
+            updated_at = NOW();
+    RETURN p_enabled;
+END;
+$$;
+```
+
+---
+
+## 10. clean_duration（FIX-53-H 最新版，新签名：student text, raw_dur float8）
+
+> 文件：`fix53_clean_duration.sql`  注意：数据库中有两个重载，旧签名 `(raw_dur, student)` 保留兼容，新签名 `(student, raw_dur)` 为最新版。
+
+```sql
+CREATE OR REPLACE FUNCTION public.clean_duration(student text, raw_dur double precision)
+RETURNS TABLE(cleaned_dur double precision, is_outlier boolean, reason text)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    student_mean      FLOAT;
+    student_std       FLOAT;
+    record_cnt        INTEGER;
+    last_session_date TIMESTAMPTZ;
+    days_since_last   INTEGER;
+    use_personal_det  BOOLEAN;
+BEGIN
+    SELECT mean_duration, std_duration, record_count
+    INTO student_mean, student_std, record_cnt
+    FROM public.student_baseline
+    WHERE student_name = student;
+
+    IF raw_dur IS NULL THEN
+        RETURN QUERY SELECT 0::FLOAT, TRUE, 'no_duration'::TEXT;
+        RETURN;
+    END IF;
+
+    IF raw_dur < 5 THEN
+        RETURN QUERY SELECT 0::FLOAT, TRUE, 'too_short'::TEXT;
+        RETURN;
+    END IF;
+
+    -- FIX-53-H: 停练归来检测——查最近一次有效练琴时间间隔
+    SELECT MAX(session_start) INTO last_session_date
+    FROM public.practice_sessions
+    WHERE student_name = student AND cleaned_duration > 0;
+
+    days_since_last := COALESCE(
+        EXTRACT(DAYS FROM (NOW() - last_session_date))::INTEGER,
+        999
+    );
+
+    -- 同时满足以下全部条件才使用个人离群检测：
+    -- ① record_count >= 10  ② std > 1.0  ③ 近期有持续练琴（30天内）
+    use_personal_det := student_mean IS NOT NULL
+                    AND student_std IS NOT NULL
+                    AND student_std > 1.0
+                    AND COALESCE(record_cnt, 0) >= 10
+                    AND days_since_last <= 30;
+
+    IF use_personal_det THEN
+        IF raw_dur > student_mean + 3 * student_std THEN
+            RETURN QUERY SELECT (student_mean + student_std)::FLOAT, TRUE, 'personal_outlier'::TEXT;
+            RETURN;
+        END IF;
+    ELSE
+        -- 冷启动期 / std 不可靠 / 停练归来：改用全局硬上限 180 分钟
+        IF raw_dur > 180 THEN
+            RETURN QUERY SELECT 120::FLOAT, TRUE,
+                CASE WHEN days_since_last > 30
+                     THEN 'global_cap_returning'   -- 停练归来降级标记
+                     ELSE 'global_cap_cold_start'
+                END::TEXT;
+            RETURN;
+        END IF;
+    END IF;
+
+    IF raw_dur > 120 THEN
+        RETURN QUERY SELECT 120::FLOAT, FALSE, 'capped_120'::TEXT;
+        RETURN;
+    END IF;
+
+    RETURN QUERY SELECT raw_dur, FALSE, NULL::TEXT;
+END;
+$$;
+```
+
+---
+
+## 11. compute_and_store_w_score（FIX-54 最新版）
+
+> 文件：`fix54_w_score_sunday.sql`  SECURITY DEFINER，计算并写入本周 W 分。
+
+```sql
+CREATE OR REPLACE FUNCTION public.compute_and_store_w_score(p_student_name text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_mean_duration   FLOAT8;
+    v_weekly_minutes  FLOAT8;
+    v_elapsed_days    INT;
+    v_ratio           FLOAT8;
+    v_w_score         FLOAT8;
+    v_dow             INT;
+    v_week_start      TIMESTAMPTZ;
+    v_median_mean     FLOAT8;
+    v_major           TEXT;
+    v_major_count     INT;
+    v_shrink_alpha    FLOAT8;
+    v_effective_mean  FLOAT8;
+BEGIN
+    SELECT mean_duration, student_major
+    INTO v_mean_duration, v_major
+    FROM public.student_baseline
+    WHERE student_name = p_student_name;
+
+    -- FIX-37: 同专业优先计算中位数
+    SELECT COUNT(*) INTO v_major_count
+    FROM public.student_baseline
+    WHERE student_major = v_major AND mean_duration > 0;
+
+    IF v_major_count >= 5 THEN
+        SELECT percentile_cont(0.50) WITHIN GROUP (ORDER BY mean_duration)
+        INTO v_median_mean
+        FROM public.student_baseline
+        WHERE mean_duration IS NOT NULL AND mean_duration > 0
+          AND student_major = v_major;
+    ELSE
+        SELECT percentile_cont(0.50) WITHIN GROUP (ORDER BY mean_duration)
+        INTO v_median_mean
+        FROM public.student_baseline
+        WHERE mean_duration IS NOT NULL AND mean_duration > 0;
+    END IF;
+
+    -- 贝叶斯收缩
+    SELECT record_count INTO v_shrink_alpha
+    FROM public.student_baseline
+    WHERE student_name = p_student_name;
+    v_shrink_alpha   := LEAST(1.0, COALESCE(v_shrink_alpha, 0)::FLOAT8 / 15.0);
+    v_effective_mean := v_shrink_alpha * COALESCE(v_mean_duration, 0.0)
+                      + (1.0 - v_shrink_alpha) * COALESCE(v_median_mean, 30.0);
+    v_effective_mean := GREATEST(v_effective_mean, 15.0);
+
+    -- FIX-26: 北京时间本周一
+    v_week_start := DATE_TRUNC('week', NOW() AT TIME ZONE 'Asia/Shanghai')
+                      AT TIME ZONE 'Asia/Shanghai';
+
+    -- 只统计工作日
+    SELECT COALESCE(SUM(cleaned_duration), 0) INTO v_weekly_minutes
+    FROM public.practice_sessions
+    WHERE student_name = p_student_name
+      AND session_start >= v_week_start
+      AND EXTRACT(DOW FROM session_start AT TIME ZONE 'Asia/Shanghai') NOT IN (0, 6);
+
+    v_dow := EXTRACT(DOW FROM NOW() AT TIME ZONE 'Asia/Shanghai')::INT;
+    -- FIX-54: 周日(DOW=0)和周六(DOW=6)均视为已过5个工作日
+    v_elapsed_days := CASE v_dow
+        WHEN 0 THEN 5
+        WHEN 6 THEN 5
+        ELSE v_dow
+    END;
+
+    IF v_elapsed_days = 0 OR v_effective_mean <= 0 THEN
+        v_w_score := 0.5;
+    ELSE
+        v_ratio   := v_weekly_minutes / (GREATEST(v_effective_mean, 30.0) * v_elapsed_days);
+        v_w_score := 1.0 / (1.0 + EXP(-3.0 * (v_ratio - 0.5)));
+    END IF;
+
+    PERFORM set_config('app.skip_score_trigger', 'on', true);
+    UPDATE public.student_baseline SET w_score = v_w_score WHERE student_name = p_student_name;
+    PERFORM set_config('app.skip_score_trigger', 'off', true);
+END;
+$$;
+```
+
+---
+
+## 完整函数版本对照表（数据库 vs 本地，2026-03-20 核查）
+
+| 函数名 | 数据库状态 | 本地最新文件 | 版本特征 |
+|--------|----------|------------|---------|
+| `trigger_insert_session` | ✅ 最新 | `fix_stale_cleaned_duration.sql` | FIX-72 时区修正 |
+| `trigger_update_student_baseline` | ✅ 最新 | `fix60_weekly_update_and_baseline_trigger.sql` | FIX-71 每次必触发 |
+| `run_weekly_score_update` | ✅ 最新 | `fix60_weekly_update_and_baseline_trigger.sql` | FIX-8 raw_score IS NOT NULL |
+| `backfill_score_history` | ✅ 最新 | `fix53_backfill_update.sql` | FIX-62/70 NUMERIC 精度 |
+| `get_weekly_leaderboards` | ✅ 最新 | `leaderboard_rpc.sql` | FIX-65/69 comp_top10+绝对涨分 |
+| `get_auto_reward_setting` | ✅ 最新 | `fix_auto_reward_rls.sql` | FIX-68 SECURITY DEFINER |
+| `set_auto_reward_enabled` | ✅ 最新 | `fix_auto_reward_rls.sql` | FIX-68 UPSERT |
+| `compute_student_score` | ✅ 最新 | `fix44_46_score_functions.sql` | FIX-70 NUMERIC + FIX-57 W=70% |
+| `compute_student_score_as_of` | ✅ 最新 | `fix44_46_score_functions.sql` | FIX-57 W=70% |
+| `compute_baseline_as_of` | ✅ 最新 | `fix55_baseline_weekday_filter.sql` | FIX-55 NOT IN(0,6)×6+ |
+| `compute_baseline` | ✅ 最新 | — | 简单 wrapper |
+| `update_student_baseline` | ✅ 最新 | — | 简单 wrapper |
+| `clean_duration`（新） | ✅ 最新 | `fix53_clean_duration.sql` | FIX-53-H global_cap_returning |
+| `clean_duration`（旧） | ⚠️ 旧重载 | 已废弃 | 旧签名 (raw_dur, student)，保留兼容 |
+| `compute_and_store_w_score` | ✅ 最新 | `fix54_w_score_sunday.sql` | FIX-54 WHEN 0 THEN 5 |
+
