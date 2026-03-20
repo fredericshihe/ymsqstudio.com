@@ -104,71 +104,15 @@ $$;
 -- 原问题：v_record_count 来自 student_baseline（上次计算时的值，可能过时），
 --         用于决定触发间隔。动态计数部分改为查实时有效记录数。
 -- ================================================================
+-- FIX-71: 改为每次新增 practice_session 都立即触发基线 + 分数更新
+-- 原因：动态间隔（最多每10次才触发）导致排行榜分数不够实时。
+-- 每次还卡后约数秒内即可在排行榜看到最新分数（前端 60s 轮询）。
+-- 代价：compute_student_score 每次练琴后都重算，计算量略增，但可接受。
 CREATE OR REPLACE FUNCTION public.trigger_update_student_baseline()
 RETURNS trigger
 LANGUAGE plpgsql AS $$
-DECLARE
-    v_record_count  INTEGER;
-    v_last_updated  TIMESTAMPTZ;
-    v_mean          FLOAT;
-    v_std           FLOAT;
-    v_cv            FLOAT;
-    v_interval      INTEGER;
-    v_days_since    INTEGER;
-    v_force_update  BOOLEAN := FALSE;
-    v_live_count    INTEGER;   -- [FIX-9] 实时有效记录数
 BEGIN
-    -- ① 读取当前基线状态
-    SELECT record_count, last_updated, mean_duration, std_duration
-    INTO v_record_count, v_last_updated, v_mean, v_std
-    FROM public.student_baseline
-    WHERE student_name = NEW.student_name;
-
-    -- ② 从未建立过基线 → 立即触发
-    IF NOT FOUND THEN
-        PERFORM public.update_student_baseline(NEW.student_name);
-        RETURN NEW;
-    END IF;
-
-    -- ③ 变异系数
-    v_cv := CASE
-        WHEN COALESCE(v_mean, 0) > 0
-            THEN COALESCE(v_std, 0) / v_mean
-        ELSE 1.0
-    END;
-
-    -- ④ 距上次更新天数
-    v_days_since := EXTRACT(
-        DAY FROM (NOW() - COALESCE(v_last_updated, '1970-01-01'::TIMESTAMPTZ))
-    )::INTEGER;
-
-    -- ⑤ 强制触发：超过14天未更新
-    IF v_days_since >= 14 THEN v_force_update := TRUE; END IF;
-
-    -- [FIX-9] 查实时有效记录数（而非 baseline 中可能过时的 record_count）
-    SELECT COUNT(*) INTO v_live_count
-    FROM public.practice_sessions
-    WHERE student_name = NEW.student_name AND cleaned_duration > 0;
-
-    -- ⑥ 动态触发间隔（基于实时计数决定冷启动状态）
-    v_interval := CASE
-        WHEN v_live_count < 5   THEN 1
-        WHEN v_live_count < 10  THEN 2
-        WHEN v_cv > 0.5         THEN 3
-        WHEN v_cv > 0.3         THEN 5
-        ELSE 10
-    END;
-
-    -- ⑦ 长期未更新时压缩间隔
-    IF v_days_since >= 7 THEN
-        v_interval := GREATEST(1, v_interval / 2);
-    END IF;
-
-    -- ⑧ [FIX-9] 用实时计数做模运算
-    IF v_force_update OR (v_live_count % v_interval = 0) THEN
-        PERFORM public.update_student_baseline(NEW.student_name);
-    END IF;
-
+    PERFORM public.update_student_baseline(NEW.student_name);
     RETURN NEW;
 END;
 $$;
