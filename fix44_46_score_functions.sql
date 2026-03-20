@@ -581,7 +581,7 @@ BEGIN
   -- ══════════════════════════════════════════════════════════════
   -- 18. 写入 student_score_history & 更新 student_baseline
   -- ══════════════════════════════════════════════════════════════
-  v_composite_score := ROUND(composite_raw * 100, 1);
+  v_composite_score := ROUND((composite_raw * 100)::NUMERIC, 1);
   v_raw_score       := composite_raw;
 
   PERFORM set_config('app.computing_score', 'true', true);
@@ -1134,7 +1134,7 @@ BEGIN
   -- ══════════════════════════════════════════════════════════════
   -- 17. 写入 student_score_history（只写历史，不更新 baseline）
   -- ══════════════════════════════════════════════════════════════
-  v_composite_score := ROUND(composite_raw * 100, 1);
+  v_composite_score := ROUND((composite_raw * 100)::NUMERIC, 1);
   v_raw_score       := composite_raw;
 
   INSERT INTO public.student_score_history (
