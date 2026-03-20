@@ -217,7 +217,7 @@ checks AS (
             WHEN NOT EXISTS (SELECT 1 FROM func_defs WHERE func_name = 'trigger_insert_session')
                 THEN '⚠️  函数不存在'
             WHEN (SELECT def FROM func_defs WHERE func_name = 'trigger_insert_session')
-                 LIKE "%AT TIME ZONE 'Asia/Shanghai')::TIME%"
+                 LIKE $q$%AT TIME ZONE 'Asia/Shanghai')::TIME%$q$
                 THEN '✅ 最新'
             ELSE '❌ 需重新部署'
         END
