@@ -11,7 +11,7 @@
 --   student_grade         TEXT    年级
 --   display_score         NUMERIC 综合排名分（本周快照 or 基线值）
 --   alpha                 NUMERIC 基线可信度 α
---   trend_score           NUMERIC 进步榜：(本周综合分 - 上周综合分) / 上周综合分 × 100（百分比涨幅）；其他榜：趋势分
+--   trend_score           NUMERIC 进步榜：本周综合分 - 近期最高历史周综合分（绝对涨分，单位：分）；其他榜：趋势分
 --   mean_duration         NUMERIC 近期均练时长（分钟）
 --   record_count          INT     历史总记录数
 --   recent10_outlier_rate NUMERIC 近10条异常率
@@ -187,9 +187,9 @@ prog AS (
         )::INTEGER                                                   AS rank_no,
         rp.student_name, rp.student_major, rp.student_grade,
         rp.display_score, rp.alpha,
-        /* trend_score 保留百分比涨幅供前端显示 "+XX.X%"，不参与排序 */
-        ROUND((rp.display_score - lws.lw_composite)
-              / NULLIF(lws.lw_composite, 0) * 100, 1)                AS trend_score,
+        /* trend_score 存绝对涨分（本周 - 近期最高历史周），供前端显示 "+X.X 分"
+           注意：不用百分比——因实际涨幅通常 0.1~3 分，换算百分比后 ROUND 几乎全为 0.0% */
+        ROUND((rp.display_score - lws.lw_composite)::NUMERIC, 1)     AS trend_score,
         rp.mean_duration, rp.record_count,
         r10.outlier_rate  AS recent10_outlier_rate,
         r10.mean_dur      AS recent10_mean_dur,

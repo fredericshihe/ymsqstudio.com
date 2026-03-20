@@ -951,9 +951,16 @@ function buildAnalysisPrompt(s,hist,sessions){
   const wdSummary=WD.map((w,i)=>`${w}:${wdCount[i]}次`).join('  ');
 
   // ── 冷启动注意 ──
+  const coldExtra = weekendFetched>0&&cleanedZeroFetched>0
+    ? `，另有${weekendFetched}条周末不计分、${cleanedZeroFetched}条时长过短被清零`
+    : weekendFetched>0
+      ? `，另有${weekendFetched}条周末练琴不计入基线`
+      : cleanedZeroFetched>0
+        ? `，另有${cleanedZeroFetched}条因时长过短/异常被清洗为无效`
+        : '';
   const coldNote=s.is_cold_start
-    ?`⚠ 该生工作日累计记录仅${s.record_count??0}条，处于冷启动阶段，数据量不足，分析结论仅供参考（基线统计仅含周一至周五）`
-    :`数据充分（${s.record_count??0}条工作日有效记录），结论可信`;
+    ?`⚠ 该生工作日累计记录仅${s.record_count??0}条${coldExtra}，处于冷启动阶段，数据量不足，分析结论仅供参考（基线统计仅含周一至周五）`
+    :`数据充分（${s.record_count??0}条工作日有效记录${coldExtra}），结论可信`;
 
   // ── 本周实际状态（display_score 始终为最新有效分，has_week_snapshot=true 表示本周尚未练）──
   const displayScore = 'display_score' in s ? s.display_score : s.composite_score;
@@ -1482,10 +1489,12 @@ function renderCatBoards(lbMap){
   const valFns={};
 
   valFns['进步榜']=r=>{
-    const pct=Number(r.trend_score??0);
-    const c=pct>=30?'#34d399':pct>=15?'#86efac':'#93c5fd';
-    const label=pct>=30?'大幅跃升':pct>=15?'明显进步':'稳步上升';
-    return`<div class="cbl-right"><div class="cbl-val" style="color:${c}">+${pct.toFixed(1)}%</div><div class="cbl-val-sub">${label}</div></div>`;
+    const gain=Number(r.trend_score??0);
+    // 绝对涨分：≥8分=大幅跃升，≥3分=明显进步，>0=稳步上升
+    const c=gain>=8?'#34d399':gain>=3?'#86efac':'#93c5fd';
+    const label=gain>=8?'大幅跃升':gain>=3?'明显进步':'稳步上升';
+    const sign=gain>0?'+':'';
+    return`<div class="cbl-right"><div class="cbl-val" style="color:${c}">${sign}${gain.toFixed(1)}<span style="font-size:.7em;opacity:.8"> 分</span></div><div class="cbl-val-sub">${label}</div></div>`;
   };
   valFns['稳定榜']=r=>{
     const dur=Number(r.recent10_mean_dur??r.mean_duration??0).toFixed(1);
@@ -1709,6 +1718,28 @@ function renderDP(s,hist,sessions=[]){
   // ── weekday data from student_baseline.weekday_pattern
   const wd=buildWD(s.weekday_pattern);
 
+  // ── 总记录数分类（FIX-55 后 record_count 只统计工作日且 cleaned_duration>0 的有效记录）
+  // sessions 来自 practice_sessions，包含全部记录（含周末 + cleaned_duration=0）
+  const totalFetched = sessions.length;
+  const weekendFetched = sessions.filter(r=>{
+    const dow = new Date(r.session_start).getDay();
+    return dow === 0 || dow === 6;
+  }).length;
+  const cleanedZeroFetched = sessions.filter(r=>
+    (r.cleaned_duration??0) === 0
+  ).length;
+  // 差异说明：优先展示周末（不计分）→ 其次展示被清零（无效）
+  let recordCountLabel;
+  if(weekendFetched > 0 && cleanedZeroFetched > 0){
+    recordCountLabel = `${s.record_count??0} 条工作日有效 · 共 ${totalFetched} 条（${weekendFetched} 条周末不计分 · ${cleanedZeroFetched} 条被清洗为无效）`;
+  } else if(weekendFetched > 0){
+    recordCountLabel = `${s.record_count??0} 条工作日有效 · 共 ${totalFetched} 条（${weekendFetched} 条<span style="color:var(--t3);font-size:.88em">周末不计分</span>）`;
+  } else if(cleanedZeroFetched > 0){
+    recordCountLabel = `${s.record_count??0} 条工作日有效 · 共 ${totalFetched} 条（${cleanedZeroFetched} 条<span style="color:var(--t3);font-size:.88em">时长过短/异常被清零</span>）`;
+  } else {
+    recordCountLabel = `${s.record_count??0} 条工作日有效记录`;
+  }
+
   dp.innerHTML=`
   <!-- Header -->
   <div class="dp-hd">
@@ -1717,7 +1748,7 @@ function renderDP(s,hist,sessions=[]){
       <div class="dp-meta">
         <span>🎵 ${s.student_major||'专业未知'}</span>
         <span>📚 ${s.student_grade||'年级未知'}</span>
-        <span>📋 ${s.record_count??0} 条工作日有效记录</span>
+        <span>📋 ${recordCountLabel}</span>
         ${s.is_cold_start?'<span style="color:var(--teal)">❄ 冷启动中</span>':'<span style="color:var(--green)">✓ 基线已建立</span>'}
       </div>
     </div>
@@ -2091,8 +2122,11 @@ function renderSessionsTable(sessions){
     if(r.is_outlier){
       const info=REASON_LABEL[r.outlier_reason]||{text:r.outlier_reason||'异常',color:'var(--red)'};
       outlierHtml=`<span style="color:${info.color};font-weight:700;font-size:.73rem">⚠ ${info.text}</span>`;
+    } else if(cleanMin > rawMin){
+      // cleaned > raw：FIX-41 遗留的数据污染（旧 practice_duration 字段导致），需要运行 fix_stale_cleaned_duration.sql 修复
+      outlierHtml=`<span style="color:var(--red);font-weight:700;font-size:.73rem" title="数据污染：cleaned_duration(${cleanMin}min) > raw_duration(${rawMin}min)，系由 FIX-41 遗留旧记录，请运行修复SQL">⚠ 数据异常</span>`;
     } else if(rawMin!==cleanMin){
-      // capped but not outlier
+      // capped but not outlier（正常截断：raw > clean）
       outlierHtml=`<span style="color:var(--yellow);font-size:.73rem">↩ 截断至${cleanMin}min</span>`;
     }
 
