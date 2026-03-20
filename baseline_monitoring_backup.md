@@ -1,7 +1,7 @@
 # 学生练琴基线监控 — 函数备份与架构说明
 
 > 项目：menuhin-school-system（Supabase 项目 ID：waesizzoqodntrlvrwhw）
-> 备份日期：2026-03-10 | 最后更新：2026-03-20（FIX-70 composite_score改NUMERIC精度；FIX-69 进步榜显示绝对涨分；FIX-68 自动结算开关RLS修复；FIX-67 admin_coins单行查询406修复；FIX-66 进步榜趋势分字段语义修正；FIX-65 综合榜Top10退专项榜；FIX-64 稳定/守则榜科学重设计；FIX-63 进步榜最小必要门槛；FIX-62 backfill基线覆写bug）
+> 备份日期：2026-03-10 | 最后更新：2026-03-20（FIX-72 饭点检测时区Bug+历史误判修复；FIX-71 trigger每次练琴必触发；FIX-70 composite_score改NUMERIC精度；FIX-69 进步榜显示绝对涨分；FIX-68 自动结算开关RLS修复；FIX-67 admin_coins单行查询406修复；FIX-65 综合榜Top10退专项榜；FIX-64 稳定/守则榜科学重设计；FIX-63 进步榜最小必要门槛；FIX-62 backfill基线覆写bug）
 > 说明：本文件汇总了所有与学生练琴基线监控相关的 SQL 函数，包含完整代码、参数说明和调用关系。
 
 ---
@@ -5450,3 +5450,147 @@ SET composite_score = ROUND((raw_score * 100)::NUMERIC, 1)
    ```
 3. **重新部署 `fix44_46_score_functions.sql`**
 4. **历史重算**：`SELECT public.backfill_score_history();`
+
+---
+
+## FIX-71：trigger_update_student_baseline 改为每次练琴都立即触发
+
+**日期**：2026-03-20
+**文件**：`fix60_weekly_update_and_baseline_trigger.sql`
+
+### 问题
+
+原触发函数 `trigger_update_student_baseline` 使用动态间隔（新生每次、成熟老生最多每 10 次）才调用 `update_student_baseline()`，导致排行榜分数不够实时——老生练琴后可能要等多次才更新一次排名。
+
+### 修复内容
+
+将 `trigger_update_student_baseline()` 精简为**每次都立即触发**，删除全部动态间隔逻辑：
+
+```sql
+-- 旧版（约 60 行，含动态间隔计算）
+CREATE OR REPLACE FUNCTION public.trigger_update_student_baseline()
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+    v_record_count  INTEGER;
+    v_interval      INTEGER;
+    -- ... 大量变量声明 ...
+BEGIN
+    -- ... 复杂的间隔判断逻辑 ...
+    IF v_force_update OR (v_live_count % v_interval = 0) THEN
+        PERFORM public.update_student_baseline(NEW.student_name);
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+-- 新版（FIX-71）
+CREATE OR REPLACE FUNCTION public.trigger_update_student_baseline()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    PERFORM public.update_student_baseline(NEW.student_name);
+    RETURN NEW;
+END;
+$$;
+```
+
+### 触发链路（更新后）
+
+```
+学生还卡 → practice_sessions INSERT
+  → trigger_update_student_baseline()  ← 每次必触发
+      → update_student_baseline()
+  → trg_fn_compute_score_on_baseline_update
+      → compute_student_score()        ← 重算5维分数
+  → 前端60秒轮询 → 排行榜更新
+```
+
+### 部署
+
+在 Supabase SQL Editor 运行 `fix60_weekly_update_and_baseline_trigger.sql` 后半段的 `trigger_update_student_baseline` 函数即可，无需 DROP。
+
+---
+
+## FIX-72：饭点检测时区 Bug 导致 meal_break 误判
+
+**日期**：2026-03-20
+**文件**：`fix_stale_cleaned_duration.sql`（修复触发器）、`fix72_meal_break_timezone.sql`（新增，历史数据修复）
+
+### 问题
+
+部分学生练琴记录被错误标记为 `meal_break`（跨饭点未还卡），但实际上根本没有跨过午/晚饭峰值时刻。例如：
+
+- 王申崚 BJT 08:05→10:11，远在 12:10 午饭峰值之前结束，却被标为 meal_break
+
+### 两类误判来源
+
+**① 时区 Bug（直接原因）**：`trigger_insert_session` 函数计算北京时间时使用了错误的双重转换：
+
+```sql
+-- 旧（错误）：对 TIMESTAMPTZ 输入产生双重偏移
+v_start_bjt  := v_assign_time AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Shanghai';
+v_start_time := v_start_bjt::TIME;  -- UTC 服务器上 ::TIME 取的是 UTC 小时，非北京时间
+v_dow        := EXTRACT(DOW FROM v_start_bjt)::INTEGER;
+```
+
+推导（以 BJT 08:05 = UTC 00:05 为例）：
+```
+TIMESTAMPTZ(00:05 UTC)
+  → AT TIME ZONE 'UTC' → TIMESTAMP(00:05)（丢失 tz 信息）
+  → AT TIME ZONE 'Asia/Shanghai' → 把 00:05 当上海时间解释 → TIMESTAMPTZ(前一天 16:05 UTC)
+  → ::TIME（UTC 服务器）→ 16:05
+end 同理：02:11 UTC → 18:11
+→ 检测：16:05 < 18:10 ✓ AND 18:11 > 18:10 ✓ → 误判 meal_break ❌
+```
+
+**影响范围**：BJT 开始时间 < 10:10、结束时间在 10:11~15:59 之间的 session 均被误判为 dinner meal_break。
+
+**② 旧触发器未部署 FIX-50 的周三排除**：历史上所有周三（DOW=3）下午练琴跨过 18:10 的 session，因数据库中运行的是未含 Wednesday 排除的旧版触发器，被错误标记为 meal_break（按现行规则周三晚饭不判定）。
+
+### 修复内容
+
+**`fix_stale_cleaned_duration.sql` — `trigger_insert_session` 时区计算修正**：
+
+```sql
+-- 新（正确）：TIMESTAMPTZ AT TIME ZONE 直接给出北京时间 TIMESTAMP，::TIME 取北京时钟
+v_start_time := (v_assign_time AT TIME ZONE 'Asia/Shanghai')::TIME;
+v_end_time   := (v_clear_time  AT TIME ZONE 'Asia/Shanghai')::TIME;
+v_dow        := EXTRACT(DOW FROM (v_assign_time AT TIME ZONE 'Asia/Shanghai'))::INTEGER;
+```
+
+同时删除不再需要的 `v_start_bjt`、`v_end_bjt` 中间变量声明。
+
+**新增 `fix72_meal_break_timezone.sql` — 历史误判数据修复**：
+
+```sql
+-- 查找误判：outlier_reason='meal_break' 但北京时间实际未跨峰值
+SELECT student_name, ... FROM public.practice_sessions
+WHERE outlier_reason = 'meal_break'
+  AND NOT (
+    (DOW 1-5 AND bjt_start < 12:10 AND bjt_end > 12:10)  -- 真正跨午饭
+    OR
+    (DOW IN (1,2,4,5) AND bjt_start < 18:10 AND bjt_end > 18:10)  -- 真正跨晚饭
+  );
+
+-- 修正：改回 capped_120（>120min）或 NULL（正常）
+UPDATE public.practice_sessions
+SET is_outlier = FALSE,
+    outlier_reason = CASE WHEN raw_duration > 120 THEN 'capped_120' ELSE NULL END
+WHERE outlier_reason = 'meal_break' AND NOT (...);
+```
+
+### 实际影响
+
+运行预览查询，发现 38 条历史误判记录，分为两类：
+
+| 类型 | 条数 | 特征 |
+|---|---|---|
+| 时区 Bug | 1（王申崚） | 周五 BJT 08:05-10:11，完全不跨峰值 |
+| 周三晚饭旧触发器 | 37 | 全部为周三 BJT 16:xx-19:xx，真实跨 18:10 但周三排除 |
+
+### 部署步骤
+
+1. 在 Supabase SQL Editor 运行 `fix72_meal_break_timezone.sql`：
+   - 步骤①：预览误判记录
+   - 步骤②：批量修正历史数据（UPDATE）
+   - 步骤④：`SELECT public.backfill_score_history()` 重算受影响学生分数
+2. 重新部署 `fix_stale_cleaned_duration.sql`（修复触发器，防止新记录继续误判）
