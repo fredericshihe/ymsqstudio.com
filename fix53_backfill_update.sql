@@ -121,7 +121,7 @@ BEGIN
             WHERE h.snapshot_date = v_current_date AND h.student_name = norm.student_name;
         ELSE
             UPDATE public.student_score_history
-            SET composite_score = ROUND(raw_score * 100)::INT
+            SET composite_score = ROUND(raw_score * 100, 1)
             WHERE snapshot_date = v_current_date
               AND raw_score IS NOT NULL AND raw_score > 0
               AND EXISTS (

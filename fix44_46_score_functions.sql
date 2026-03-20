@@ -26,7 +26,7 @@
 -- 函数一：compute_student_score  (实时触发版)
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.compute_student_score(p_student_name TEXT)
-RETURNS TABLE(composite_score INT, raw_score FLOAT8)
+RETURNS TABLE(composite_score NUMERIC, raw_score FLOAT8)
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
@@ -106,7 +106,7 @@ DECLARE
 
   -- ── 合成
   composite_raw        FLOAT8;
-  v_composite_score    INT;
+  v_composite_score    NUMERIC;
   v_raw_score          FLOAT8;
 
   -- ── 置信度
@@ -581,7 +581,7 @@ BEGIN
   -- ══════════════════════════════════════════════════════════════
   -- 18. 写入 student_score_history & 更新 student_baseline
   -- ══════════════════════════════════════════════════════════════
-  v_composite_score := ROUND(composite_raw * 100)::INT;
+  v_composite_score := ROUND(composite_raw * 100, 1);
   v_raw_score       := composite_raw;
 
   PERFORM set_config('app.computing_score', 'true', true);
@@ -715,7 +715,7 @@ DECLARE
 
   -- ── 合成
   composite_raw        FLOAT8;
-  v_composite_score    INT;
+  v_composite_score    NUMERIC;
   v_raw_score          FLOAT8;
 
   -- ── 置信度
@@ -1134,7 +1134,7 @@ BEGIN
   -- ══════════════════════════════════════════════════════════════
   -- 17. 写入 student_score_history（只写历史，不更新 baseline）
   -- ══════════════════════════════════════════════════════════════
-  v_composite_score := ROUND(composite_raw * 100)::INT;
+  v_composite_score := ROUND(composite_raw * 100, 1);
   v_raw_score       := composite_raw;
 
   INSERT INTO public.student_score_history (

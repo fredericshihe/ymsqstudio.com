@@ -1611,7 +1611,7 @@ function renderTable(){
     const stale=s.last_updated?Math.floor((Date.now()-new Date(s.last_updated).getTime())/86400000):null;
     const sel=S.selected===s.student_name;
     // 成长分徽章：本周未练→历史分灰色显示，null=无数据（破折号），其他按分段配色
-    const scFmt=sc!=null?String(Math.round(Number(sc))):null;
+    const scFmt=sc!=null?Number(sc).toFixed(1):null;
     const scoreBadge=noPracticeThisWeek
       ?(scFmt!=null?`<span class="badge b0" title="历史分（本周尚未练琴）" style="opacity:.75">${scFmt}</span>`:'<span style="color:var(--t3)">—</span>')
       :scFmt!=null?`<span class="badge ${bdgCls(sc)}">${scFmt}</span>`:'—';
