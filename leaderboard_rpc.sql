@@ -156,24 +156,40 @@ comp AS (
     LEFT JOIN recent10 r10 ON r10.student_name = rp.student_name
 ),
 
-/* ── ② 进步榜：本周综合分相对上周涨幅（%）最大
-   排序：(本周 - 上周) / 上周 × 100 DESC（百分比涨幅）
-   trend_score 列复用为百分比涨幅，前端展示 "+XX.X%"
-   过滤：必须上周有数据且 ≥ 10 分 + 本周真的比上周进步 + α ≥ 0.50 + 近10条异常率 ≤ 0.70 + 综合分 ≥ 15 ── */
+/* ── 综合榜 Top 10 名单：专项榜（进步/稳定/守则）排除这些学生
+   设计原则：综合榜前十名已获最高荣誉，专项榜留给有特定优势的其他学生
+   这样 4 个榜能展示更多不同的学生，激励效果更广泛 ── */
+comp_top10 AS (
+    SELECT student_name
+    FROM comp
+    WHERE rank_no <= 10
+),
+
+/* ── ② 进步榜：绝对分提升最大（FIX-63 科学最小门槛设计）
+   设计原则：过滤条件只"防假"，不"防小"——小进步也是进步，由排名决定位次
+   FIX-58: 改为绝对涨分排序，百分比仅作展示
+   FIX-63: 取消分数绝对值门槛（lw_composite/display_score/alpha），
+           只保留最小必要防护条件
+   过滤条件（最小必要）：
+     · 有历史对比数据（INNER JOIN last_week_scores，无快照则无从比较）
+     · 本周练琴次数 ≥ 2（最低参与度，至少两次才算一周有效参与）
+     · 绝对涨幅 > 0（有真实进步，哪怕 +1 分）
+     · 近10条异常率 ≤ 0.50（防明显刷数据，宽容正常波动）
+     · 不在综合榜 Top 10（FIX-65，保持榜单差异化）
+   排序：绝对涨分 DESC → 本周综合分 DESC → 均时 DESC ── */
 prog AS (
     SELECT
         '进步榜'::TEXT                                               AS board,
         RANK() OVER (
-            ORDER BY (rp.display_score - lws.lw_composite)
-                     / lws.lw_composite * 100              DESC NULLS LAST,
-                     rp.display_score                       DESC NULLS LAST,
-                     rp.mean_duration                       DESC NULLS LAST
+            ORDER BY (rp.display_score - lws.lw_composite)  DESC NULLS LAST,
+                     rp.display_score                        DESC NULLS LAST,
+                     rp.mean_duration                        DESC NULLS LAST
         )::INTEGER                                                   AS rank_no,
         rp.student_name, rp.student_major, rp.student_grade,
         rp.display_score, rp.alpha,
-        /* trend_score 复用为百分比涨幅，保留1位小数，前端显示 "+XX.X%" */
+        /* trend_score 保留百分比涨幅供前端显示 "+XX.X%"，不参与排序 */
         ROUND((rp.display_score - lws.lw_composite)
-              / lws.lw_composite * 100, 1)                           AS trend_score,
+              / NULLIF(lws.lw_composite, 0) * 100, 1)                AS trend_score,
         rp.mean_duration, rp.record_count,
         r10.outlier_rate  AS recent10_outlier_rate,
         r10.mean_dur      AS recent10_mean_dur,
@@ -181,21 +197,27 @@ prog AS (
     FROM ranked_pool rp
     INNER JOIN last_week_scores lws ON lws.student_name = rp.student_name
     LEFT JOIN  recent10         r10 ON r10.student_name = rp.student_name
-    WHERE (rp.display_score - lws.lw_composite)      > 0
-      AND lws.lw_composite                            >= 10   -- 防止基数过小导致百分比虚高
-      AND COALESCE(rp.alpha, 0)                       >= 0.50
-      AND COALESCE(r10.outlier_rate, 1)               <= 0.70
-      AND rp.display_score                            >= 15
+    WHERE (rp.display_score - lws.lw_composite)      >  0    -- 有任意正增长（排名决定位次）
+      AND rp.week_sessions                            >= 2    -- 本周至少练 2 次
+      AND COALESCE(r10.outlier_rate, 1)               <= 0.50 -- 防明显刷数据（宽容正常波动）
+      AND rp.student_name NOT IN (SELECT student_name FROM comp_top10)  -- FIX-65
 ),
 
-/* ── ③ 稳定榜 Top 6：近10次均时最长（代表持续踏实练习），并列时 α 降序
-   过滤：α ≥ 0.65 + 近10条 ≥ 10 条 + 近10条异常率 ≤ 0.35 ── */
+/* ── ③ 稳定榜 Top 6：练琴模式最可预测（FIX-64 概念修正）
+   科学定义："稳定"= 练琴行为一致、可预测，而非练得最久
+   排序：α DESC（可预测性/一致性）→ mean_dur DESC（同等稳定时，练得更长的排前）→ outlier_rate ASC
+   过滤条件（最小防假）：
+     · α ≥ 0.55（有足够历史数据支撑可信度评估）
+     · 近10条 ≥ 8 条（有连续性记录积累，才能谈稳定）
+     · 近10条异常率 ≤ 0.40（异常太多的练习模式称不上稳定）
+   FIX-65: 综合榜 Top10 退出本榜 ── */
 stable AS (
     SELECT
         '稳定榜'::TEXT                                               AS board,
         RANK() OVER (
-            ORDER BY COALESCE(r10.mean_dur, 0) DESC NULLS LAST,
-                     rp.alpha                  DESC NULLS LAST
+            ORDER BY rp.alpha                  DESC NULLS LAST,  -- 一致性优先
+                     COALESCE(r10.mean_dur, 0) DESC NULLS LAST,  -- 同等稳定时，时长更长排前
+                     COALESCE(r10.outlier_rate, 1) ASC           -- 异常率作为最终区分
         )::INTEGER                                                   AS rank_no,
         rp.student_name, rp.student_major, rp.student_grade,
         rp.display_score, rp.alpha, rp.trend_score, rp.mean_duration, rp.record_count,
@@ -204,19 +226,28 @@ stable AS (
         r10.cnt           AS recent10_count
     FROM ranked_pool rp
     LEFT JOIN recent10 r10 ON r10.student_name = rp.student_name
-    WHERE COALESCE(rp.alpha, 0)         >= 0.65
-      AND COALESCE(r10.cnt, 0)          >= 10
-      AND COALESCE(r10.outlier_rate, 1) <= 0.35
+    WHERE COALESCE(rp.alpha, 0)         >= 0.55  -- 有足够历史积累的可信度门槛
+      AND COALESCE(r10.cnt, 0)          >= 8     -- 近12周至少8次有效记录（约每10天一次）
+      AND COALESCE(r10.outlier_rate, 1) <= 0.40  -- 近10次中至多4次异常
+      AND rp.student_name NOT IN (SELECT student_name FROM comp_top10)  -- FIX-65
 ),
 
-/* ── ④ 守则榜 Top 6：近10条异常率最低（ASC），并列时本周练琴次数↓、均时↓
-   过滤：近10条 ≥ 5条 + 均时 > 30min + 异常率 ≤ 50% + α ≥ 0.60 + 本周 ≥ 5 次 ── */
+/* ── ④ 守则榜 Top 6：遵守练习规则最好（FIX-64 次数门槛修正）
+   科学定义："守则"= 出勤达标 + 练习内容合规（低异常率）+ 时长合格
+   排序：outlier_rate ASC（异常最少）→ week_sessions DESC（出勤更多）→ mean_dur DESC（时长更长）
+   过滤条件：
+     · 本周练琴次数 ≥ 3（出勤达标：一周至少3天，体现"有在认真来"）
+     · 近10条 ≥ 4 条（有足够历史记录评估合规性）
+     · 近10条均时 > 25min（时长须达到最低练习标准，防走过场）
+     · 近10条异常率 ≤ 0.50（异常多于一半则失去"守则"资格）
+     · α ≥ 0.55（有数据积累，行为有据可查）
+   FIX-65: 综合榜 Top10 退出本榜 ── */
 rules AS (
     SELECT
         '守则榜'::TEXT                                               AS board,
         RANK() OVER (
             ORDER BY
-                COALESCE(r10.outlier_rate, 1) ASC,
+                COALESCE(r10.outlier_rate, 1) ASC,   -- 异常最少者最守则
                 rp.week_sessions              DESC NULLS LAST,
                 COALESCE(r10.mean_dur, 0)     DESC
         )::INTEGER                                                   AS rank_no,
@@ -227,11 +258,12 @@ rules AS (
         r10.cnt           AS recent10_count
     FROM ranked_pool rp
     LEFT JOIN recent10 r10 ON r10.student_name = rp.student_name
-    WHERE COALESCE(r10.cnt, 0)          >= 5
-      AND COALESCE(r10.mean_dur, 0)     > 30
-      AND COALESCE(r10.outlier_rate, 1) <= 0.50
-      AND COALESCE(rp.alpha, 0)         >= 0.60
-      AND rp.week_sessions              >= 5
+    WHERE rp.week_sessions              >= 3     -- 本周至少3次（合规出勤，非要求每天必到）
+      AND COALESCE(r10.cnt, 0)          >= 4     -- 近12周至少4次有效记录
+      AND COALESCE(r10.mean_dur, 0)     > 25    -- 平均时长须超25分钟（防走过场）
+      AND COALESCE(r10.outlier_rate, 1) <= 0.50 -- 近10次中至多5次异常
+      AND COALESCE(rp.alpha, 0)         >= 0.55 -- 有足够历史数据
+      AND rp.student_name NOT IN (SELECT student_name FROM comp_top10)  -- FIX-65
 )
 
 SELECT board, rank_no, student_name, student_major, student_grade,
