@@ -5594,3 +5594,669 @@ WHERE outlier_reason = 'meal_break' AND NOT (...);
    - 步骤②：批量修正历史数据（UPDATE）
    - 步骤④：`SELECT public.backfill_score_history()` 重算受影响学生分数
 2. 重新部署 `fix_stale_cleaned_duration.sql`（修复触发器，防止新记录继续误判）
+
+---
+
+# ══════════════════════════════════════════════════════════════════
+# 最新部署版本 — 完整函数代码备份
+# 备份日期：2026-03-20
+# 说明：此区块包含数据库中所有核心函数/触发器函数的**本地最新版本**完整代码，
+#       方便在数据库迁移、意外覆盖或重建时快速恢复，无需重新翻阅分散的 .sql 文件。
+# ══════════════════════════════════════════════════════════════════
+
+## 函数清单（10个）
+
+| # | 函数名 | 最新文件 | 最新 Fix | 关键特征 |
+|---|--------|---------|---------|---------|
+| 1 | `trigger_insert_session` | `fix_stale_cleaned_duration.sql` | FIX-72 | 时区修正：`AT TIME ZONE 'Asia/Shanghai')::TIME` |
+| 2 | `trigger_update_student_baseline` | `fix60_weekly_update_and_baseline_trigger.sql` | FIX-71 | 每次必触发，无 v_live_count |
+| 3 | `run_weekly_score_update` | `fix60_weekly_update_and_baseline_trigger.sql` | FIX-8/60 | `raw_score IS NOT NULL` 保护 |
+| 4 | `backfill_score_history` | `fix53_backfill_update.sql` | FIX-62/53F | backfill 后重刷基线+W分 |
+| 5 | `get_weekly_leaderboards` | `leaderboard_rpc.sql` | FIX-65/69 | comp_top10 + 绝对涨分 |
+| 6 | `get_auto_reward_setting` | `fix_auto_reward_rls.sql` | FIX-68 | SECURITY DEFINER 绕过 RLS |
+| 7 | `compute_student_score` | `fix44_46_score_functions.sql` | FIX-70/57 | 返回 NUMERIC，新生 w_week=0.70 |
+| 8 | `compute_student_score_as_of` | `fix44_46_score_functions.sql` | FIX-70/57 | 同上，历史回填版 |
+| 9 | `compute_baseline_as_of` | `fix55_baseline_weekday_filter.sql` | FIX-55 | NOT IN (0,6) ≥6 处 |
+| 10 | `compute_and_store_w_score` | `fix54_w_score_sunday.sql` | FIX-54 | WHEN 0 THEN 5（周日DOW修复）|
+
+> **注**：`compute_student_score` / `compute_student_score_as_of` / `compute_baseline_as_of` 函数体超过 600 行，
+> 完整代码以对应 .sql 文件为准，此处不重复抄录，只记录版本特征以供核查。
+
+---
+
+## 1. trigger_insert_session（FIX-72 最新版）
+
+> 文件：`fix_stale_cleaned_duration.sql`  最后修改：FIX-72（2026-03-20）
+
+```sql
+CREATE OR REPLACE FUNCTION public.trigger_insert_session()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_assign           RECORD;
+    v_duration_seconds INTEGER;
+    v_assign_time      TIMESTAMPTZ;
+    v_clear_time       TIMESTAMPTZ;
+    v_cleaned_duration INTEGER;
+    v_is_outlier       BOOLEAN;
+    v_outlier_reason   TEXT;
+    v_start_time       TIME;
+    v_end_time         TIME;
+    v_dow              INTEGER;
+    v_spans_meal_break BOOLEAN;
+BEGIN
+    IF NEW.action != 'clear' THEN
+        RETURN NEW;
+    END IF;
+
+    v_clear_time := NEW.created_at;
+
+    -- 第一步：找最近的 assign（16小时内，同学生+同琴房）
+    SELECT pl.*
+    INTO v_assign
+    FROM public.practice_logs pl
+    WHERE pl.student_name = NEW.student_name
+      AND pl.room_name    = NEW.room_name
+      AND pl.action       = 'assign'
+      AND pl.created_at   < v_clear_time
+      AND pl.created_at   > v_clear_time - INTERVAL '16 hours'
+    ORDER BY pl.created_at DESC
+    LIMIT 1;
+
+    IF v_assign IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    v_assign_time := v_assign.created_at;
+
+    -- 第二步：检查中间断点（防止重复消费同一个 assign）
+    IF EXISTS (
+        SELECT 1
+        FROM public.practice_logs mid
+        WHERE mid.student_name = NEW.student_name
+          AND mid.room_name    = NEW.room_name
+          AND mid.action       = 'clear'
+          AND mid.created_at   > v_assign_time
+          AND mid.created_at   < v_clear_time
+          AND mid.id           != NEW.id
+    ) THEN
+        RETURN NEW;
+    END IF;
+
+    -- FIX-41：始终从时间戳计算，废弃 practice_duration 字段
+    v_duration_seconds := EXTRACT(EPOCH FROM (v_clear_time - v_assign_time))::INTEGER;
+
+    -- FIX-51B：不足 5 分钟时，主动删除已有的错误记录
+    IF v_duration_seconds < 300 THEN
+        DELETE FROM public.practice_sessions
+        WHERE student_name = NEW.student_name
+          AND session_start = v_assign_time;
+        RETURN NEW;
+    END IF;
+
+    -- 时长分级处理（FIX-24 规则）
+    IF v_duration_seconds > 10800 THEN        -- > 180 分钟
+        v_cleaned_duration := 120;
+        v_is_outlier       := TRUE;
+        v_outlier_reason   := 'too_long';
+    ELSIF v_duration_seconds > 7200 THEN      -- 120~180 分钟
+        v_cleaned_duration := 120;
+        v_is_outlier       := FALSE;
+        v_outlier_reason   := 'capped_120';
+    ELSE
+        v_cleaned_duration := ROUND(v_duration_seconds / 60.0)::INTEGER;
+        v_is_outlier       := FALSE;
+        v_outlier_reason   := NULL;
+    END IF;
+
+    -- FIX-72：修正时区转换 Bug
+    --   TIMESTAMPTZ AT TIME ZONE 'Asia/Shanghai' 直接返回北京时间的 TIMESTAMP，
+    --   ::TIME 取出的就是正确的北京时间，不依赖服务器时区设置
+    v_start_time := (v_assign_time AT TIME ZONE 'Asia/Shanghai')::TIME;
+    v_end_time   := (v_clear_time  AT TIME ZONE 'Asia/Shanghai')::TIME;
+    v_dow        := EXTRACT(DOW FROM (v_assign_time AT TIME ZONE 'Asia/Shanghai'))::INTEGER;
+
+    v_spans_meal_break := (
+        -- 午饭峰值时刻 12:10（周一至周五，DOW 1-5）
+        (v_dow BETWEEN 1 AND 5
+            AND v_start_time < '12:10:00'::TIME
+            AND v_end_time   > '12:10:00'::TIME)
+        OR
+        -- 晚饭峰值时刻 18:10（周一/二/四/五，周三不判定，DOW 1,2,4,5）
+        (v_dow IN (1, 2, 4, 5)
+            AND v_start_time < '18:10:00'::TIME
+            AND v_end_time   > '18:10:00'::TIME)
+    );
+
+    -- 饭点升级逻辑（too_long 最高优先级，不被降级）
+    IF v_spans_meal_break AND v_outlier_reason != 'too_long' THEN
+        v_is_outlier     := TRUE;
+        v_outlier_reason := 'meal_break';
+    END IF;
+
+    INSERT INTO public.practice_sessions (
+        student_name, student_major, student_grade,
+        room_name, piano_type,
+        session_start, session_end,
+        raw_duration, cleaned_duration,
+        is_outlier, outlier_reason, created_at
+    ) VALUES (
+        NEW.student_name, NEW.student_major, NEW.student_grade,
+        NEW.room_name, NEW.piano_type,
+        v_assign_time, v_clear_time,
+        ROUND(v_duration_seconds / 60.0)::INTEGER,
+        v_cleaned_duration,
+        v_is_outlier,
+        v_outlier_reason,
+        NOW()
+    )
+    ON CONFLICT (student_name, session_start) DO UPDATE SET
+        session_end      = EXCLUDED.session_end,
+        raw_duration     = EXCLUDED.raw_duration,
+        cleaned_duration = EXCLUDED.cleaned_duration,
+        is_outlier       = EXCLUDED.is_outlier,
+        outlier_reason   = EXCLUDED.outlier_reason;
+
+    RETURN NEW;
+END;
+$$;
+```
+
+---
+
+## 2. trigger_update_student_baseline（FIX-71 最新版）
+
+> 文件：`fix60_weekly_update_and_baseline_trigger.sql`  最后修改：FIX-71（2026-03-20）
+
+```sql
+CREATE OR REPLACE FUNCTION public.trigger_update_student_baseline()
+RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    PERFORM public.update_student_baseline(NEW.student_name);
+    RETURN NEW;
+END;
+$$;
+```
+
+---
+
+## 3. run_weekly_score_update（FIX-8/60 最新版）
+
+> 文件：`fix60_weekly_update_and_baseline_trigger.sql`
+
+```sql
+CREATE OR REPLACE FUNCTION public.run_weekly_score_update()
+RETURNS VOID
+LANGUAGE plpgsql AS $$
+DECLARE
+    v_student RECORD;
+    v_monday  DATE;
+    v_student_count INTEGER;
+BEGIN
+    PERFORM set_config('app.skip_score_trigger', 'on', TRUE);
+
+    v_monday := DATE_TRUNC('week', CURRENT_DATE)::DATE;
+    RAISE NOTICE '[%] 每周评分更新，快照日期：%', NOW(), v_monday;
+
+    -- ① 更新所有学生 baseline
+    FOR v_student IN SELECT student_name FROM public.student_baseline ORDER BY student_name
+    LOOP
+        BEGIN
+            PERFORM public.compute_baseline_as_of(
+                v_student.student_name, (CURRENT_DATE + INTERVAL '1 day')::DATE
+            );
+        EXCEPTION WHEN OTHERS THEN
+            RAISE WARNING '[weekly baseline] 学生 % 失败：%', v_student.student_name, SQLERRM;
+        END;
+    END LOOP;
+
+    -- ② 计算本周成长分快照
+    FOR v_student IN SELECT student_name FROM public.student_baseline ORDER BY student_name
+    LOOP
+        BEGIN
+            PERFORM public.compute_student_score_as_of(v_student.student_name, v_monday);
+        EXCEPTION WHEN OTHERS THEN
+            RAISE WARNING '[weekly score] 学生 % 失败：%', v_student.student_name, SQLERRM;
+        END;
+    END LOOP;
+
+    -- ③ 归一化本周历史快照（带人数保护）
+    SELECT COUNT(DISTINCT student_name) INTO v_student_count
+    FROM public.student_score_history
+    WHERE snapshot_date = v_monday AND raw_score IS NOT NULL;
+
+    IF v_student_count >= 5 THEN
+        UPDATE public.student_score_history h
+        SET composite_score = norm.normalized
+        FROM (
+            SELECT student_name,
+                   ROUND(PERCENT_RANK() OVER (ORDER BY raw_score) * 100)::INT AS normalized
+            FROM public.student_score_history
+            WHERE snapshot_date = v_monday AND raw_score IS NOT NULL
+        ) norm
+        WHERE h.snapshot_date = v_monday AND h.student_name = norm.student_name;
+    END IF;
+
+    -- ④ [FIX-8] 基于当前最新 raw_score 归一化 student_baseline.composite_score
+    SELECT COUNT(*) INTO v_student_count
+    FROM public.student_baseline WHERE raw_score IS NOT NULL;
+
+    IF v_student_count >= 5 THEN
+        UPDATE public.student_baseline b
+        SET composite_score = norm.normalized
+        FROM (
+            SELECT student_name,
+                   ROUND(PERCENT_RANK() OVER (ORDER BY raw_score) * 100)::INT AS normalized
+            FROM public.student_baseline
+            WHERE raw_score IS NOT NULL
+        ) norm
+        WHERE b.student_name = norm.student_name;
+    END IF;
+
+    -- ⑤ 同步 composite_score 到 baseline
+    UPDATE public.student_baseline b
+    SET composite_score = h.composite_score
+    FROM public.student_score_history h
+    WHERE h.student_name  = b.student_name
+      AND h.snapshot_date = v_monday
+      AND h.composite_score IS NOT NULL;
+
+    PERFORM set_config('app.skip_score_trigger', 'off', TRUE);
+    RAISE NOTICE '[%] 每周更新完成', NOW();
+END;
+$$;
+```
+
+---
+
+## 4. backfill_score_history（FIX-62/53F 最新版）
+
+> 文件：`fix53_backfill_update.sql`
+
+```sql
+CREATE OR REPLACE FUNCTION public.backfill_score_history()
+RETURNS VOID
+LANGUAGE plpgsql AS $$
+DECLARE
+    v_start_date    DATE;
+    v_end_date      DATE;
+    v_current_date  DATE;
+    v_next_date     DATE;
+    v_student       RECORD;
+    v_week_count    INTEGER := 0;
+    v_active_count  INTEGER := 0;
+    v_zero_count    INTEGER := 0;
+    v_student_count INTEGER;
+BEGIN
+    PERFORM set_config('app.skip_score_trigger', 'on', TRUE);
+
+    SELECT DATE_TRUNC('week', MIN(session_start))::DATE INTO v_start_date
+    FROM public.practice_sessions WHERE cleaned_duration > 0;
+
+    v_end_date     := DATE_TRUNC('week', CURRENT_DATE)::DATE;
+    v_current_date := v_start_date;
+    RAISE NOTICE '回溯范围：% → %（FIX-15）', v_start_date, v_end_date;
+
+    WHILE v_current_date <= v_end_date LOOP
+        v_week_count := v_week_count + 1;
+        v_next_date  := v_current_date + INTERVAL '7 days';
+
+        -- ① baseline
+        FOR v_student IN
+            SELECT DISTINCT student_name FROM public.practice_sessions
+            WHERE session_start < v_current_date::TIMESTAMPTZ AND cleaned_duration > 0
+            ORDER BY student_name
+        LOOP
+            BEGIN
+                PERFORM public.compute_baseline_as_of(v_student.student_name, v_current_date);
+            EXCEPTION WHEN OTHERS THEN
+                RAISE WARNING '[backfill baseline] % @ % 失败：%',
+                    v_student.student_name, v_current_date, SQLERRM;
+            END;
+        END LOOP;
+
+        -- ② 成长分：本周活跃 → 重算；本周无练 → 写 0
+        FOR v_student IN
+            SELECT DISTINCT student_name FROM public.practice_sessions
+            WHERE session_start < v_current_date::TIMESTAMPTZ AND cleaned_duration > 0
+            ORDER BY student_name
+        LOOP
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM public.practice_sessions
+                    WHERE student_name    = v_student.student_name
+                      AND cleaned_duration > 0
+                      AND session_start  >= v_current_date::TIMESTAMPTZ
+                      AND session_start  <  v_next_date::TIMESTAMPTZ
+                ) THEN
+                    PERFORM public.compute_student_score_as_of(v_student.student_name, v_current_date);
+                    v_active_count := v_active_count + 1;
+                ELSE
+                    INSERT INTO public.student_score_history
+                        (student_name, snapshot_date, raw_score, composite_score,
+                         baseline_score, trend_score, momentum_score, accum_score,
+                         outlier_rate, short_session_rate, mean_duration, record_count)
+                    VALUES
+                        (v_student.student_name, v_current_date, 0, 0,
+                         NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+                    ON CONFLICT (student_name, snapshot_date) DO NOTHING;
+                    v_zero_count := v_zero_count + 1;
+                END IF;
+            EXCEPTION WHEN OTHERS THEN
+                RAISE WARNING '[backfill score] % @ % 失败：%',
+                    v_student.student_name, v_current_date, SQLERRM;
+            END;
+        END LOOP;
+
+        -- ③ PERCENT_RANK（仅活跃学生，人数<5时降级为直接存 raw）
+        SELECT COUNT(DISTINCT sh.student_name) INTO v_student_count
+        FROM public.student_score_history sh
+        WHERE sh.snapshot_date = v_current_date
+          AND sh.raw_score IS NOT NULL AND sh.raw_score > 0
+          AND EXISTS (
+              SELECT 1 FROM public.practice_sessions ps
+              WHERE ps.student_name    = sh.student_name
+                AND ps.cleaned_duration > 0
+                AND ps.session_start  >= v_current_date::TIMESTAMPTZ
+                AND ps.session_start  <  v_next_date::TIMESTAMPTZ);
+
+        IF v_student_count >= 5 THEN
+            UPDATE public.student_score_history h
+            SET composite_score = norm.normalized
+            FROM (
+                SELECT sh.student_name,
+                       ROUND(PERCENT_RANK() OVER (ORDER BY sh.raw_score) * 100)::INT AS normalized
+                FROM public.student_score_history sh
+                WHERE sh.snapshot_date = v_current_date
+                  AND sh.raw_score IS NOT NULL AND sh.raw_score > 0
+                  AND EXISTS (
+                      SELECT 1 FROM public.practice_sessions ps
+                      WHERE ps.student_name    = sh.student_name
+                        AND ps.cleaned_duration > 0
+                        AND ps.session_start  >= v_current_date::TIMESTAMPTZ
+                        AND ps.session_start  <  v_next_date::TIMESTAMPTZ)
+            ) norm
+            WHERE h.snapshot_date = v_current_date AND h.student_name = norm.student_name;
+        ELSE
+            UPDATE public.student_score_history
+            SET composite_score = ROUND((raw_score * 100)::NUMERIC, 1)
+            WHERE snapshot_date = v_current_date
+              AND raw_score IS NOT NULL AND raw_score > 0
+              AND EXISTS (
+                  SELECT 1 FROM public.practice_sessions ps
+                  WHERE ps.student_name    = student_score_history.student_name
+                    AND ps.cleaned_duration > 0
+                    AND ps.session_start  >= v_current_date::TIMESTAMPTZ
+                    AND ps.session_start  <  v_next_date::TIMESTAMPTZ);
+        END IF;
+
+        v_current_date := v_next_date;
+    END LOOP;
+
+    -- ④ 同步最新有效分数到 student_baseline
+    UPDATE public.student_baseline b
+    SET composite_score = latest.composite_score
+    FROM (
+        SELECT DISTINCT ON (student_name) student_name, composite_score
+        FROM public.student_score_history
+        WHERE composite_score > 0
+        ORDER BY student_name, snapshot_date DESC
+    ) latest
+    WHERE b.student_name = latest.student_name;
+
+    -- ⑤ FIX-62: backfill 完成后重刷所有学生基线（恢复本周状态）
+    FOR v_student IN SELECT student_name FROM public.student_baseline ORDER BY student_name LOOP
+        BEGIN
+            PERFORM public.compute_baseline(v_student.student_name);
+        EXCEPTION WHEN OTHERS THEN
+            RAISE WARNING '[backfill rebase] % 失败：%', v_student.student_name, SQLERRM;
+        END;
+    END LOOP;
+
+    -- ⑥ FIX-53-F: 刷新所有学生的实时 W 分
+    FOR v_student IN SELECT DISTINCT student_name FROM public.student_baseline LOOP
+        BEGIN
+            PERFORM public.compute_and_store_w_score(v_student.student_name);
+        EXCEPTION WHEN OTHERS THEN
+            RAISE WARNING '[backfill w_score] % 失败：%', v_student.student_name, SQLERRM;
+        END;
+    END LOOP;
+
+    PERFORM set_config('app.skip_score_trigger', 'off', TRUE);
+    RAISE NOTICE '回溯完成（FIX-62）：共 % 周，重算 % 条，零分 % 条',
+        v_week_count, v_active_count, v_zero_count;
+END;
+$$;
+```
+
+---
+
+## 5. get_weekly_leaderboards（FIX-65/69 最新版）
+
+> 文件：`leaderboard_rpc.sql`
+
+```sql
+CREATE OR REPLACE FUNCTION public.get_weekly_leaderboards()
+RETURNS TABLE (
+    board                 TEXT,
+    rank_no               INTEGER,
+    student_name          TEXT,
+    student_major         TEXT,
+    student_grade         TEXT,
+    display_score         NUMERIC,
+    alpha                 NUMERIC,
+    trend_score           NUMERIC,
+    mean_duration         NUMERIC,
+    record_count          INTEGER,
+    recent10_outlier_rate NUMERIC,
+    recent10_mean_dur     NUMERIC,
+    recent10_count        INTEGER
+)
+LANGUAGE SQL
+STABLE
+AS $$
+WITH
+week_monday AS (
+    SELECT DATE_TRUNC('week', NOW() AT TIME ZONE 'Asia/Shanghai')::DATE AS monday
+),
+recent10 AS (
+    SELECT
+        student_name,
+        COUNT(*)::INTEGER                                      AS cnt,
+        ROUND(AVG((is_outlier)::INT)::NUMERIC, 4)             AS outlier_rate,
+        ROUND(AVG(cleaned_duration)::NUMERIC, 2)              AS mean_dur
+    FROM (
+        SELECT
+            student_name,
+            is_outlier,
+            cleaned_duration,
+            ROW_NUMBER() OVER (PARTITION BY student_name ORDER BY session_start DESC) AS rn
+        FROM public.practice_sessions
+        WHERE cleaned_duration > 0
+          AND session_start >= NOW() - INTERVAL '12 weeks'
+    ) sub
+    WHERE rn <= 10
+    GROUP BY student_name
+),
+week_cnt AS (
+    SELECT student_name, COUNT(*)::INTEGER AS cnt
+    FROM public.practice_sessions
+    CROSS JOIN week_monday
+    WHERE session_start >= monday::TIMESTAMPTZ
+    GROUP BY student_name
+),
+week_scores AS (
+    SELECT ssh.student_name, ssh.composite_score, ssh.raw_score,
+           ssh.trend_score, ssh.baseline_score, ssh.mean_duration,
+           ssh.record_count::INTEGER, ssh.outlier_rate
+    FROM public.student_score_history ssh
+    CROSS JOIN week_monday wm
+    WHERE ssh.snapshot_date = wm.monday AND ssh.composite_score > 0
+),
+last_week_scores AS (
+    SELECT student_name, MAX(composite_score) AS lw_composite
+    FROM (
+        SELECT ssh.student_name, ssh.composite_score,
+               ROW_NUMBER() OVER (PARTITION BY ssh.student_name ORDER BY ssh.snapshot_date DESC) AS rn
+        FROM public.student_score_history ssh
+        CROSS JOIN week_monday wm
+        WHERE ssh.snapshot_date <  wm.monday
+          AND ssh.snapshot_date >= wm.monday - INTERVAL '12 weeks'
+          AND ssh.composite_score > 0
+    ) recent
+    WHERE rn <= 2
+    GROUP BY student_name
+),
+ranked_pool AS (
+    SELECT
+        wc.student_name,
+        sb.student_major,
+        sb.student_grade,
+        COALESCE(ws.composite_score, sb.composite_score)          AS display_score,
+        sb.alpha,
+        ws.trend_score,
+        COALESCE(ws.mean_duration, sb.mean_duration)              AS mean_duration,
+        COALESCE(ws.record_count, sb.record_count)::INTEGER        AS record_count,
+        wc.cnt                                                    AS week_sessions
+    FROM week_cnt wc
+    JOIN public.student_baseline sb ON sb.student_name = wc.student_name
+    LEFT JOIN week_scores ws        ON ws.student_name = wc.student_name
+    WHERE COALESCE(ws.composite_score, sb.composite_score, 0) > 0
+),
+comp AS (
+    SELECT '综合榜'::TEXT AS board,
+           RANK() OVER (ORDER BY rp.display_score DESC NULLS LAST,
+                                 rp.mean_duration  DESC NULLS LAST,
+                                 rp.record_count   DESC NULLS LAST)::INTEGER AS rank_no,
+           rp.student_name, rp.student_major, rp.student_grade,
+           rp.display_score, rp.alpha, rp.trend_score, rp.mean_duration, rp.record_count,
+           r10.outlier_rate AS recent10_outlier_rate,
+           r10.mean_dur     AS recent10_mean_dur,
+           r10.cnt          AS recent10_count
+    FROM ranked_pool rp
+    LEFT JOIN recent10 r10 ON r10.student_name = rp.student_name
+),
+comp_top10 AS (SELECT student_name FROM comp WHERE rank_no <= 10),
+prog AS (
+    SELECT '进步榜'::TEXT AS board,
+           RANK() OVER (ORDER BY (rp.display_score - lws.lw_composite) DESC NULLS LAST,
+                                  rp.display_score DESC NULLS LAST,
+                                  rp.mean_duration DESC NULLS LAST)::INTEGER AS rank_no,
+           rp.student_name, rp.student_major, rp.student_grade,
+           rp.display_score, rp.alpha,
+           ROUND((rp.display_score - lws.lw_composite)::NUMERIC, 1) AS trend_score,
+           rp.mean_duration, rp.record_count,
+           r10.outlier_rate AS recent10_outlier_rate,
+           r10.mean_dur     AS recent10_mean_dur,
+           r10.cnt          AS recent10_count
+    FROM ranked_pool rp
+    INNER JOIN last_week_scores lws ON lws.student_name = rp.student_name
+    LEFT JOIN  recent10         r10 ON r10.student_name = rp.student_name
+    WHERE (rp.display_score - lws.lw_composite) >  0
+      AND rp.week_sessions                      >= 2
+      AND COALESCE(r10.outlier_rate, 1)         <= 0.50
+      AND rp.student_name NOT IN (SELECT student_name FROM comp_top10)
+),
+stable AS (
+    SELECT '稳定榜'::TEXT AS board,
+           RANK() OVER (ORDER BY rp.alpha               DESC NULLS LAST,
+                                 COALESCE(r10.mean_dur, 0) DESC NULLS LAST,
+                                 COALESCE(r10.outlier_rate, 1) ASC)::INTEGER AS rank_no,
+           rp.student_name, rp.student_major, rp.student_grade,
+           rp.display_score, rp.alpha, rp.trend_score, rp.mean_duration, rp.record_count,
+           r10.outlier_rate AS recent10_outlier_rate,
+           r10.mean_dur     AS recent10_mean_dur,
+           r10.cnt          AS recent10_count
+    FROM ranked_pool rp
+    LEFT JOIN recent10 r10 ON r10.student_name = rp.student_name
+    WHERE COALESCE(rp.alpha, 0)         >= 0.55
+      AND COALESCE(r10.cnt, 0)          >= 8
+      AND COALESCE(r10.outlier_rate, 1) <= 0.40
+      AND rp.student_name NOT IN (SELECT student_name FROM comp_top10)
+),
+rules AS (
+    SELECT '守则榜'::TEXT AS board,
+           RANK() OVER (ORDER BY COALESCE(r10.outlier_rate, 1) ASC,
+                                 rp.week_sessions              DESC NULLS LAST,
+                                 COALESCE(r10.mean_dur, 0)     DESC)::INTEGER AS rank_no,
+           rp.student_name, rp.student_major, rp.student_grade,
+           rp.display_score, rp.alpha, rp.trend_score, rp.mean_duration, rp.record_count,
+           r10.outlier_rate AS recent10_outlier_rate,
+           r10.mean_dur     AS recent10_mean_dur,
+           r10.cnt          AS recent10_count
+    FROM ranked_pool rp
+    LEFT JOIN recent10 r10 ON r10.student_name = rp.student_name
+    WHERE rp.week_sessions              >= 3
+      AND COALESCE(r10.cnt, 0)          >= 4
+      AND COALESCE(r10.mean_dur, 0)     > 25
+      AND COALESCE(r10.outlier_rate, 1) <= 0.50
+      AND COALESCE(rp.alpha, 0)         >= 0.55
+      AND rp.student_name NOT IN (SELECT student_name FROM comp_top10)
+)
+SELECT board, rank_no, student_name, student_major, student_grade,
+       display_score, alpha, trend_score, mean_duration, record_count,
+       recent10_outlier_rate, recent10_mean_dur, recent10_count
+FROM comp
+UNION ALL
+SELECT board, rank_no, student_name, student_major, student_grade,
+       display_score, alpha, trend_score, mean_duration, record_count,
+       recent10_outlier_rate, recent10_mean_dur, recent10_count
+FROM prog
+UNION ALL
+SELECT board, rank_no, student_name, student_major, student_grade,
+       display_score, alpha, trend_score, mean_duration, record_count,
+       recent10_outlier_rate, recent10_mean_dur, recent10_count
+FROM stable
+UNION ALL
+SELECT board, rank_no, student_name, student_major, student_grade,
+       display_score, alpha, trend_score, mean_duration, record_count,
+       recent10_outlier_rate, recent10_mean_dur, recent10_count
+FROM rules
+ORDER BY board, rank_no;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_weekly_leaderboards() TO anon, authenticated;
+```
+
+---
+
+## 6. get_auto_reward_setting（FIX-68 最新版）
+
+> 文件：`fix_auto_reward_rls.sql`
+
+```sql
+CREATE OR REPLACE FUNCTION public.get_auto_reward_setting()
+RETURNS TABLE(enabled BOOLEAN, updated_at TIMESTAMPTZ)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        (value = 'true') AS enabled,
+        s.updated_at
+    FROM public.system_settings s
+    WHERE s.key = 'auto_coin_reward_enabled'
+    LIMIT 1;
+
+    IF NOT FOUND THEN
+        RETURN QUERY SELECT TRUE, NOW();
+    END IF;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_auto_reward_setting() TO anon, authenticated;
+```
+
+---
+
+## 触发器绑定关系（当前最新）
+
+| 触发器名 | 所属表 | 时机 | 事件 | 绑定函数 |
+|---------|--------|------|------|---------|
+| `trg_insert_session` | `practice_logs` | AFTER | INSERT | `trigger_insert_session()` |
+| `trg_update_baseline` | `practice_sessions` | AFTER | INSERT | `trigger_update_student_baseline()` |
+| `trg_fn_compute_score_on_baseline_update` | `student_baseline` | AFTER | UPDATE | `trigger_compute_score_on_baseline_update()` |
+
