@@ -6642,5 +6642,62 @@ FROM student_score_history h ...;
 
 | 函数名 | 状态 | Fix ID | 本地文件 |
 |--------|------|--------|---------|
-| `run_weekly_score_update` | ✅ 最新 | FIX-74（删除 PERCENT_RANK） | `fix60_weekly_update_and_baseline_trigger.sql` |
+| `run_weekly_score_update` | ✅ 最新 | FIX-75（快照=终点分）+ FIX-74 | `fix60_weekly_update_and_baseline_trigger.sql` |
 | `backfill_score_history` | ✅ 最新 | FIX-74 + FIX-62 + FIX-53-F | `fix53_backfill_update.sql` |
+
+---
+
+## FIX-75：修复 run_weekly_score_update 快照逻辑
+
+**日期**：2026-03-21
+**文件**：`fix75_weekly_snapshot_fix.sql`（新建），同步修改 `fix60_weekly_update_and_baseline_trigger.sql`
+
+### 问题
+
+FIX-74 遗留了一个设计缺陷：
+
+| | 期望 | 实际（FIX-74 旧版）|
+|--|------|-----------------|
+| 快照内容 | 周五终点分（含全周练习） | 周一起点分（只含上周数据）|
+| 进步榜基准 | 上周周五终点分 | 上周周一起点分（偏低）|
+| 结果 | 真实反映进步 | 基准虚低，容易虚假上榜 |
+
+具体后果：
+- `compute_student_score_as_of(student, 本周一)` 只看本周一之前的数据，算出"起点分"
+- 覆盖掉实时触发器已写入的"终点分"
+- 步骤③再把"起点分"写回 `student_baseline`，排行榜分数骤降
+
+### 修复内容
+
+**步骤②改为**：只给本周未练琴的学生补写快照，调用 `compute_student_score()`（实时版），不再调用 `_as_of` 版本
+
+```sql
+-- 已练琴学生：实时触发器已维护 student_score_history[本周一] = 终点分 ✅
+-- 未练琴学生：触发器未触发，手动补写（体现停练惩罚）
+FOR v_student IN
+    SELECT student_name FROM student_baseline
+    WHERE student_name NOT IN (
+        SELECT DISTINCT student_name FROM practice_sessions
+        WHERE session_start >= v_monday::TIMESTAMPTZ AND cleaned_duration > 0
+    )
+LOOP
+    PERFORM public.compute_student_score(v_student.student_name);
+END LOOP;
+```
+
+**删除步骤③**：不再把快照分同步回 `student_baseline`，触发器全权负责实时维护。
+
+### 修复后效果
+
+```
+周一~周五 实时触发器
+  → student_score_history[本周一] = 累积终点分（72分）  ✅
+
+周五 21:35 run_weekly_score_update
+  → 步骤① 全员基线重算
+  → 步骤② 未练琴学生补写快照（衰减后的分）
+  → 无步骤③，student_baseline 不被覆盖
+
+下周进步榜基准 = 72分（真实上周终点分）✅
+排行榜分数不再因周任务运行而骤降 ✅
+```

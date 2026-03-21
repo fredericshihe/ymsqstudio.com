@@ -12,8 +12,9 @@
 
 
 -- ================================================================
--- FIX-8: run_weekly_score_update — 修复分数倒退问题
+-- FIX-8:  run_weekly_score_update — 修复分数倒退问题
 -- FIX-74: 删除 PERCENT_RANK 归一化，composite_score 改为纯绝对分
+-- FIX-75: 快照存终点分，删除覆盖 student_baseline 的步骤③
 -- ================================================================
 CREATE OR REPLACE FUNCTION public.run_weekly_score_update()
 RETURNS VOID
@@ -27,7 +28,7 @@ BEGIN
     v_monday := DATE_TRUNC('week', CURRENT_DATE)::DATE;
     RAISE NOTICE '[%] 每周评分更新，快照日期：%', NOW(), v_monday;
 
-    -- ① 更新所有学生 baseline（截止明天 = 包含今天）
+    -- ① 重算所有学生基线（含本周一次未练的学生）
     FOR v_student IN SELECT student_name FROM public.student_baseline ORDER BY student_name
     LOOP
         BEGIN
@@ -39,27 +40,31 @@ BEGIN
         END;
     END LOOP;
 
-    -- ② 计算本周成长分快照（快照日期 = 本周一）
-    --    compute_student_score_as_of 内部已写入 composite_score = ROUND(raw_score×100, 1)
-    FOR v_student IN SELECT student_name FROM public.student_baseline ORDER BY student_name
+    -- ② 为本周未练琴的学生补写快照
+    --    已练琴的学生由实时触发器维护 student_score_history[本周一]（终点分），无需重复计算
+    --    未练琴的学生触发器未触发，手动补写（体现基线衰减 / 停练惩罚）
+    FOR v_student IN
+        SELECT student_name FROM public.student_baseline
+        WHERE student_name NOT IN (
+            SELECT DISTINCT student_name
+            FROM public.practice_sessions
+            WHERE session_start >= v_monday::TIMESTAMPTZ
+              AND cleaned_duration > 0
+        )
+        ORDER BY student_name
     LOOP
         BEGIN
-            PERFORM public.compute_student_score_as_of(v_student.student_name, v_monday);
+            PERFORM public.compute_student_score(v_student.student_name);
         EXCEPTION WHEN OTHERS THEN
-            RAISE WARNING '[weekly score] 学生 % 失败：%', v_student.student_name, SQLERRM;
+            RAISE WARNING '[weekly snapshot] 学生 % 失败：%', v_student.student_name, SQLERRM;
         END;
     END LOOP;
 
-    -- ③ [FIX-74 删除 PERCENT_RANK] 直接把历史快照中本周的 composite_score 同步到 student_baseline
-    UPDATE public.student_baseline b
-    SET composite_score = h.composite_score
-    FROM public.student_score_history h
-    WHERE h.student_name  = b.student_name
-      AND h.snapshot_date = v_monday
-      AND h.composite_score IS NOT NULL;
+    -- ③ [FIX-75 删除] 不再把快照分同步回 student_baseline
+    --    student_baseline.composite_score 由实时触发器全权维护
 
     PERFORM set_config('app.skip_score_trigger', 'off', TRUE);
-    RAISE NOTICE '[%] 每周更新完成（FIX-74：纯绝对分，无百分位）', NOW();
+    RAISE NOTICE '[%] 每周更新完成（FIX-75：快照=终点分，不覆盖实时分）', NOW();
 END;
 $$;
 
