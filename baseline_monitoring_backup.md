@@ -6559,3 +6559,88 @@ AS $$ ... $$;
 2. `fix60_weekly_update_and_baseline_trigger.sql`（重新部署 trigger_update_student_baseline）
 
 运行后用 `check_db_versions.sql` 第零部分 B 段验证三个触发函数均为 SECURITY DEFINER。
+
+---
+
+## FIX-74：删除百分位归一化，composite_score 改为纯绝对分
+
+**日期**：2026-03-21
+**文件**：`fix74_remove_percentile.sql`（新建），同步修改 `fix60_weekly_update_and_baseline_trigger.sql` 和 `fix53_backfill_update.sql`
+
+### 问题
+
+`composite_score` 曾有两套计算逻辑：
+- **实时触发时**（每次练琴后）：`composite_score = raw_score × 100`
+- **每周任务时**（`run_weekly_score_update`）：`composite_score = PERCENT_RANK(raw_score) × 100`
+
+两套逻辑并存导致：
+1. 分数含义不一致，学生努力练习后分数反而可能因同学提升而下降
+2. 排行榜上显示的分数对学生不透明，难以解释
+3. 实时触发写入绝对分，每周任务覆盖为相对百分位分，学生困惑
+
+### 修复内容
+
+统一所有情况：**`composite_score = ROUND(raw_score × 100, 1)`**
+
+| 函数 | 修改内容 |
+|------|---------|
+| `run_weekly_score_update()` | 删除步骤③（history PERCENT_RANK）、步骤④（baseline PERCENT_RANK），合并为一步直接同步 |
+| `backfill_score_history()` | 步骤③ 删除 IF student_count>=5 分支，改为直接换算兜底修正 |
+
+### 修改对比
+
+**run_weekly_score_update 修改前（步骤③④）**：
+```sql
+-- ③ 归一化本周历史快照
+IF v_student_count >= 5 THEN
+    UPDATE student_score_history SET composite_score = PERCENT_RANK() OVER ...
+END IF;
+
+-- ④ 归一化 student_baseline
+IF v_student_count >= 5 THEN
+    UPDATE student_baseline SET composite_score = PERCENT_RANK() OVER ...
+END IF;
+```
+
+**修改后（步骤③）**：
+```sql
+-- ③ 直接同步（无百分位）
+UPDATE student_baseline b
+SET composite_score = h.composite_score   -- 已是 raw_score×100
+FROM student_score_history h ...;
+```
+
+### composite_score 含义变化
+
+| | 修改前 | 修改后 |
+|--|--------|--------|
+| 实时触发 | raw_score × 100 | raw_score × 100 |
+| 每周任务后 | PERCENT_RANK × 100（0~100 之间的班级百分位） | raw_score × 100 |
+| 分数范围 | 0~100（百分位） | 0~100（理论上限，实际约 30~80） |
+| 含义 | 相对排名分 | **绝对成长分** |
+| 是否影响排名顺序 | — | **不影响**（仍按 composite_score 降序） |
+
+### 部署步骤
+
+1. 在 Supabase SQL Editor 运行 **`fix74_remove_percentile.sql`**（约 5 秒，更新两个函数定义）
+2. 运行历史数据重算（约 1~3 分钟）：
+   ```sql
+   SELECT public.backfill_score_history();
+   ```
+3. 验证：随机抽查几个学生，确认 `composite_score ≈ raw_score × 100`：
+   ```sql
+   SELECT student_name,
+          raw_score,
+          composite_score,
+          ROUND((raw_score * 100)::NUMERIC, 1) AS expected
+   FROM public.student_baseline
+   WHERE raw_score IS NOT NULL
+   LIMIT 10;
+   ```
+
+### 更新后版本表
+
+| 函数名 | 状态 | Fix ID | 本地文件 |
+|--------|------|--------|---------|
+| `run_weekly_score_update` | ✅ 最新 | FIX-74（删除 PERCENT_RANK） | `fix60_weekly_update_and_baseline_trigger.sql` |
+| `backfill_score_history` | ✅ 最新 | FIX-74 + FIX-62 + FIX-53-F | `fix53_backfill_update.sql` |

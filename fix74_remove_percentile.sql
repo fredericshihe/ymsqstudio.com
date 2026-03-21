@@ -1,20 +1,80 @@
 -- ============================================================
--- FIX-53-F：更新 backfill_score_history 函数
--- FIX-74：删除 PERCENT_RANK 归一化，composite_score 改为纯绝对分
+-- FIX-74：删除百分位归一化，composite_score 改为纯绝对分
 --
--- ⚠️  使用说明：
---   只运行本文件，不要运行 fix15_week_aware_score.sql 全文！
---   fix15_week_aware_score.sql 包含旧版 compute_student_score（会覆盖
---   fix44_46_score_functions.sql 的所有最新修复），以及第 532 行的
---   TRUNCATE public.student_score_history（会清空所有历史数据）。
+-- 背景：
+--   原来 composite_score 有两套计算逻辑：
+--     · 实时触发时  → composite_score = raw_score × 100
+--     · 每周任务时  → composite_score = PERCENT_RANK(raw_score) × 100
+--   两套逻辑并存导致分数含义不一致，学生努力提升后分数反而可能下降，
+--   也很难向学生解释"为什么你练得更多但分却低了"。
 --
--- 本文件只包含 backfill_score_history 函数的最新版本（含 FIX-74 改动），
--- 不涉及任何其他函数，安全可独立执行。
+-- 改动：
+--   统一为  composite_score = ROUND(raw_score × 100, 1)
+--   · run_weekly_score_update()   — 删除步骤③④（PERCENT_RANK 归一化）
+--   · backfill_score_history()    — 步骤③ 改为直接换算，删除 IF student_count>=5 分支
 --
--- 主要改动（FIX-74）：
---   步骤③：删除 PERCENT_RANK 分支，统一改为 composite_score = ROUND(raw_score×100, 1)
+-- 部署后必做：
+--   SELECT public.backfill_score_history();
+--   -- 约 1~3 分钟，全量重算历史 composite_score，让所有历史分数统一为绝对分。
 -- ============================================================
 
+
+-- ================================================================
+-- 1/2  run_weekly_score_update — FIX-74: 去除 PERCENT_RANK 步骤
+-- ================================================================
+CREATE OR REPLACE FUNCTION public.run_weekly_score_update()
+RETURNS VOID
+LANGUAGE plpgsql AS $$
+DECLARE
+    v_student RECORD;
+    v_monday  DATE;
+BEGIN
+    PERFORM set_config('app.skip_score_trigger', 'on', TRUE);
+
+    v_monday := DATE_TRUNC('week', CURRENT_DATE)::DATE;
+    RAISE NOTICE '[%] 每周评分更新，快照日期：%', NOW(), v_monday;
+
+    -- ① 更新所有学生 baseline（截止明天 = 包含今天）
+    FOR v_student IN SELECT student_name FROM public.student_baseline ORDER BY student_name
+    LOOP
+        BEGIN
+            PERFORM public.compute_baseline_as_of(
+                v_student.student_name, (CURRENT_DATE + INTERVAL '1 day')::DATE
+            );
+        EXCEPTION WHEN OTHERS THEN
+            RAISE WARNING '[weekly baseline] 学生 % 失败：%', v_student.student_name, SQLERRM;
+        END;
+    END LOOP;
+
+    -- ② 计算本周成长分快照（快照日期 = 本周一）
+    --    compute_student_score_as_of 内部已写入 composite_score = ROUND(raw_score×100, 1)
+    FOR v_student IN SELECT student_name FROM public.student_baseline ORDER BY student_name
+    LOOP
+        BEGIN
+            PERFORM public.compute_student_score_as_of(v_student.student_name, v_monday);
+        EXCEPTION WHEN OTHERS THEN
+            RAISE WARNING '[weekly score] 学生 % 失败：%', v_student.student_name, SQLERRM;
+        END;
+    END LOOP;
+
+    -- ③ [FIX-74 删除 PERCENT_RANK] 直接把历史快照中本周的 composite_score 同步到 student_baseline
+    --    （步骤②已写入 composite_score = raw_score×100，此步仅做同步，无需再归一化）
+    UPDATE public.student_baseline b
+    SET composite_score = h.composite_score
+    FROM public.student_score_history h
+    WHERE h.student_name  = b.student_name
+      AND h.snapshot_date = v_monday
+      AND h.composite_score IS NOT NULL;
+
+    PERFORM set_config('app.skip_score_trigger', 'off', TRUE);
+    RAISE NOTICE '[%] 每周更新完成（FIX-74：纯绝对分，无百分位）', NOW();
+END;
+$$;
+
+
+-- ================================================================
+-- 2/2  backfill_score_history — FIX-74: 去除 PERCENT_RANK 步骤
+-- ================================================================
 CREATE OR REPLACE FUNCTION public.backfill_score_history()
 RETURNS VOID
 LANGUAGE plpgsql AS $$
@@ -87,7 +147,7 @@ BEGIN
         END LOOP;
 
         -- ③ [FIX-74] composite_score = ROUND(raw_score × 100, 1)，不再用 PERCENT_RANK
-        --    兜底修复：compute_student_score_as_of 已写入此值，此步修正历史遗留的百分位值
+        --    compute_student_score_as_of 已写入此值；此步仅对"本周活跃但 raw_score 未正确写入"的行做兜底修复
         UPDATE public.student_score_history
         SET composite_score = ROUND((raw_score * 100)::NUMERIC, 1)
         WHERE snapshot_date   = v_current_date
@@ -99,7 +159,6 @@ BEGIN
     END LOOP;
 
     -- ④ [FIX-15] 同步最新有效分数到 student_baseline
-    --    触发器仍处于关闭状态，防止 UPDATE 触发 compute_student_score 覆盖快照
     UPDATE public.student_baseline b
     SET composite_score = latest.composite_score
     FROM (
@@ -111,9 +170,6 @@ BEGIN
     WHERE b.student_name = latest.student_name;
 
     -- ⑤ FIX-62: 回溯完成后，用今天重新刷新所有学生基线
-    --    backfill 循环最后一次用 v_current_date（本周一）调用 compute_baseline_as_of，
-    --    会把 student_baseline 覆写为"截止本周一"的历史值（本周新练琴记录丢失）。
-    --    此步重新调用 compute_baseline（= CURRENT_DATE+1）确保基线恢复为最新状态。
     FOR v_student IN SELECT student_name FROM public.student_baseline ORDER BY student_name LOOP
         BEGIN
             PERFORM public.compute_baseline(v_student.student_name);
@@ -123,7 +179,6 @@ BEGIN
     END LOOP;
 
     -- ⑥ FIX-53-F: 刷新所有学生的实时 W 分
-    --    此处调用 compute_and_store_w_score 确保 W 卡片显示最新值
     FOR v_student IN SELECT DISTINCT student_name FROM public.student_baseline LOOP
         BEGIN
             PERFORM public.compute_and_store_w_score(v_student.student_name);

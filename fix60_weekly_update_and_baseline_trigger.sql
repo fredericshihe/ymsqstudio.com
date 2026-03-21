@@ -13,8 +13,7 @@
 
 -- ================================================================
 -- FIX-8: run_weekly_score_update — 修复分数倒退问题
--- ④ 新增：基于当前最新 raw_score 重新归一化 student_baseline.composite_score
---    防止周任务历史快照覆盖实时触发器已写入的更新分数
+-- FIX-74: 删除 PERCENT_RANK 归一化，composite_score 改为纯绝对分
 -- ================================================================
 CREATE OR REPLACE FUNCTION public.run_weekly_score_update()
 RETURNS VOID
@@ -22,7 +21,6 @@ LANGUAGE plpgsql AS $$
 DECLARE
     v_student RECORD;
     v_monday  DATE;
-    v_student_count INTEGER;
 BEGIN
     PERFORM set_config('app.skip_score_trigger', 'on', TRUE);
 
@@ -42,6 +40,7 @@ BEGIN
     END LOOP;
 
     -- ② 计算本周成长分快照（快照日期 = 本周一）
+    --    compute_student_score_as_of 内部已写入 composite_score = ROUND(raw_score×100, 1)
     FOR v_student IN SELECT student_name FROM public.student_baseline ORDER BY student_name
     LOOP
         BEGIN
@@ -51,41 +50,7 @@ BEGIN
         END;
     END LOOP;
 
-    -- ③ 归一化本周历史快照（带人数保护）
-    SELECT COUNT(DISTINCT student_name) INTO v_student_count
-    FROM public.student_score_history
-    WHERE snapshot_date = v_monday AND raw_score IS NOT NULL;
-
-    IF v_student_count >= 5 THEN
-        UPDATE public.student_score_history h
-        SET composite_score = norm.normalized
-        FROM (
-            SELECT student_name,
-                   ROUND(PERCENT_RANK() OVER (ORDER BY raw_score) * 100)::INT AS normalized
-            FROM public.student_score_history
-            WHERE snapshot_date = v_monday AND raw_score IS NOT NULL
-        ) norm
-        WHERE h.snapshot_date = v_monday AND h.student_name = norm.student_name;
-    END IF;
-
-    -- ④ [FIX-8] 基于当前最新 raw_score 归一化 student_baseline.composite_score
-    -- 防止周任务历史快照覆盖实时触发器已写入的更新分数
-    SELECT COUNT(*) INTO v_student_count
-    FROM public.student_baseline WHERE raw_score IS NOT NULL;
-
-    IF v_student_count >= 5 THEN
-        UPDATE public.student_baseline b
-        SET composite_score = norm.normalized
-        FROM (
-            SELECT student_name,
-                   ROUND(PERCENT_RANK() OVER (ORDER BY raw_score) * 100)::INT AS normalized
-            FROM public.student_baseline
-            WHERE raw_score IS NOT NULL
-        ) norm
-        WHERE b.student_name = norm.student_name;
-    END IF;
-
-    -- ⑤ 同步 composite_score 到 baseline（历史快照中本周的归一化值）
+    -- ③ [FIX-74 删除 PERCENT_RANK] 直接把历史快照中本周的 composite_score 同步到 student_baseline
     UPDATE public.student_baseline b
     SET composite_score = h.composite_score
     FROM public.student_score_history h
@@ -94,7 +59,7 @@ BEGIN
       AND h.composite_score IS NOT NULL;
 
     PERFORM set_config('app.skip_score_trigger', 'off', TRUE);
-    RAISE NOTICE '[%] 每周更新完成', NOW();
+    RAISE NOTICE '[%] 每周更新完成（FIX-74：纯绝对分，无百分位）', NOW();
 END;
 $$;
 
