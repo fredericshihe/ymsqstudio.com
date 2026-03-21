@@ -1307,6 +1307,39 @@
 	// 统一对外暴露，供 StudentLibrary / 其它模块检测
 	Object.defineProperty(window,'supabaseReady',{ get(){ return supabaseReady; }, set(v){ supabaseReady=!!v; if(v){ try{ if(window.__retryStudentLibraryPending) window.__retryStudentLibraryPending(); }catch(_){ } } }});
 	let realtimeChannel = null;
+	window.studentRealtimeChannel = window.studentRealtimeChannel || null;
+	window.roomMetaRealtimeChannel = window.roomMetaRealtimeChannel || null;
+
+	// 统一管理所有 realtime 频道，避免重连/卸载时遗漏 removeChannel
+	const RealtimeRegistry = {
+		channels: new Map(), // key -> channel
+		register(key, channel){
+			if(!key || !channel) return channel;
+			const old = this.channels.get(key);
+			if(old && old !== channel){
+				try{ supabaseClient?.removeChannel(old); }catch(_){}
+			}
+			this.channels.set(key, channel);
+			return channel;
+		},
+		unregister(key){
+			const ch = this.channels.get(key);
+			if(ch){
+				try{ supabaseClient?.removeChannel(ch); }catch(_){}
+				this.channels.delete(key);
+			}
+		},
+		async cleanupAll(client){
+			const c = client || supabaseClient;
+			if(!c) { this.channels.clear(); return; }
+			const list = Array.from(this.channels.values());
+			this.channels.clear();
+			await Promise.all(list.map(ch => {
+				try { return c.removeChannel(ch); } catch(_) { return Promise.resolve(); }
+			}));
+		}
+	};
+	window.RealtimeRegistry = RealtimeRegistry;
 
 	// 请求频率限制器
 	class RequestThrottler {
@@ -2002,12 +2035,12 @@
 		if (window.__roomsRealtimeReconnectTimer) clearTimeout(window.__roomsRealtimeReconnectTimer);
 		if (window.__studentsRealtimeReconnectTimer) clearTimeout(window.__studentsRealtimeReconnectTimer);
 		
-		// 清理realtime连接
-		if (realtimeChannel) {
-			try { supabaseClient?.removeChannel(realtimeChannel); } catch(e) {}
-		}
-		if (window.studentRealtimeChannel) {
-			try { supabaseClient?.removeChannel(window.studentRealtimeChannel); } catch(e) {}
+		// 清理realtime连接（统一注册表）
+		try { RealtimeRegistry.cleanupAll(supabaseClient); } catch(_) {}
+		// 清理学生轮询
+		if (window.__studentPollingInterval) {
+			clearInterval(window.__studentPollingInterval);
+			window.__studentPollingInterval = null;
 		}
 	});
 
@@ -2144,23 +2177,14 @@
 				window.__studentsRealtimeAttempts = 0;
 				
 				// 清理现有连接
-				if (realtimeChannel) {
-					try { 
-						logInfo('清理现有房间实时连接');
-						supabaseClient?.removeChannel(realtimeChannel); 
-						realtimeChannel = null;
-					} catch(e) {
-						logWarn('清理房间连接失败:', e.message);
-					}
-				}
-				if (window.studentRealtimeChannel) {
-					try { 
-						logInfo('清理现有学生实时连接');
-						supabaseClient?.removeChannel(window.studentRealtimeChannel); 
-						window.studentRealtimeChannel = null;
-					} catch(e) {
-						logWarn('清理学生连接失败:', e.message);
-					}
+				try {
+					logInfo('清理现有 realtime 连接（统一注册表）');
+					await RealtimeRegistry.cleanupAll(supabaseClient);
+					realtimeChannel = null;
+					window.studentRealtimeChannel = null;
+					window.roomMetaRealtimeChannel = null;
+				} catch(e) {
+					logWarn('清理 realtime 连接失败:', e.message);
 				}
 				
 				// 等待一段时间让连接完全清理
@@ -3379,12 +3403,10 @@
 				timerManager.clearAllTimers();
 				
 				// 断开realtime连接以减少服务器压力
-				if (realtimeChannel) {
-					try { supabaseClient?.removeChannel(realtimeChannel); } catch(e) {}
-				}
-				if (window.studentRealtimeChannel) {
-					try { supabaseClient?.removeChannel(window.studentRealtimeChannel); } catch(e) {}
-				}
+				try { RealtimeRegistry.cleanupAll(supabaseClient); } catch(_) {}
+				realtimeChannel = null;
+				window.studentRealtimeChannel = null;
+				window.roomMetaRealtimeChannel = null;
 			}
 		}
 		
@@ -3702,11 +3724,31 @@
 
 	/* 拼音映射 */
 	const pinyinMap={'梁':'liang','书':'shu','崔':'cui','星':'xing','河':'he','顾':'gu','小':'xiao','娇':'jiao','铭':'ming','麒':'qi','晓':'xiao','舒':'shu','筠':'jun','烨':'ye','萌':'meng','耘':'yun','幸':'xing','增':'zeng','辰':'chen','鸥':'ou','靳':'jin','蓝':'lan','熙':'xi','邓':'deng','涵':'han','周':'zhou','静':'jing','远':'yuan','冯':'feng','瑞':'rui','夕':'xi','吕':'lv','金':'jin','昂':'ang','徐':'xu','涬':'shuang','宸':'chen','窦':'dou','璟':'jing','华':'hua','林':'lin','晏':'yan','熹':'xi','段':'duan','鉴':'jian','叶':'ye','蔚':'wei','刘':'liu','泽':'ze','文':'wen','潘':'pan','瑾':'jin','熠':'yi','李':'li','博':'bo','恩':'en','王':'wang','奕':'yi','然':'ran','韩':'han','昀':'yun','桦':'hua','孔':'kong','璇':'xuan','臧':'zang','昱':'yu','棋':'qi','蔺':'lin','轩':'xuan','宋':'song','梓':'zi','暄':'xuan','田':'tian','子':'zi','萱':'xuan','张':'zhang','依':'yi','陈':'chen','思':'si','彤':'tong','杨':'yang','雨':'yu','桐':'tong','赵':'zhao','欣':'xin','怡':'yi','马':'ma','晨':'chen','曦':'xi','高':'gao','梦':'meng','琪':'qi','郑':'zheng','诗':'shi','吴':'wu','佳':'jia','何':'he','朱':'zhu','心':'xin','语':'yu','胡':'hu','若':'ruo','汐':'xi','许':'xu','瑶':'yao','罗':'luo','雅':'ya','钟':'zhong','嫣':'yan','谢':'xie','苏':'su','琳':'lin','江':'jiang','孙':'sun','袁':'yuan','汪':'wang','曹':'cao','姚':'yao','沈':'shen','卢':'lu','韦':'wei','董':'dong','傅':'fu','程':'cheng','丁':'ding','石':'shi','任':'ren','邹':'zou','龙':'long','史':'shi','方':'fang','夏':'xia','侯':'hou','邱':'qiu','尹':'yin','黎':'li','汤':'tang','易':'yi','常':'chang','武':'wu','乔':'qiao','贺':'he','赖':'lai','龚':'gong','庞':'pang','樊':'fan','兰':'lan','殷':'yin','施':'shi','陶':'tao','翁':'weng','安':'an','倪':'ni','严':'yan','牛':'niu','温':'wen','芦':'lu','季':'ji','俞':'yu','章':'zhang','鲁':'lu','葛':'ge','伍':'wu','申':'shen','尤':'you','毕':'bi','聂':'nie','丛':'cong','焦':'jiao','向':'xiang','柯':'ke','岳':'yue','湘':'xiang','悦':'yue','玮':'wei','管':'guan','哲':'zhe','婷':'ting','释':'shi','言':'yan','祝':'zhu','宝':'bao','彭':'peng','美':'mei','淇':'qi','康':'kang','群':'qun','耿':'geng','幄':'wo','千':'qian','瑜':'yu','又':'you','雯':'wen','俊':'jun','杰':'jie','劲':'jin','豪':'hao','笙':'sheng','权':'quan','薛':'xue','宜':'yi','陆':'lu','曜':'yao','嶙':'lin','馨':'xin','裕':'yu','昕':'xin','沐':'mu','唐':'tang','君':'jun','盛':'sheng','硕':'shuo','晗':'han','如':'ru','牧':'mu','风':'feng','晞':'xi','伊':'yi','清':'qing','妃':'fei','月':'yue','祺':'qi','蒲':'pu','柏':'bai','羽':'yu','冠':'guan','成':'cheng','颜':'yan','亦':'yi','沅':'yuan','承':'cheng','秦':'qin','铂':'bo','筵':'yan','慧':'hui','作':'zuo','翰':'han','上':'shang','之':'zhi','路':'lu','瓒':'zan','著':'zhu','睿':'rui','籽':'zi','丞':'cheng','妍':'yan','栩':'xu','乐':'le','逸':'yi','诚':'cheng','钰':'yu','洁':'jie','媛':'yuan','鋆':'yun','谨':'jin','畅':'chang','茹':'ru','沂':'yi','婉':'wan','荷':'he','洋':'yang','明':'ming','多':'duo','郗':'xi','传':'chuan','平':'ping','世':'shi','元':'yuan','汇':'hui','沙':'sha','皓':'hao','家':'jia','楠':'nan','官':'guan','柘':'zhe','希':'xi','溥':'pu','尚':'shang','凌':'ling','翾':'xuan','姜':'jiang','煊':'xuan','琬':'wan','迪':'di','昍':'xuan','沁':'qin','祎':'yi','珈':'jia','政':'zheng','阳':'yang','以':'yi','骞':'qian','乙':'yi','铮':'zheng','商':'shang','天':'tian','赐':'ci','晟':'sheng','峰':'feng','邵':'shao','颢':'hao','浩':'hao','余':'yu','浡':'bo','瀚':'han','峻':'jun','于':'yu','钲':'zheng','埼':'qi','苏':'su','彦':'yan','炳':'bing','岐':'qi','璠':'fan','白':'bai','咏':'yong','玎':'ding','庄':'zhuang','笛':'di','薪':'xin','米':'mi','琪':'qi','存':'cun','和':'he','笑':'xiao','欧':'ou','翰':'han','喆':'zhe','庭':'ting','彰':'zhang','邰':'tai','蔡':'cai','屹':'yi','潆':'ying','潞':'lu','修':'xiu','冉':'ran','光':'guang','翼':'yi','珺':'jun','闻':'wen','治':'zhi','玥':'yue','婧':'jing','婍':'qi','植':'zhi','寅':'yin','井':'jing','溪':'xi','紫':'zi','航':'hang','显':'xian','翔':'xiang','景':'jing','园':'yuan','羿':'yi','达':'da','正':'zheng','潼':'tong','嘉':'jia','崚':'ling','汉':'han','冼':'xian','昊':'hao','敬':'jing','尔':'er','卓':'zhuo','帅':'shuai','志':'zhi','可':'ke','钧':'jun','鉴':'jian','笙':'sheng','权':'quan','显':'xian','翔':'xiang','晏':'yan','熹':'xi','释':'shi','言':'yan','森':'sen','贤':'xian','柳':'liu','恩':'en','奕':'yi','潼':'tong','嘉':'jia','怡':'yi','金':'jin','昂':'ang','瑾':'jin','熠':'yi','美':'mei','淇':'qi','千':'qian','瑜':'yu','子':'zi','轩':'xuan','志':'zhi','昊':'hao','萱':'xuan','申':'shen','崚':'ling','梓':'zi','康':'kang','岳':'yue','汉':'han','昊':'hao','熹':'xi','又':'you','安':'an','涬':'shuang','宸':'chen','宜':'yi','艺':'yi','卓':'zhuo','然':'ran','蔚':'wei','蓝':'lan','敬':'jing','轩':'xuan','昱':'yu','棋':'qi','尔':'er','涵':'han','雯':'wen','婷':'ting','卓':'zhuo','群':'qun','子':'zi','帅':'shuai','子':'zi','依':'yi','博':'bo','玮':'wei','欣':'xin','怡':'yi','静':'jing','远':'yuan','宝':'bao','怡':'yi','常':'chang','欣':'xin','洋':'yang','婉':'wan','茹':'ru','明':'ming','多':'duo','杰':'jie','欣':'xin','荷':'he','千':'qian','皓':'hao','汇':'hui','泽':'ze','传':'chuan','平':'ping','世':'shi','元':'yuan','冠':'guan','源':'yuan','米':'mi','琪':'qi','单':'dan','若':'ruo','溪':'xi','恩':'en','和':'he','金':'jin','黄':'huang','可':'ke','欣':'xin','孔':'kong','梓':'zi','语':'yu','存':'cun','浩':'hao','嘉':'jia','荷':'he','雨':'yu','笛':'di','子':'zi','轩':'xuan','薪':'xin','瑜':'yu','梓':'zi','宸':'chen','承':'cheng','熹':'xi','子':'zi','墨':'mo','塘':'tang','欣':'xin','妍':'yan','笑':'xiao','欧':'ou','祎':'yi','玥':'yue','婧':'jing','婍':'qi','植':'zhi','元':'yuan','浩':'hao','元':'yuan','梓':'zi','寅':'yin','依':'yi','诺':'nuo','钧':'jun','屹':'yi','博':'bo','闻':'wen','庭':'ting','彰':'zhang','潆':'ying','潞':'lu','熠':'yi','宸':'chen','天':'tian','翼':'yi','治':'zhi','钧':'jun','林':'lin','熠':'yi','梓':'zi','峰':'feng','修':'xiu','冉':'ran','珺':'jun','翰':'han','喆':'zhe','米':'mi','阳':'yang','光':'guang','栩':'xu','乐':'le','安':'an','慧':'hui','冠':'guan','华':'hua','若':'ruo','昕':'xin','雨':'yu','熙':'xi','金':'jin','沂':'yi','以':'yi','诺':'nuo','钰':'yu','沐':'mu','曦':'xi','牧':'mu','风':'feng','欣':'xin','妍':'yan','沅':'yuan','承':'cheng','籽':'zi','丞':'cheng','谨':'jin','畅':'chang','作':'zuo','翰':'han','文':'wen','盛':'sheng','路':'lu','雨':'yu','瓒':'zan','亦':'yi','宸':'chen','逸':'yi','诚':'cheng','子':'zi','清':'qing','柏':'bai','羽':'yu','铂':'bo','筵':'yan','曜':'yao','嶙':'lin','轩':'xuan','子':'zi','茹':'ru','嘉':'jia','君':'jun','洁':'jie','媛':'yuan','月':'yue','祺':'qi','淇':'qi','晗':'han','如':'ru','上':'shang','恩':'en','雅':'ya','晞':'xi','一':'yi','妃':'fei','怡':'yi','文':'wen','魏':'wei','伊':'yi','萱':'xuan','易':'yi','成':'cheng','晟':'sheng','嘉':'jia','家':'jia','硕':'shuo','佳':'jia','馨':'xin','语':'yu','著':'zhu','睿':'rui','诗':'shi','悦':'yue','依':'yi','宸':'chen','子':'zi','鋆':'yun','涵':'han','之':'zhi','裕':'yu','达':'da'};
+	const pinyinIndexCache = new Map(); // name -> { firstLetters, firstLettersStr, nameLower }
+	function getPinyinIndex(name){
+		const key = String(name || '');
+		let idx = pinyinIndexCache.get(key);
+		if(idx) return idx;
+		const nameChars = key.split('');
+		const firstLetters = nameChars.map(char => {
+			const py = pinyinMap[char];
+			return py ? py.charAt(0) : char.toLowerCase();
+		});
+		idx = {
+			nameLower: key.toLowerCase(),
+			firstLetters,
+			firstLettersStr: firstLetters.join('')
+		};
+		pinyinIndexCache.set(key, idx);
+		return idx;
+	}
+	function clearPinyinIndexCache(){ pinyinIndexCache.clear(); }
 
 	function matchPinyin(name, searchTerm) {
 		if (!searchTerm) return true;
 		const searchLower = searchTerm.toLowerCase().trim();
-		const nameLower = name.toLowerCase();
+		const idx = getPinyinIndex(name);
+		const nameLower = idx.nameLower;
 		
 		// 直接匹配中文
 		if (nameLower.includes(searchLower)) return true;
@@ -3718,47 +3760,7 @@
 		}
 		
 		// 单关键词的拼音匹配逻辑
-		const nameChars = name.split('');
-		const firstLetters = nameChars.map(char => {
-			const py = pinyinMap[char];
-			return py ? py.charAt(0) : char.toLowerCase();
-		});
-
-		// 💡 启动学生库智能轮询（增量同步 + 兜底机制）
-		if(!window.__studentPollingInterval){
-			window.__studentPollingInterval = setInterval(async ()=>{
-				try{
-					if(!window.supabaseReady) return;
-					// 若最近5秒已有实时事件，则跳过本次轮询，避免频繁合并
-					if(window.__studentUpdateTimestamp && (Date.now()-window.__studentUpdateTimestamp)<5000) return;
-					
-					if(typeof fetchStudents==='function'){
-						const beforeCount = (Store.students||[]).length;
-						
-						// 使用增量同步（基于上次同步时间）
-						const lastSyncTime = window.__studentLastSyncTime;
-						const isFirstSync = !lastSyncTime;
-						
-						if (isFirstSync) {
-							// 首次同步使用全量
-							await fetchStudents({ forceFullSync: true });
-							logInfo('[RT][students][poll] 首次全量同步完成');
-						} else {
-							// 后续使用增量同步
-							await fetchStudents({ 
-								incremental: true, 
-								since: lastSyncTime 
-							});
-						}
-						
-						const afterCount = (Store.students||[]).length;
-						if(afterCount!==beforeCount){ 
-							logInfo(`[RT][students][poll] 合并后数量变化: ${beforeCount} → ${afterCount}`); 
-						}
-					}
-				}catch(e){ console.warn('[RT][students][poll] 异常', e.message); }
-			}, 120000); // 💡 增量同步可以进一步延长到2分钟
-		}
+		const firstLetters = idx.firstLetters;
 		
 		// 如果搜索词只有一个字母，只匹配第一个字的首字母
 		if (searchLower.length === 1) {
@@ -3766,7 +3768,7 @@
 		}
 		
 		// 多字母搜索时的连续首字母匹配
-		const firstLettersStr = firstLetters.join('');
+		const firstLettersStr = idx.firstLettersStr;
 		
 		// 完整的首字母匹配（如 "彭美岐" -> "pmq"）
 		if (firstLettersStr === searchLower) return true;
@@ -3780,15 +3782,52 @@
 		return false;
 	}
 
+	// 学生库智能轮询（增量同步 + 兜底机制）
+	// 注意：从搜索函数中抽离，避免“输入搜索”触发副作用
+	function initStudentPollingSync() {
+		if (window.__studentPollingInterval) return;
+		window.__studentPollingInterval = setInterval(async () => {
+			try {
+				if (!window.supabaseReady) return;
+				// 若最近5秒已有实时事件，则跳过本次轮询，避免频繁合并
+				if (window.__studentUpdateTimestamp && (Date.now() - window.__studentUpdateTimestamp) < 5000) return;
+
+				if (typeof fetchStudents === 'function') {
+					const beforeCount = (Store.students || []).length;
+
+					// 使用增量同步（基于上次同步时间）
+					const lastSyncTime = window.__studentLastSyncTime;
+					const isFirstSync = !lastSyncTime;
+
+					if (isFirstSync) {
+						// 首次同步使用全量
+						await fetchStudents({ forceFullSync: true });
+						logInfo('[RT][students][poll] 首次全量同步完成');
+					} else {
+						// 后续使用增量同步
+						await fetchStudents({
+							incremental: true,
+							since: lastSyncTime
+						});
+					}
+
+					const afterCount = (Store.students || []).length;
+					if (afterCount !== beforeCount) {
+						logInfo(`[RT][students][poll] 合并后数量变化: ${beforeCount} → ${afterCount}`);
+					}
+				}
+			} catch (e) {
+				console.warn('[RT][students][poll] 异常', e.message);
+			}
+		}, 120000); // 增量同步间隔 2 分钟
+	}
+
 	// 多关键词匹配函数
 	function matchMultipleKeywords(name, keywords) {
-		const nameLower = name.toLowerCase();
-		const nameChars = name.split('');
-		const firstLetters = nameChars.map(char => {
-			const py = pinyinMap[char];
-			return py ? py.charAt(0) : char.toLowerCase();
-		});
-		const firstLettersStr = firstLetters.join('');
+		const idx = getPinyinIndex(name);
+		const nameLower = idx.nameLower;
+		const firstLetters = idx.firstLetters;
+		const firstLettersStr = idx.firstLettersStr;
 		
 		// 每个关键词都必须单独匹配（AND 逻辑）
 		const allMatch = keywords.every(keyword => {
@@ -3843,14 +3882,10 @@
 
 	// 智能关键词匹配（支持首字母组合）
 	function matchSmartKeywords(name, keywords) {
-		const nameChars = name.split('');
-		const firstLetters = nameChars.map(char => {
-			const py = pinyinMap[char];
-			return py ? py.charAt(0) : char.toLowerCase();
-		});
+		const firstLetters = getPinyinIndex(name).firstLetters;
 		
 		// 检查是否存在连续的首字母匹配
-		if (keywords.length <= nameChars.length) {
+		if (keywords.length <= firstLetters.length) {
 			for (let i = 0; i <= firstLetters.length - keywords.length; i++) {
 				let match = true;
 				for (let j = 0; j < keywords.length; j++) {
@@ -4364,6 +4399,30 @@
 	}
 
 	// 💡 房间备注数据库同步函数
+	function updateLocalRoomByName(roomName, patch){
+		const room = Store.byName?.get(roomName);
+		if(!room || !patch) return;
+		Object.assign(room, patch);
+	}
+	async function syncRoomMetaPatchToDatabase(roomName, patch) {
+		if (!supabaseReady || !supabaseClient) {
+			throw new Error('Supabase未就绪');
+		}
+		const nextPatch = { ...patch, updated_at: new Date().toISOString() };
+		const { data, error } = await supabaseClient
+			.from('room_database')
+			.update(nextPatch)
+			.eq('name', roomName)
+			.select();
+		if (error) throw error;
+		updateLocalRoomByName(roomName, {
+			remark: patch.remark ?? undefined,
+			location: patch.location ?? undefined,
+			pianoType: patch.piano_type ?? undefined,
+			piano_type: patch.piano_type ?? undefined
+		});
+		return data;
+	}
 	async function syncRoomRemarkToDatabase(roomName, remark) {
 		if (!supabaseReady || !supabaseClient) {
 			throw new Error('Supabase未就绪');
@@ -4371,27 +4430,7 @@
 		
 		try {
 			logInfo(`🔄 开始同步房间备注到数据库: ${roomName} -> "${remark}"`);
-			
-			// 更新room_database表中的备注字段
-			// 这会自动触发realtime事件，其他设备会收到更新
-			const { data, error } = await supabaseClient
-				.from('room_database')
-				.update({ 
-					remark: remark || null,
-					updated_at: new Date().toISOString() // 确保有更新时间戳
-				})
-				.eq('name', roomName)
-				.select(); // 添加select()以获取更新后的数据
-				
-			if (error) {
-				throw error;
-			}
-			
-			// 🔧 同步更新本地Store.rooms，防止旧数据污染云端
-			if (Store.rooms[roomName]) {
-				Store.rooms[roomName].remark = remark || '';
-				logInfo(`🔄 已同步更新本地 Store.rooms['${roomName}'].remark`);
-			}
+			const data = await syncRoomMetaPatchToDatabase(roomName, { remark: remark || null });
 			
 			logInfo(`✅ 房间备注已成功同步到数据库：${roomName} -> "${remark}"`);
 			logInfo(`📊 数据库返回:`, data);
@@ -4409,27 +4448,7 @@
 		
 		try {
 			logInfo(`🔄 开始同步房间楼层到数据库: ${roomName} -> "${location}"`);
-			
-			// 更新room_database表中的楼层字段
-			// 这会自动触发realtime事件，其他设备会收到更新
-			const { data, error } = await supabaseClient
-				.from('room_database')
-				.update({ 
-					location: location || null,
-					updated_at: new Date().toISOString() // 确保有更新时间戳
-				})
-				.eq('name', roomName)
-				.select(); // 添加select()以获取更新后的数据
-				
-			if (error) {
-				throw error;
-			}
-			
-			// 🔧 同步更新本地Store.rooms，防止旧数据污染云端
-			if (Store.rooms[roomName]) {
-				Store.rooms[roomName].location = location || '';
-				logInfo(`🔄 已同步更新本地 Store.rooms['${roomName}'].location`);
-			}
+			const data = await syncRoomMetaPatchToDatabase(roomName, { location: location || null });
 			
 			logInfo(`✅ 房间楼层已成功同步到数据库：${roomName} -> "${location}"`);
 			logInfo(`📊 数据库返回:`, data);
@@ -4774,27 +4793,7 @@
 		
 		try {
 			logInfo(`🔄 开始同步房间类型到数据库: ${roomName} -> ${pianoType}`);
-			
-			// 更新room_database表中的钢琴类型字段
-			const { data, error } = await supabaseClient
-				.from('room_database')
-				.update({ 
-					piano_type: pianoType,
-					updated_at: new Date().toISOString()
-				})
-				.eq('name', roomName)
-				.select(); // 添加select()以获取更新后的数据
-				
-			if (error) {
-				throw error;
-			}
-			
-			// 🔧 同步更新本地Store.rooms，防止旧数据污染云端
-			if (Store.rooms[roomName]) {
-				Store.rooms[roomName].pianoType = pianoType;
-				Store.rooms[roomName].piano_type = pianoType; // 兼容旧字段名
-				logInfo(`🔄 已同步更新本地 Store.rooms['${roomName}'].pianoType`);
-			}
+			const data = await syncRoomMetaPatchToDatabase(roomName, { piano_type: pianoType });
 			
 			logInfo(`✅ 房间类型已成功同步到数据库：${roomName} -> ${pianoType}`);
 			logInfo(`📊 数据库返回:`, data);
@@ -7204,55 +7203,24 @@
 		
 		updateSyncStatus('connecting', '订阅中...');
 		
-		// 清理旧连接（增加错误处理和等待时间）
-		const cleanupPromises = [];
-		
-		if(realtimeChannel){ 
-			try{ 
-				const removePromise = supabaseClient.removeChannel(realtimeChannel);
-				cleanupPromises.push(
-					Promise.race([
-						removePromise,
-						new Promise(resolve => setTimeout(resolve, 2000)) // 2秒超时
-					])
-				);
-				logInfo('正在移除旧的实时频道...');
-			}catch(e){
-				logWarn('移除旧频道失败', e.message);
-			} 
-		}
-		
-		// 清理学生数据库旧连接
-		if(window.studentRealtimeChannel){ 
-			try{ 
-				const removePromise = supabaseClient.removeChannel(window.studentRealtimeChannel);
-				cleanupPromises.push(
-					Promise.race([
-						removePromise,
-						new Promise(resolve => setTimeout(resolve, 2000)) // 2秒超时
-					])
-				);
-				logInfo('正在移除旧的学生实时频道...');
-			}catch(e){
-				logWarn('移除旧学生频道失败', e.message);
-			} 
-		}
-		
-		// 🔧 等待旧连接清理完成，避免连接冲突
-		if (cleanupPromises.length > 0) {
-			try {
-				await Promise.all(cleanupPromises);
-				logInfo('旧连接清理完成');
-				// 短暂延迟，确保服务器端也清理完成
-				await new Promise(resolve => setTimeout(resolve, 500));
-			} catch (e) {
-				logWarn('旧连接清理异常（继续）:', e.message);
-			}
+		// 清理旧连接（统一通过 RealtimeRegistry）
+		try{
+			await Promise.race([
+				RealtimeRegistry.cleanupAll(supabaseClient),
+				new Promise(resolve => setTimeout(resolve, 2500))
+			]);
+			realtimeChannel = null;
+			window.studentRealtimeChannel = null;
+			window.roomMetaRealtimeChannel = null;
+			logInfo('旧 realtime 连接清理完成');
+			await new Promise(resolve => setTimeout(resolve, 300));
+		}catch(e){
+			logWarn('旧 realtime 连接清理异常（继续）:', e.message);
 		}
 		
 		// 创建新的实时频道（房间）
 		window.__roomsRealtimeReconnecting = true;
-		realtimeChannel = supabaseClient.channel('realtime-rooms')
+		realtimeChannel = RealtimeRegistry.register('rooms', supabaseClient.channel('realtime-rooms'))
 			.on('postgres_changes', {
 				event: '*',
 				schema: 'public',
@@ -7382,7 +7350,7 @@
 			});
 		
 		// 创建学生数据库实时频道
-		window.studentRealtimeChannel = supabaseClient.channel('realtime-students')
+		window.studentRealtimeChannel = RealtimeRegistry.register('students', supabaseClient.channel('realtime-students'))
 			.on('postgres_changes', {
 				event: '*',
 				schema: 'public',
@@ -7510,8 +7478,11 @@
 			window.__roomMetaRealtimeInit = true;
 			logInfo('初始化房间元数据实时订阅...');
 			
-			supabaseClient
-				.channel('room_metadata_sync')
+			window.roomMetaRealtimeChannel = RealtimeRegistry.register(
+				'room_meta',
+				supabaseClient.channel('room_metadata_sync')
+			);
+			window.roomMetaRealtimeChannel
 				.on('postgres_changes', {
 					event: '*',
 					schema: 'public',
@@ -7651,8 +7622,8 @@
 					const sel = `[data-room="${CSS.escape(roomName)}"]`;
 					const el = document.querySelector(sel);
 					if(el){ el.remove(); logInfo(`🧼 DOM节点已移除: ${roomName}`); } else { logInfo(`(DOM不存在或已移除) ${roomName}`); }
-					// 5.1 即时整体重渲染
-					if(window.renderRooms){ try{ renderRooms(); logInfo('🖼️ 首次即时重渲染完成'); }catch(e){} }
+					// 5.1 合并重渲染（避免重复全量渲染抖动）
+					if(window.renderRooms){ try{ scheduleRoomsFullRender('removeRoomEverywhere:immediate'); }catch(e){} }
 					// 6. 二次延迟兜底
 					setTimeout(()=>{
 						const el2=document.querySelector(sel);
@@ -7664,8 +7635,8 @@
 						const ghost=[...document.querySelectorAll('[data-room]')].filter(n=>n.getAttribute('data-room')===roomName);
 						if(ghost.length){ ghost.forEach(g=>g.remove()); logWarn(`🧟 移除幽灵DOM(${ghost.length}) ${roomName}`); }
 					},400);
-					// 7. 再次重渲染确认
-					setTimeout(()=>{ if(window.renderRooms){ renderRooms(); logInfo(`🔄 重渲染完成 removeRoomEverywhere(${roomName})`);} },60);
+					// 7. 再次重渲染确认（合并到同一帧）
+					setTimeout(()=>{ if(window.renderRooms){ scheduleRoomsFullRender(`removeRoomEverywhere:${roomName}`);} },60);
 					// 8. 输出最终状态
 					setTimeout(()=>{
 						const stillInStore = Store.byName.has(roomName) || Store.rooms.some(r=>r.name===roomName);
@@ -7750,7 +7721,7 @@
 					}
 					const changes=[]; if(row.remark!==undefined) changes.push(`备注:"${row.remark}"`); if(row.piano_type!==undefined) changes.push(`类型:${row.piano_type}`); if(row.location!==undefined) changes.push(`位置:${row.location}`);
 					logInfo(`✅ 房间元数据已更新 ${roomName}: ${changes.join(', ')}`);
-					if(window.renderRooms){ setTimeout(()=>{ renderRooms(); },50); }
+					if(window.renderRooms){ setTimeout(()=>{ scheduleRoomsFullRender(`meta-update:${roomName}`); },50); }
 					// 确保统计及时更新
 					setTimeout(()=>{ if(typeof updateUsageStats === 'function') updateUsageStats(); }, 60);
 				}
@@ -7962,10 +7933,7 @@
 				window.rebuildStudentIndex();
 			}
 			
-			// 刷新BTM（如果存在）
-			if (window.BTM && window.BTM.buildStudents) {
-				window.BTM.buildStudents();
-			}
+			// BTM 模块已移除，不再执行相关刷新
 			
 		} catch (error) {
 			logErr('处理学生实时更新失败:', error.message);
@@ -9056,37 +9024,36 @@
 			// 统一同步所有待保存的修改到数据库
 			if (!Store.settings.offlineMode && supabaseReady) {
 				const promises = [];
+				let okCount = 0;
+				let failCount = 0;
+				const failedChanges = new Map();
 				
 				for (const [roomName, changes] of Store.pendingChanges.entries()) {
-					// 同步备注
-					if (changes.remark !== undefined) {
-						promises.push(
-							syncRoomRemarkToDatabase(roomName, changes.remark)
-								.catch(error => logWarn(`房间备注同步失败 ${roomName}:`, error.message))
-						);
-					}
-					
-					// 同步楼层
-					if (changes.location !== undefined) {
-						promises.push(
-							syncRoomLocationToDatabase(roomName, changes.location)
-								.catch(error => logWarn(`房间楼层同步失败 ${roomName}:`, error.message))
-						);
-					}
-					
-					// 同步琴房类型
-					if (changes.pianoType !== undefined) {
-						promises.push(
-							syncRoomTypeToDatabase(roomName, changes.pianoType)
-								.catch(error => logWarn(`房间类型同步失败 ${roomName}:`, error.message))
-						);
-					}
+					const patch = {};
+					if (changes.remark !== undefined) patch.remark = changes.remark;
+					if (changes.location !== undefined) patch.location = changes.location;
+					if (changes.pianoType !== undefined) patch.piano_type = changes.pianoType;
+					if (Object.keys(patch).length === 0) continue;
+					promises.push(
+						syncRoomMetaPatchToDatabase(roomName, patch)
+							.then(() => { okCount++; })
+							.catch(error => {
+								failCount++;
+								failedChanges.set(roomName, changes);
+								logWarn(`房间同步失败 ${roomName}:`, error.message);
+							})
+					);
 				}
 				
 				// 等待所有同步完成
 				await Promise.all(promises);
 				
-				logInfo(`✅ 已同步 ${Store.pendingChanges.size} 个房间的修改到数据库`);
+				logInfo(`✅ 已同步 ${okCount} 个房间，失败 ${failCount} 个`);
+				Store.pendingChanges = failedChanges;
+				if (failCount > 0) {
+					toast(`部分保存失败：${failCount} 个房间未保存`, 'warn');
+					return;
+				}
 			}
 			
 			// 清空待保存列表
@@ -9573,6 +9540,19 @@
 		// 🚀 使用高优先级批量渲染
 		renderQueue.enqueue(name, 'high');
 		logInfo(`房间 ${name} 已加入强制渲染队列`);
+	}
+	function scheduleRoomsFullRender(reason){
+		if(window.__roomsFullRenderPending) return;
+		window.__roomsFullRenderPending = true;
+		requestAnimationFrame(() => {
+			window.__roomsFullRenderPending = false;
+			try{
+				renderRooms();
+				logInfo(`🖼️ 合并全量重渲染完成${reason ? ' [' + reason + ']' : ''}`);
+			}catch(e){
+				logWarn('全量重渲染失败:', e.message);
+			}
+		});
 	}
 
 	// 兼容性：保留原始强制渲染逻辑（已废弃，但保留以防万一）
@@ -11850,8 +11830,12 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			await mergeRooms(metaList, { skipCloudSync: true, metaOnly: true });
 		}
 		
-		// 🔧 强制同步两个表，确保数据完全一致
-		if (supabaseReady) {
+		// 非阻塞任务统一延后：先完成首屏渲染，再执行自检/重任务
+		const deferredBootstrapTasks = async () => {
+			if (!supabaseReady) return;
+			logInfo('[Bootstrap] 开始执行延后任务（非阻塞）');
+
+			// 1) 强制同步两个表（重操作，后移）
 			logInfo('[Bootstrap] 开始强制同步 rooms 和 room_database 表');
 			try {
 				const syncResult = await forceSyncRoomTables();
@@ -11868,7 +11852,61 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			} catch (error) {
 				logErr('[Bootstrap] 双表同步异常:', error.message);
 			}
-		}
+
+			// 2) 启动健康检查与周期任务（后移，减少首屏竞争）
+			startPeriodicStateCheck();
+			setupOperationTimeoutDetection();
+			realtimeMonitor.start();
+			initStudentPollingSync();
+
+			timerManager.setInterval('timerStateSync', () => {
+				timerPersistence.syncStatesToCloud();
+			}, 5 * 60 * 1000);
+
+			timerManager.setInterval('roomTableSync', async () => {
+				logInfo('⏰ 定期双表同步检查...');
+				try {
+					const result = await forceSyncRoomTables();
+					if (result.success && result.fixed > 0) {
+						logWarn(`定期同步发现 ${result.fixed} 处不一致，已修复`);
+						toast(`自动同步修复了 ${result.fixed} 处房间数据`, 'info');
+					}
+				} catch (error) {
+					logErr('定期双表同步失败:', error.message);
+				}
+			}, 30 * 60 * 1000);
+
+			timerManager.setInterval('connectionHealthCheck', async () => {
+				if (!supabaseClient || !supabaseReady) {
+					logWarn('[HealthCheck] Supabase 客户端失效，尝试重新初始化...');
+					try {
+						await initSupabase();
+						if (supabaseReady) {
+							logInfo('[HealthCheck] Supabase 重新初始化成功');
+							window.__roomsRealtimeInit = false;
+							await setupRealtime();
+						}
+					} catch (error) {
+						logErr('[HealthCheck] Supabase 重新初始化失败:', error.message);
+					}
+					return;
+				}
+
+				if (realtimeChannel) {
+					const channelState = realtimeChannel.state;
+					if (channelState === 'closed' || channelState === 'errored') {
+						logWarn(`[HealthCheck] Realtime 连接状态异常 (${channelState})，尝试重连...`);
+						window.__roomsRealtimeInit = false;
+						window.__roomsRealtimeReconnecting = true;
+						await setupRealtime();
+					}
+				} else {
+					logWarn('[HealthCheck] Realtime 频道丢失，尝试重建...');
+					window.__roomsRealtimeInit = false;
+					await setupRealtime();
+				}
+			}, 60 * 1000);
+		};
 		
 		rebuildIndexes(); 
 		rebuildStudentIndex(); 
@@ -11892,75 +11930,12 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			await serverTimeSync.init();
 			
 			await setupRealtime();
-			// 启动定期状态检查
-			startPeriodicStateCheck();
-			// 启动操作超时检测
-			setupOperationTimeoutDetection();
-			// 启动realtime连接监控
-			realtimeMonitor.start();
-			
-			// 🕐 启动定期计时器状态同步（每5分钟）
-			timerManager.setInterval('timerStateSync', () => {
-				timerPersistence.syncStatesToCloud();
-			}, 5 * 60 * 1000);
-			
-			// 🔧 启动定期双表同步检查（每30分钟）
-			timerManager.setInterval('roomTableSync', async () => {
-				logInfo('⏰ 定期双表同步检查...');
-				try {
-					const result = await forceSyncRoomTables();
-					if (result.success && result.fixed > 0) {
-						logWarn(`定期同步发现 ${result.fixed} 处不一致，已修复`);
-						toast(`自动同步修复了 ${result.fixed} 处房间数据`, 'info');
-					}
-				} catch (error) {
-					logErr('定期双表同步失败:', error.message);
-				}
-			}, 30 * 60 * 1000);
-			
-			// 🔧 新增：连接健康检查和自动恢复机制
-			timerManager.setInterval('connectionHealthCheck', async () => {
-				// 检查 Supabase 客户端是否仍然有效
-				if (!supabaseClient || !supabaseReady) {
-					logWarn('[HealthCheck] Supabase 客户端失效，尝试重新初始化...');
-					try {
-						await initSupabase();
-						if (supabaseReady) {
-							logInfo('[HealthCheck] Supabase 重新初始化成功');
-							// 重新建立 Realtime 连接
-							window.__roomsRealtimeInit = false;
-							await setupRealtime();
-						}
-					} catch (error) {
-						logErr('[HealthCheck] Supabase 重新初始化失败:', error.message);
-					}
-					return;
-				}
-				
-				// 检查 Realtime 连接状态
-				if (realtimeChannel) {
-					const channelState = realtimeChannel.state;
-					if (channelState === 'closed' || channelState === 'errored') {
-						logWarn(`[HealthCheck] Realtime 连接状态异常 (${channelState})，尝试重连...`);
-						window.__roomsRealtimeInit = false;
-						window.__roomsRealtimeReconnecting = true;
-						await setupRealtime();
-					}
-				} else {
-					// Realtime 频道丢失，尝试重建
-					logWarn('[HealthCheck] Realtime 频道丢失，尝试重建...');
-					window.__roomsRealtimeInit = false;
-					await setupRealtime();
-				}
-			}, 60 * 1000); // 每60秒检查一次连接健康状态
+			setTimeout(() => {
+				deferredBootstrapTasks().catch(e => logErr('[Bootstrap] 延后任务失败:', e.message));
+			}, 4000); // 首屏后 4 秒执行
 		}
 		
 		logInfo('初始化完成: rooms='+rooms.length+' students='+students.length);
-		// 兜底：如果已登录但按钮被其它逻辑覆盖隐藏，再次显示（函数可能被移除，做安全判定）
-		if(typeof showBulkTimeButton === 'function'){
-			try{ showBulkTimeButton(); }catch(e){ console.warn('showBulkTimeButton 调用失败', e); }
-		}
-
 		// AB方案-A: bootstrap 完成后尝试一次学生库种子填充（仅当学生库存在且当前为空）
 		if(window.seedStudentLibraryFromRoomStore){ try{ window.seedStudentLibraryFromRoomStore({ reason:'bootstrap-end' }); }catch(e){ console.warn('[SeedStudentLibrary] bootstrap 调用失败', e); } }
 	}
@@ -13428,6 +13403,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	const store = { version:1, items:[] };
 	// 待同步队列: {type:'upsert'|'delete', payload:{name,major,grade,archived?}} 离线时累积
 	let pendingCloudOps = [];
+	let pendingCloudOpsFlushing = false;
 	function now(){ return Date.now(); }
 	function save(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(store)); }catch(e){ console.warn('[StudentLibrary] save failed', e); } }
 	function load(){ try{ const raw=localStorage.getItem(LS_KEY); if(raw){ const obj=JSON.parse(raw); if(obj.version===1 && Array.isArray(obj.items)){ store.items=obj.items; } } }catch(e){ console.warn('[StudentLibrary] load failed', e); } }
@@ -13525,16 +13501,70 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		}
 		return true;
 	}
-	async function flushPending(){ if(!window.supabaseReady || !window.supabaseClient || !pendingCloudOps.length) return; const upserts=[]; const deletes=[]; pendingCloudOps.forEach(op=>{ if(op.type==='upsert') upserts.push(op.payload); else if(op.type==='delete') deletes.push(op.payload); }); pendingCloudOps=[]; try{ if(upserts.length){ console.log('[StudentLibrary] 批量上行学生', upserts.length); try{ if(typeof syncStudentDatabaseToCloud==='function'){ await syncStudentDatabaseToCloud(upserts); } else { // fallback 手动 diff
-				const names=[...new Set(upserts.map(s=>s.name).filter(Boolean))]; let existing=[]; try{ const {data:ex, error:exErr}=await supabaseClient.from('student_database').select('name').in('name', names); if(!exErr && Array.isArray(ex)) existing=ex.map(r=>r.name); }catch(_){ }
-				const toInsert=upserts.filter(s=>!existing.includes(s.name)).map(s=>({ name:s.name, major:s.major||'未填写', grade:s.grade||'' }));
-				const toUpdate=upserts.filter(s=>existing.includes(s.name));
-				if(toInsert.length){ const {error:insErr}=await supabaseClient.from('student_database').insert(toInsert); if(insErr) console.warn('[StudentLibrary] insert batch error', insErr.message); }
-				for(const row of toUpdate){ try{ const {error:updErr}=await supabaseClient.from('student_database').update({ major:row.major||'未填写', grade:row.grade||'' }).eq('name', row.name); if(updErr) console.warn('[StudentLibrary] update error', row.name, updErr.message); }catch(e){ console.warn('[StudentLibrary] update exception', row.name, e.message); } }
-			} }catch(e){ console.warn('[StudentLibrary] upsert 执行异常', e); }
+	async function flushPending(){
+		if(!window.supabaseReady || !window.supabaseClient || !pendingCloudOps.length) return;
+		if(pendingCloudOpsFlushing) return;
+		pendingCloudOpsFlushing = true;
+		const opsSnapshot = pendingCloudOps.slice();
+		let flushedOk = false;
+		try{
+			// 以“最后一次操作”为准压缩队列，避免重复写
+			const upsertMap = new Map();
+			const deleteSet = new Set();
+			for(const op of opsSnapshot){
+				const n = op?.payload?.name;
+				if(!n) continue;
+				if(op.type === 'upsert'){
+					deleteSet.delete(n);
+					upsertMap.set(n, {
+						name: n,
+						major: op.payload.major || '未填写',
+						grade: op.payload.grade || ''
+					});
+				}else if(op.type === 'delete'){
+					upsertMap.delete(n);
+					deleteSet.add(n);
+				}
+			}
+			const upserts = Array.from(upsertMap.values());
+			const deletes = Array.from(deleteSet.values());
+
+			if(upserts.length){
+				console.log('[StudentLibrary] 批量上行学生', upserts.length);
+				const { error: upsertError } = await supabaseClient
+					.from('student_database')
+					.upsert(upserts, { onConflict: 'name' });
+				if(upsertError){
+					throw new Error(`upsert失败: ${upsertError.message}`);
+				}
+			}
+
+			if(deletes.length){
+				const chunkSize = 120;
+				for(let i=0;i<deletes.length;i+=chunkSize){
+					const namesChunk = deletes.slice(i, i + chunkSize);
+					const { error: delError } = await supabaseClient
+						.from('student_database')
+						.delete()
+						.in('name', namesChunk);
+					if(delError){
+						throw new Error(`delete失败: ${delError.message}`);
+					}
+				}
+			}
+
+			// 仅在整批成功后移除已处理队列，失败时不丢单
+			pendingCloudOps = pendingCloudOps.slice(opsSnapshot.length);
+			flushedOk = true;
+		}catch(e){
+			console.warn('[StudentLibrary] flushPending exception', e);
+		}finally{
+			pendingCloudOpsFlushing = false;
+			// 仅成功后继续冲刷剩余队列，失败留待下次触发避免重试风暴
+			if(flushedOk && pendingCloudOps.length > 0){
+				setTimeout(() => { flushPending(); }, 0);
+			}
 		}
-		if(deletes.length){ for(const d of deletes){ try{ const {error}=await supabaseClient.from('student_database').delete().eq('name', d.name); if(error) console.warn('[StudentLibrary] delete cloud error', d.name, error.message); else console.log('[StudentLibrary] 已删除云端学生', d.name); }catch(e){ console.warn('[StudentLibrary] delete cloud exception', d.name, e); } } }
-	}catch(e){ console.warn('[StudentLibrary] flushPending exception', e); }
 	}
 	function enqueue(op){ 
 		pendingCloudOps.push(op); 
@@ -13725,11 +13755,22 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		progBox.style.display='none'; progText.textContent='同步中...'; progBar.style.width='0%'; progBar.style.background='linear-gradient(90deg,#2563eb,#3b82f6)';
 		wrap.style.display='flex'; nameInput.value=stu.name; gradeInput.value=stu.grade||''; majorInput.value=stu.major||''; nameInput.focus();
 		wrap.querySelector('#esCancel').onclick=close;
+		let saving = false;
 		wrap.querySelector('#esSave').onclick=async ()=>{
+			if(saving) return;
 			const newName=nameInput.value.trim(); const newGrade=gradeInput.value.trim(); const newMajor=majorInput.value.trim(); if(!newName){ alert('姓名不能为空'); nameInput.focus(); return; }
 			if(newName!==oldName && findByName(newName)){ alert('已存在同名学生'); return; }
+			saving = true;
+			const saveBtn = wrap.querySelector('#esSave');
+			if(saveBtn){ saveBtn.disabled = true; saveBtn.style.opacity='0.7'; }
 			stu.name=newName; stu.grade=newGrade; stu.major=newMajor; stu.updated_at=now(); save(); refreshUI(); refreshBTM();
-			if(!window.supabaseClient){ close(); if(window.toast) toast('离线：仅本地保存','warn'); return; }
+			if(!window.supabaseClient){
+				close();
+				if(window.toast) toast('离线：仅本地保存','warn');
+				saving = false;
+				if(saveBtn){ saveBtn.disabled = false; saveBtn.style.opacity=''; }
+				return;
+			}
 			progBox.style.display='block'; progText.textContent='同步学生信息...'; progBar.style.width='12%';
 			try{
 				function step(p,msg){ progBar.style.width=p+'%'; if(msg) progText.textContent=msg; }
@@ -13754,11 +13795,15 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					const delOld=await supabaseClient.from('student_database').delete().eq('name', oldName); if(delOld.error){ console.warn('[StudentLibrary] 删除旧学生记录失败', delOld.error.message); }
 					step(70,'旧名称清理完成');
 				}
-				setTimeout(()=>{ try{ if(typeof syncStudentDatabaseToCloud==='function'){ syncStudentDatabaseToCloud(store.items.map(s=>({ name:s.name, major:s.major||'', grade:s.grade||'' }))); } }catch(_){ } }, 20);
+				// 改为增量同步，避免每次编辑触发全量学生表写入
+				enqueue({ type:'upsert', payload:{ name:newName, major:newMajor||'', grade:newGrade||'' } });
 				step(92,'刷新界面...'); await new Promise(r=>requestAnimationFrame(r)); step(100,'完成'); setTimeout(()=>close(),500);
 				if(window.toast) toast('学生已同步','success');
 			}catch(err){ progBar.style.width='100%'; progBar.style.background='#dc2626'; progText.textContent=err.message||err; if(newName!==oldName){ // 回滚本地名称
 				stu.name=oldName; save(); refreshUI(); }
+			} finally {
+				saving = false;
+				if(saveBtn){ saveBtn.disabled = false; saveBtn.style.opacity=''; }
 			}
 		};
 	}
@@ -13805,7 +13850,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			if(removed>0){ save(); refreshUI(); refreshBTM(); console.log(`[StudentLibrary][reconcile] 清理本地多余 ${removed} 条`); }
 		}catch(e){ console.warn('[StudentLibrary][reconcile] 异常', e.message); }
 	};
-	function refreshBTM(){ if(window.BTM){ try{ BTM.buildStudents(); BTM.buildSelections(); BTM.applyFilter(); }catch(e){ console.warn('[StudentLibrary] refreshBTM failed', e); } } }
+	function refreshBTM(){ /* BTM 模块已移除 */ }
 	window.getAllActiveStudents = () => getAll(false).map(s=>({ name:s.name, grade:s.grade, major:s.major }));
 	// UI
 	let panel,listEl,searchEl,addBtn,addForm,showArchivedCb,exportBtn;
@@ -13852,37 +13897,81 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		const idxName=header.indexOf('name'); const idxGrade=header.indexOf('grade'); const idxMajor=header.indexOf('major'); const idxRemark=header.indexOf('remark'); const idxMon=header.indexOf('mon'); const idxTue=header.indexOf('tue'); const idxWed=header.indexOf('wed'); const idxThu=header.indexOf('thu'); const idxFri=header.indexOf('fri');
 		if(idxName<0){ prog.remove(); alert('缺少 name 列'); return; }
 		let inserted=0, updated=0, skipped=0, slotTotal=0, slotInvalid=0; const slotRows=[]; const nowTs=now();
+		const changedStudents = new Map();
 		for(let i=start;i<rows.length;i++){
 			const r=rows[i]; if(!r.length) continue; const name=(r[idxName]||'').trim(); if(!name){ skipped++; continue; }
 			const grade=idxGrade>=0?(r[idxGrade]||''):''; const major=idxMajor>=0?(r[idxMajor]||''):''; const remark=idxRemark>=0?(r[idxRemark]||''):'';
-			let student=findByName(name); if(!student){ student={ id:crypto.randomUUID?crypto.randomUUID():('id_'+Math.random().toString(36).slice(2)), name, grade, major, remark, archived:false, created_at:nowTs, updated_at:nowTs }; store.items.push(student); inserted++; } else { let changed=false; if(grade && grade!==student.grade){ student.grade=grade; changed=true;} if(major && major!==student.major){ student.major=major; changed=true;} if(remark && remark!==student.remark){ student.remark=remark; changed=true;} if(changed){ student.updated_at=nowTs; updated++; } }
+			let student=findByName(name); if(!student){ student={ id:crypto.randomUUID?crypto.randomUUID():('id_'+Math.random().toString(36).slice(2)), name, grade, major, remark, archived:false, created_at:nowTs, updated_at:nowTs }; store.items.push(student); inserted++; changedStudents.set(name, { name, major:major||'', grade:grade||'' }); } else { let changed=false; if(grade && grade!==student.grade){ student.grade=grade; changed=true;} if(major && major!==student.major){ student.major=major; changed=true;} if(remark && remark!==student.remark){ student.remark=remark; changed=true;} if(changed){ student.updated_at=nowTs; updated++; changedStudents.set(name, { name, major:student.major||'', grade:student.grade||'' }); } }
 			const dayCols=[idxMon,idxTue,idxWed,idxThu,idxFri]; dayCols.forEach((col,di)=>{ if(col<0) return; const cell=(r[col]||'').trim(); if(!cell) return; cell.split(/;|；/).forEach(seg=>{ seg=seg.trim(); if(!seg) return; if(!/^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/.test(seg)){ slotInvalid++; return; } let [s,e]=seg.split('-'); const ns=s.padStart(5,'0'); const ne=e.padStart(5,'0'); if(ns>=ne){ slotInvalid++; return; } slotRows.push({ student_name:name, weekday:di+1, start_time:ns, end_time:ne }); slotTotal++; }); });
 			if(i%400===0){ const p=Math.round(((i-start+1)/(rows.length-start))*15); setProg(`解析中... ${(i-start+1)}/${rows.length-start}`,p); await new Promise(r=>requestAnimationFrame(r)); }
 		}
 		const parseMs=Math.round(performance.now()-parseT0);
 		setProg(`解析完成(${rows.length-start}行, 用时${parseMs}ms)，准备同步学生...`,18);
 		save(); refreshUI(); refreshBTM();
-		// 学生同步放后台，不阻塞进度条继续
+		// 学生同步放后台（增量），不阻塞进度条继续
 		if(window.supabaseReady && window.supabaseClient){
-			(async()=>{ try{ const rowsForCloud = store.items.map(s=>({ name:s.name, major:s.major||'', grade:s.grade||'' })); if(typeof syncStudentDatabaseToCloud==='function') await syncStudentDatabaseToCloud(rowsForCloud); }catch(e){ console.warn('[StudentLibrary] 学生信息同步异常', e); }})();
+			(async()=>{
+				try{
+					const rowsForCloud = Array.from(changedStudents.values());
+					if(rowsForCloud.length){
+						const { error } = await supabaseClient.from('student_database').upsert(rowsForCloud, { onConflict:'name' });
+						if(error) throw error;
+					}
+				}catch(e){ console.warn('[StudentLibrary] 学生信息同步异常', e); }
+			})();
 		}
 		if(!window.supabaseClient){ setProg('无 Supabase 连接，仅本地更新',25); setTimeout(()=>prog.remove(),3000); alert(`导入完成(离线)。学生: 新增${inserted} 更新${updated} 跳过${skipped} 时间段${slotTotal} 无效${slotInvalid}`); return; }
 		const t0=performance.now();
 		const names=[...new Set(slotRows.map(r=>r.student_name))];
+		let backupRows = [];
+		if(names.length){
+			const backupRes = await supabaseClient
+				.from('student_time_slots')
+				.select('student_name,weekday,start_time,end_time,duration_minutes')
+				.in('student_name', names);
+			if(backupRes.error){
+				setProg('备份旧时间段失败: '+backupRes.error.message, 28);
+				alert('备份旧时间段失败: '+backupRes.error.message);
+				return;
+			}
+			backupRows = backupRes.data || [];
+		}
 		setProg('删除旧时间段...',30);
 		if(names.length){ const delRes=await supabaseClient.from('student_time_slots').delete().in('student_name', names); if(delRes.error){ setProg('删除失败: '+delRes.error.message,30); alert('删除旧时间段失败:'+delRes.error.message); return; } }
 		setProg('写入新时间段准备中...',35);
 		const allRows=slotRows.map(r=>{ const [sh,sm]=r.start_time.split(':').map(Number); const [eh,em]=r.end_time.split(':').map(Number); return { ...r, duration_minutes:(eh*60+em)-(sh*60+sm) }; });
 		const total=allRows.length; const BATCH=600; let ok=0, fail=0; const errors=[]; let lastPercent=-1;
-		for(let i=0;i<allRows.length;i+=BATCH){ const slice=allRows.slice(i,i+BATCH); const res=await supabaseClient.from('student_time_slots').insert(slice); if(res.error){ fail+=slice.length; errors.push(res.error.message); } else { ok+=slice.length; } const percent=Math.min(100,Math.round(((i+slice.length)/total)*100)); if(percent!==lastPercent){ // 将写入进度映射到 40%~95%
+		let slotWriteFailed = false;
+		for(let i=0;i<allRows.length;i+=BATCH){ const slice=allRows.slice(i,i+BATCH); const res=await supabaseClient.from('student_time_slots').insert(slice); if(res.error){ fail+=slice.length; errors.push(res.error.message); slotWriteFailed = true; break; } else { ok+=slice.length; } const percent = total>0 ? Math.min(100,Math.round(((i+slice.length)/total)*100)) : 100; if(percent!==lastPercent){ // 将写入进度映射到 40%~95%
 			const mapped=40 + Math.round(percent*0.55); setProg(`写入中 ${percent}% (${ok+fail}/${total})`, mapped); lastPercent=percent; } await new Promise(r=>requestAnimationFrame(r)); }
+		if(slotWriteFailed){
+			setProg('写入失败，开始回滚旧时间段...', 96);
+			try{
+				if(names.length){
+					await supabaseClient.from('student_time_slots').delete().in('student_name', names);
+				}
+				if(backupRows.length){
+					const rollbackBatch = 600;
+					for(let i=0;i<backupRows.length;i+=rollbackBatch){
+						const slice = backupRows.slice(i, i+rollbackBatch);
+						const rb = await supabaseClient.from('student_time_slots').insert(slice);
+						if(rb.error) throw rb.error;
+					}
+				}
+				setProg('回滚完成，请检查并重试导入', 100);
+			}catch(rbErr){
+				setProg('回滚失败: '+rbErr.message, 100);
+			}
+			setTimeout(()=>{ try{ prog.remove(); }catch(_){} }, 6000);
+			alert(`导入失败，已尝试回滚旧数据。\n错误: ${errors[0] || '未知错误'}`);
+			return;
+		}
 		const ms=Math.round(performance.now()-t0);
 		setProg(`完成: 成功${ok} 失败${fail} 用时${ms}ms`+(errors.length? ' 错误:'+errors[0] : ''),100);
 		setTimeout(()=>{ try{ prog.remove(); }catch(_){} }, 5000);
-		if(window.BTM){ try{ await BTM.loadRemote(); BTM.buildSelections(); }catch(_){ } }
+		// BTM 已移除，无需同步
 		alert(`导入完成: 学生 新增${inserted} 更新${updated} 跳过${skipped}; 时间段有效${slotTotal} 无效${slotInvalid}; 成功${ok} 失败${fail}` + (errors.length?`\n首条错误: ${errors[0]}`:''));
 	}
-	function openPanel(){ initDom(); if(!panel) return; panel.style.display='flex'; renderList(); updateTotal(); }
 	// 修改 openPanel: 打开时尝试 hydration
 	async function openPanel(){ 
 		initDom(); if(!panel) return; panel.style.display='flex'; 
@@ -13910,7 +13999,95 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	function closePanel(){ if(panel) panel.style.display='none'; }
 	function toggleAddForm(show){ if(!addForm) return; addForm.style.display=show?'flex':'none'; if(show){ const n=document.getElementById('slName'); n&&n.focus(); } }
 	function updateTotal(){ const el=document.getElementById('slTotal'); if(el) el.textContent=getAll().length+' 人'; }
-	function renderList(){ if(!listEl) return; const kw=(searchEl?.value||'').trim().toLowerCase(); const rows=getAll().filter(s=> !kw || s.name.toLowerCase().includes(kw) || (window.matchPinyin?matchPinyin(s.name,kw):false)); if(!rows.length){ listEl.innerHTML='<div style="padding:12px;color:#64748b;font-style:italic;">无数据</div>'; return;} listEl.innerHTML=rows.map(s=>{ return `<div class=\"sl-row\" data-name=\"${s.name}\" style=\"display:flex;flex-direction:column;gap:4px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;\">\n<div style=\"display:flex;align-items:center;gap:8px;\">\n<span style=\"font-weight:600;\">${s.name}</span><span style=\"font-size:11px;color:#475569;\">${s.major||'--'} · ${s.grade||'--'}</span>\n<span style=\"margin-left:auto;display:flex;gap:6px;\">\n<button data-act=\"edit\" class=\"sl-btn sl-btn-secondary sl-btn-mini\">编辑</button>\n<button data-act=\"delete\" class=\"sl-btn sl-btn-danger sl-btn-mini\">删除</button>\n</span></div>\n</div>`; }).join(''); listEl.querySelectorAll('.sl-row button').forEach(btn=>{ btn.onclick=()=>{ const act=btn.dataset.act; const name=btn.closest('.sl-row').dataset.name; if(!name) return; if(act==='delete'){ if(confirm('永久删除 '+name+' 及其时间段？此操作不可恢复')){ deleteStudent(name); try{ if(window.supabaseClient){ supabaseClient.from('student_time_slots').delete().eq('student_name', name); } }catch(_){} } } else if(act==='edit'){ openEditStudent(name); } }; }); }
+	function createStudentRowElement(s){
+		const row = document.createElement('div');
+		row.className = 'sl-row';
+		row.dataset.name = s.name;
+		row.style.cssText = 'display:flex;flex-direction:column;gap:4px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;';
+
+		const top = document.createElement('div');
+		top.style.cssText = 'display:flex;align-items:center;gap:8px;';
+
+		const nameEl = document.createElement('span');
+		nameEl.style.fontWeight = '600';
+		nameEl.className = 'sl-name';
+		nameEl.textContent = s.name;
+
+		const metaEl = document.createElement('span');
+		metaEl.style.cssText = 'font-size:11px;color:#475569;';
+		metaEl.className = 'sl-meta';
+		metaEl.textContent = `${s.major || '--'} · ${s.grade || '--'}`;
+
+		const actions = document.createElement('span');
+		actions.style.cssText = 'margin-left:auto;display:flex;gap:6px;';
+
+		const editBtn = document.createElement('button');
+		editBtn.dataset.act = 'edit';
+		editBtn.className = 'sl-btn sl-btn-secondary sl-btn-mini';
+		editBtn.textContent = '编辑';
+
+		const delBtn = document.createElement('button');
+		delBtn.dataset.act = 'delete';
+		delBtn.className = 'sl-btn sl-btn-danger sl-btn-mini';
+		delBtn.textContent = '删除';
+
+		actions.appendChild(editBtn);
+		actions.appendChild(delBtn);
+		top.appendChild(nameEl);
+		top.appendChild(metaEl);
+		top.appendChild(actions);
+		row.appendChild(top);
+		return row;
+	}
+	function patchStudentList(rows){
+		if(!listEl) return;
+		// 清理占位节点（如“无数据”）
+		Array.from(listEl.children).forEach(ch => {
+			if(!ch.classList || !ch.classList.contains('sl-row')) ch.remove();
+		});
+		const existing = new Map(Array.from(listEl.querySelectorAll('.sl-row')).map(el => [el.dataset.name, el]));
+		const nextNames = new Set(rows.map(r => r.name));
+
+		// 先删除不再存在的行
+		existing.forEach((el, name) => {
+			if(!nextNames.has(name)) el.remove();
+		});
+
+		// 按目标顺序增量更新/新增
+		let anchor = null;
+		for(let i = rows.length - 1; i >= 0; i--){
+			const s = rows[i];
+			let el = existing.get(s.name);
+			if(!el){
+				el = createStudentRowElement(s);
+				listEl.insertBefore(el, anchor);
+			}else{
+				const nameEl = el.querySelector('.sl-name');
+				const metaEl = el.querySelector('.sl-meta');
+				if(nameEl && nameEl.textContent !== s.name) nameEl.textContent = s.name;
+				const nextMeta = `${s.major || '--'} · ${s.grade || '--'}`;
+				if(metaEl && metaEl.textContent !== nextMeta) metaEl.textContent = nextMeta;
+				if(el.nextSibling !== anchor){
+					listEl.insertBefore(el, anchor);
+				}
+			}
+			anchor = el;
+		}
+	}
+	function renderList(){
+		if(!listEl) return;
+		const kw = (searchEl?.value || '').trim().toLowerCase();
+		const rows = getAll().filter(s =>
+			!kw ||
+			s.name.toLowerCase().includes(kw) ||
+			(window.matchPinyin ? matchPinyin(s.name, kw) : false)
+		);
+		if(!rows.length){
+			listEl.innerHTML = '<div style="padding:12px;color:#64748b;font-style:italic;">无数据</div>';
+			return;
+		}
+		patchStudentList(rows);
+	}
 	function refreshUI(){
 		renderList(); updateTotal();
 		// 若学生选择弹窗开启, 同步刷新里面的列表(调用上层 renderStudentList)
@@ -13961,6 +14138,25 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		
 		const closeBtn=document.getElementById('slCloseBtn'); 
 		if(closeBtn) closeBtn.onclick=closePanel; 
+		if(listEl && !listEl.dataset.bound){
+			listEl.dataset.bound = '1';
+			listEl.addEventListener('click', (e) => {
+				const btn = e.target.closest('button[data-act]');
+				if(!btn) return;
+				const row = btn.closest('.sl-row');
+				const name = row?.dataset?.name;
+				if(!name) return;
+				const act = btn.dataset.act;
+				if(act === 'delete'){
+					if(confirm('永久删除 ' + name + ' 及其时间段？此操作不可恢复')){
+						deleteStudent(name);
+						try{ if(window.supabaseClient){ supabaseClient.from('student_time_slots').delete().eq('student_name', name); } }catch(_){}
+					}
+				}else if(act === 'edit'){
+					openEditStudent(name);
+				}
+			});
+		}
 		
 		const addBtnEl=document.getElementById('slAddBtn'); 
 		if(addBtnEl) addBtnEl.onclick=()=>toggleAddForm(true); 
@@ -13988,14 +14184,23 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			} 
 		}; 
 		
-		if(searchEl) searchEl.oninput=()=>refreshUI(); 
+		if(searchEl){
+			const debounce = (fn, wait=150) => {
+				let t = null;
+				return (...args) => {
+					if(t) clearTimeout(t);
+					t = setTimeout(() => fn(...args), wait);
+				};
+			};
+			searchEl.oninput = debounce(() => refreshUI(), 150);
+		}
 		if(exportBtn) exportBtn.onclick=exportJSON; 
 		
 		const openBTM=document.getElementById('slOpenBTMBtn'); 
-		if(openBTM) openBTM.onclick=()=>{ 
-			if(window.openBulkTimeManager) openBulkTimeManager(); 
-			else alert('BTM 未加载'); 
-		}; 
+		if(openBTM){
+			openBTM.style.display='none';
+			openBTM.onclick=null;
+		}
 		
 		// 仅绑定含时间段 CSV 按钮
 		const exportCsvSlotsBtn=document.getElementById('slExportCsvSlotsBtn'); 
@@ -14158,6 +14363,41 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	function currentFilter(){ return AlertStore.filter||'all'; }
 	function applyFilter(list){ const f=currentFilter(); if(f==='all') return list; if(f==='absent') return list.filter(a=>a.type==='absent'); return list; }
 	function updateFilterButtons(){ document.querySelectorAll('.alert-filter-btn').forEach(b=>{ b.classList.toggle('act', b.dataset.filter===currentFilter()); }); }
+	function patchAlertList(filtered, box){
+		const existing = new Map();
+		box.querySelectorAll('.alert-item[data-id]').forEach(el => existing.set(String(el.dataset.id), el));
+		const frag = document.createDocumentFragment();
+		for(const a of filtered){
+			const id = String(a.id);
+			const sig = [
+				a.type || '',
+				a.ignored ? '1' : '0',
+				String(a.severity || 0),
+				a.slot_start || a.slot?.start_time || '',
+				a.slot_end || a.slot?.end_time || '',
+				a.student_name || '',
+				a._msg || ''
+			].join('|');
+			let el = existing.get(id);
+			if(!el || el.dataset.sig !== sig){
+				const temp = document.createElement('div');
+				temp.innerHTML = alertHtml(a).trim();
+				el = temp.firstElementChild;
+			}
+			el.dataset.sig = sig;
+			frag.appendChild(el);
+		}
+		box.replaceChildren(frag);
+	}
+	function bindAlertListDelegation(box){
+		if(!box || box.dataset.alertDelegated === '1') return;
+		box.dataset.alertDelegated = '1';
+		box.addEventListener('click', e => {
+			const btn = e.target.closest('[data-act="ignore"]');
+			if(!btn) return;
+			ignoreAlert(btn.dataset.id);
+		});
+	}
 	function renderAlerts(){ 
 		console.log('[PracticeAlerts] renderAlerts 开始，AlertStore.list:', AlertStore.list.length);
 		const box=document.getElementById('alertList'); 
@@ -14186,15 +14426,23 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		console.log('[PracticeAlerts] 过滤后提醒数量:', filtered.length);
 		if(!filtered.length){ 
 			box.classList.add('alert-empty'); 
-			box.innerHTML='暂无提醒'; 
+			box.textContent='暂无提醒'; 
 			console.log('[PracticeAlerts] 显示：暂无提醒');
 		} else { 
 			box.classList.remove('alert-empty'); 
-			box.innerHTML=filtered.map(a=>alertHtml(a)).join(''); 
-			box.querySelectorAll('[data-act="ignore"]').forEach(btn=>{ btn.onclick=()=>ignoreAlert(btn.dataset.id); }); 
+			patchAlertList(filtered, box);
+			bindAlertListDelegation(box);
 			console.log('[PracticeAlerts] 渲染了', filtered.length, '条提醒');
 		} 
 		updateFilterButtons(); 
+	}
+	function scheduleRenderAlerts(){
+		if(AlertStore._renderQueued) return;
+		AlertStore._renderQueued = true;
+		requestAnimationFrame(() => {
+			AlertStore._renderQueued = false;
+			renderAlerts();
+		});
 	}
 		function alertHtml(a){ 
 			const tags=[`<span class="alert-tag type-${a.type}">${a.type==='absent'?'缺勤':'异常'}</span>`]; 
@@ -14234,7 +14482,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		</div>`; 
 		}
 		async function ignoreAlert(id){ const a=AlertStore.byId.get(id); if(!a) return; if(a.ignored) return; a.ignored=true; // 本地先置位
-			removeAlertLocal(id); renderAlerts();
+			removeAlertLocal(id); scheduleRenderAlerts();
 			// 忽略后：设置当天静默，直到该生重新登记
 			try{ setSilenced(a.student_name, a.type, a.slot||{start_time:a.slot_start,end_time:a.slot_end}); }catch(_e){}
 			// 移除去重 key (允许忽略后再产生新提醒)
@@ -14246,13 +14494,13 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				console.log('[PracticeAlerts] 标记 ignored=true id=', id);
 				const {data, error}=await supabaseClient.from('practice_alerts').update({ignored:true}).eq('id', id).select('id');
 				if(error){ console.warn('ignore(update) fail', error); // 回滚恢复
-					AlertStore.byId.set(String(id),a); AlertStore.list.unshift(a); renderAlerts(); 
+					AlertStore.byId.set(String(id),a); AlertStore.list.unshift(a); scheduleRenderAlerts(); 
 				}else{
 					console.log('[PracticeAlerts] 标记成功 rows=', data?.length||0);
 					// 成功后通过 realtime UPDATE 其他端会自动移除；同时广播兜底
 					try{ if(AlertStore._rtChannel){ AlertStore._rtChannel.send({type:'broadcast', event:'ignore', payload:{id}}); console.log('[PracticeAlerts][BC][ignore-update] 已发送广播 id=', id); } }catch(e){ console.warn('[PracticeAlerts][BC] send update 广播失败', e); }
 				}
-			}catch(e){ console.error(e); AlertStore.byId.set(String(id),a); AlertStore.list.unshift(a); renderAlerts(); }
+			}catch(e){ console.error(e); AlertStore.byId.set(String(id),a); AlertStore.list.unshift(a); scheduleRenderAlerts(); }
 	}
 
 		// 一键忽略当前筛选条件下的所有提醒
@@ -14284,7 +14532,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			}
 			try{ persistSilenced(); }catch(_e){}
 			try{ localStorage.setItem('practice_alerts_ignore_ping', JSON.stringify({bulk: true, ids: candidates.map(c=>c.id), t:Date.now()})); }catch(_e){}
-			renderAlerts();
+			scheduleRenderAlerts();
 			// 远端批量更新
 			if(window.supabaseClient){
 				try{
@@ -14292,7 +14540,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					const {error} = await supabaseClient.from('practice_alerts').update({ignored:true}).in('id', ids);
 					if(error){ console.warn('[PracticeAlerts] 批量忽略远端失败，回滚', error); // 回滚
 						for(const a of candidates){ a.ignored=false; AlertStore.byId.set(String(a.id), a); AlertStore.list.push(a); }
-						renderAlerts();
+						scheduleRenderAlerts();
 						toast?.('一键忽略失败');
 					}else{
 						// 广播每条，兼容现有 ignore 监听
@@ -14316,7 +14564,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				const before=AlertStore.list.length;
 				AlertStore.list=AlertStore.list.filter(a=> existSet.has(String(a.id)) );
 				let removed=0; AlertStore.byId.forEach((_,k)=>{ if(!existSet.has(k)){ AlertStore.byId.delete(k); removed++; }});
-				if(removed>0 || before!==AlertStore.list.length){ console.log('[PracticeAlerts] reconcileIgnored 修正本地缺失', removed, '条'); renderAlerts(); }
+				if(removed>0 || before!==AlertStore.list.length){ console.log('[PracticeAlerts] reconcileIgnored 修正本地缺失', removed, '条'); scheduleRenderAlerts(); }
 			}catch(e){ console.error('[PracticeAlerts] reconcileIgnored 异常', e); }
 		}
 		let _reconcileTimer=null; function scheduleReconcile(delay=0){ if(_reconcileTimer) clearTimeout(_reconcileTimer); _reconcileTimer=setTimeout(()=>{ reconcileIgnored(); }, delay); }
@@ -14418,7 +14666,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			console.log('[PracticeAlerts] AlertStore.list 长度:', AlertStore.list.length);
 			AlertStore._lastFullReload = Date.now();
 			persistSilenced(); // 保存以云端数据为准的静默状态
-			renderAlerts(); 
+			scheduleRenderAlerts(); 
 		}catch(e){ 
 			console.error('[PracticeAlerts] fetchExistingAlerts 异常:', e); 
 		}
@@ -14714,7 +14962,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		if (!a) return;
 		// 本地移除
 		removeAlertLocal(id);
-		renderAlerts();
+		scheduleRenderAlerts();
 		// 服务端标记为 resolved 或删除
 		if (!window.supabaseClient) return;
 		try {
@@ -14724,13 +14972,13 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				// 回滚
 				AlertStore.byId.set(String(id), a);
 				AlertStore.list.unshift(a);
-				renderAlerts();
+				scheduleRenderAlerts();
 			}
 		} catch(e) {
 			console.error(e);
 			AlertStore.byId.set(String(id), a);
 			AlertStore.list.unshift(a);
-			renderAlerts();
+			scheduleRenderAlerts();
 		}
 	}
 		function dedupeKey(raw){ const dKey=(new Date()).toISOString().slice(0,10); const slotPart=raw.slot?`${raw.slot.start_time}-${raw.slot.end_time}`:'none'; return `${raw.student_name}|${raw.type}|${slotPart}|${dKey}`; }
@@ -14796,7 +15044,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					rec._msg = raw.message || buildAlertMessage(rec);
 					AlertStore.list.unshift(rec); 
 					AlertStore.byId.set(String(rec.id),rec); 
-					markDedupe(key); trimAlerts(); renderAlerts(); 
+					markDedupe(key); trimAlerts(); scheduleRenderAlerts(); 
 				}catch(e){ console.error(e); }
 	}
 	function trimAlerts(){ if(AlertStore.list.length>300){ AlertStore.list.length=300; } }
@@ -14826,14 +15074,19 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			AlertStore._rtRetry = AlertStore._rtRetry || 0;
 			try{ 
 				if(AlertStore._rtChannel){
-					try{ supabaseClient.removeChannel(AlertStore._rtChannel); }catch(_e){}
+					try{
+						if(window.RealtimeRegistry){ window.RealtimeRegistry.unregister('practice_alerts'); }
+						else { supabaseClient.removeChannel(AlertStore._rtChannel); }
+					}catch(_e){}
 				}
-				const channel=supabaseClient.channel('realtime-practice-alerts', { config: { broadcast: { self: false } } });
+				const channel=(window.RealtimeRegistry
+					? window.RealtimeRegistry.register('practice_alerts', supabaseClient.channel('realtime-practice-alerts', { config: { broadcast: { self: false } } }))
+					: supabaseClient.channel('realtime-practice-alerts', { config: { broadcast: { self: false } } }));
 				AlertStore._rtChannel = channel;
 				channel.on('broadcast', {event: 'ignore'}, payload => {
 					const id = payload.payload?.id;
 					console.log('[PracticeAlerts][BC][ignore] 收到广播 id=', id);
-					if(id!=null){ removeAlertLocal(id); renderAlerts(); }
+					if(id!=null){ removeAlertLocal(id); scheduleRenderAlerts(); }
 				});
 				channel
 					.on('postgres_changes',{event:'INSERT',schema:'public',table:'practice_alerts'}, payload=>{ 
@@ -14858,31 +15111,31 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 						if(!AlertStore.byId.has(String(rec.id))){ 
 							AlertStore.list.unshift(rec); 
 							AlertStore.byId.set(String(rec.id),rec); 
-							renderAlerts(); 
+							scheduleRenderAlerts(); 
 						}
 					})
 					.on('postgres_changes',{event:'DELETE',schema:'public',table:'practice_alerts'}, payload=>{
 						const rec=payload.old; 
 						console.log('[PracticeAlerts][RT][DELETE]', rec?.id);
 						window.__lastRealtimeDataUpdate = Date.now(); // 记录数据更新时间
-						if(rec?.id!=null){ removeAlertLocal(rec.id); renderAlerts(); }
+						if(rec?.id!=null){ removeAlertLocal(rec.id); scheduleRenderAlerts(); }
 					})
 					.on('postgres_changes',{event:'UPDATE',schema:'public',table:'practice_alerts'}, payload=>{ 
 						const rec=payload.new; 
 						console.log('[PracticeAlerts][RT][UPDATE]', rec.id, 'ignored=', rec.ignored);
 						window.__lastRealtimeDataUpdate = Date.now(); // 记录数据更新时间
 						// 若被标记忽略，直接本地移除
-						if(rec.ignored){ removeAlertLocal(rec.id); return renderAlerts(); }
+						if(rec.ignored){ removeAlertLocal(rec.id); return scheduleRenderAlerts(); }
 						const exist=AlertStore.byId.get(String(rec.id)); 
 						if(exist){ 
 							Object.assign(exist,rec); 
 							exist.slot={start_time:rec.slot_start,end_time:rec.slot_end}; 
-							renderAlerts(); 
+							scheduleRenderAlerts(); 
 						} else {
 							rec.slot={start_time:rec.slot_start,end_time:rec.slot_end};
 							AlertStore.list.unshift(rec);
 							AlertStore.byId.set(String(rec.id), rec);
-							renderAlerts();
+							scheduleRenderAlerts();
 						}
 					})
 					.subscribe(status=>{ 
@@ -14947,7 +15200,10 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		AlertStore._lastSuccessConnect = null;
 		
 		if(AlertStore._rtChannel) {
-			try{ supabaseClient.removeChannel(AlertStore._rtChannel); }catch(_e){}
+			try{
+				if(window.RealtimeRegistry){ window.RealtimeRegistry.unregister('practice_alerts'); }
+				else { supabaseClient.removeChannel(AlertStore._rtChannel); }
+			}catch(_e){}
 			AlertStore._rtChannel = null;
 		}
 		

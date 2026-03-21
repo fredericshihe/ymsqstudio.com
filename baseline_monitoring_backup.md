@@ -1,8 +1,19 @@
 # 学生练琴基线监控 — 函数备份与架构说明
 
 > 项目：menuhin-school-system（Supabase 项目 ID：waesizzoqodntrlvrwhw）
-> 备份日期：2026-03-10 | 最后更新：2026-03-20（FIX-73 trigger_insert_session/trigger_update_student_baseline 补回 SECURITY DEFINER；FIX-72 饭点检测时区Bug+历史误判修复；FIX-71 trigger每次练琴必触发；FIX-70 composite_score改NUMERIC精度；FIX-69 进步榜显示绝对涨分；FIX-68 自动结算开关RLS修复；FIX-65 综合榜Top10退专项榜；FIX-64 稳定/守则榜科学重设计；FIX-63 进步榜最小必要门槛；FIX-62 backfill基线覆写bug）
+> 备份日期：2026-03-10 | 最后更新：2026-03-21（FIX-77 raw/composite 同步修复；FIX-76 北京时间边界+周末口径统一；FIX-75 周快照职责收敛；FIX-74 去除 PERCENT_RANK 百分位归一化；FIX-73 trigger_insert_session/trigger_update_student_baseline 补回 SECURITY DEFINER；FIX-72 饭点检测时区Bug+历史误判修复；FIX-71 trigger每次练琴必触发；FIX-70 composite_score改NUMERIC精度；FIX-69 进步榜显示绝对涨分；FIX-68 自动结算开关RLS修复；FIX-65 综合榜Top10退专项榜；FIX-64 稳定/守则榜科学重设计；FIX-63 进步榜最小必要门槛；FIX-62 backfill基线覆写bug）
 > 说明：本文件汇总了所有与学生练琴基线监控相关的 SQL 函数，包含完整代码、参数说明和调用关系。
+
+## ⚠️ 唯一生效版本入口（部署只看这里）
+
+> 为避免误执行历史 SQL，生产部署请**只使用以下入口文件**：
+>
+> 1. `fix76_beijing_boundary_and_weekend_alignment.sql`（评分/榜单/快照口径统一）
+> 2. `fix77_sync_raw_and_composite.sql`（`backfill_score_history` 同步 `raw_score` + `composite_score`）
+> 3. `setup_weekly_score_cron.sql`（周任务时间链：21:30 备份、21:32 发币、21:35 周快照）
+> 4. 执行：`SELECT public.backfill_score_history();`
+>
+> 本文其余 SQL 片段用于审计与历史追踪。凡标注“历史归档 / 旧版 / 勿部署”的代码**禁止直接复制到生产执行**。
 
 ---
 
@@ -39,7 +50,7 @@ practice_sessions
     （有练琴的学生由触发链实时处理，PERCENT_RANK 已废弃）[FIX-18]
 
 【backfill_score_history（全量历史回溯）】
-    按周遍历所有历史数据，重算基线+成长分+归一化
+    按周遍历所有历史数据，重算基线+成长分（composite = raw × 100）
     每周内：活跃学生重算，无练琴学生写 0 分快照 [FIX-13]
     baseline 同步在触发器关闭期间执行，防止触发链覆盖 0 分 [FIX-15]
 
@@ -368,7 +379,7 @@ FROM (SELECT DISTINCT ON (student_name) student_name, composite_score
 WHERE b.student_name = latest.student_name;
 ```
 
-**实现文件**：`fix15_week_aware_score.sql`（FIX-13/14/15） → `fix17_rebalance_score_model.sql`（当前评分模型最新版）
+**实现文件**：`fix15_week_aware_score.sql`（FIX-13/14/15） → `fix17_rebalance_score_model.sql`（当时评分模型版本，历史记录）
 
 ---
 
@@ -584,7 +595,7 @@ SELECT * FROM public.v_baseline_health;
 | `outlier_rate` | 异常练琴记录占比 | 0.0 ~ 1.0 |
 | `short_session_rate` | 短时练琴（5~30分钟）占比 | 0.0 ~ 1.0 |
 | `raw_score` | 原始成长分（未归一化）| 0.0 ~ 1.0 |
-| `composite_score` | 归一化后的百分位成长分；**0 表示本周未练琴**（Dashboard 显示"本周未练"）| 0 ~ 100 |
+| `composite_score` | 综合成长分（`ROUND(raw_score × 100, 1)`）；历史周快照中 **0** 表示该周未练琴 | 0 ~ 100 |
 | `score_confidence` | 成长分置信度 | 0.0 ~ 1.0 |
 | `growth_velocity` | 最近4周 vs 最近8周的斜率差（成长加速度）| 负~正 |
 | `weeks_improving` | 连续改善周数 | 0 ~ N |
@@ -1738,7 +1749,7 @@ SELECT * FROM public.debug_weight_conf_as_of('张三', '2025-10-01');
 
 **影响范围**：`run_weekly_score_update`、`backfill_score_history`（两者均已同步修复）
 
-**实现文件**：`fix13_apply_and_rebuild.sql` → `fix15_week_aware_score.sql`（最新版）
+**实现文件**：`fix13_apply_and_rebuild.sql` → `fix15_week_aware_score.sql`（当时版本，历史记录）
 
 ---
 
@@ -5598,15 +5609,14 @@ WHERE outlier_reason = 'meal_break' AND NOT (...);
 ---
 
 # ══════════════════════════════════════════════════════════════════
-# 最新部署版本 — 完整函数代码备份
-# 备份日期：2026-03-20
-# 说明：此区块包含数据库中所有核心函数/触发器函数的**本地最新版本**完整代码，
-#       方便在数据库迁移、意外覆盖或重建时快速恢复，无需重新翻阅分散的 .sql 文件。
+# 历史快照代码归档（2026-03-20）— 禁止直接部署
+# 说明：此区块是当时版本的归档备份，不代表当前生产最新。
+# 当前唯一生效入口请以本文顶部“唯一生效版本入口（部署只看这里）”为准。
 # ══════════════════════════════════════════════════════════════════
 
-## 函数清单（10个）
+## 函数清单（历史快照，勿部署）
 
-| # | 函数名 | 最新文件 | 最新 Fix | 关键特征 |
+| # | 函数名 | 当时文件 | 当时 Fix | 关键特征 |
 |---|--------|---------|---------|---------|
 | 1 | `trigger_insert_session` | `fix_stale_cleaned_duration.sql` | FIX-72 | 时区修正：`AT TIME ZONE 'Asia/Shanghai')::TIME` |
 | 2 | `trigger_update_student_baseline` | `fix60_weekly_update_and_baseline_trigger.sql` | FIX-71 | 每次必触发，无 v_live_count |
@@ -5620,11 +5630,11 @@ WHERE outlier_reason = 'meal_break' AND NOT (...);
 | 10 | `compute_and_store_w_score` | `fix54_w_score_sunday.sql` | FIX-54 | WHEN 0 THEN 5（周日DOW修复）|
 
 > **注**：`compute_student_score` / `compute_student_score_as_of` / `compute_baseline_as_of` 函数体超过 600 行，
-> 完整代码以对应 .sql 文件为准，此处不重复抄录，只记录版本特征以供核查。
+> 此处仅为历史核查记录；部署时请使用顶部唯一入口中的最新 SQL 文件。
 
 ---
 
-## 1. trigger_insert_session（FIX-72 最新版）
+## 1. trigger_insert_session（历史快照：FIX-72）
 
 > 文件：`fix_stale_cleaned_duration.sql`  最后修改：FIX-72（2026-03-20）
 
@@ -5765,7 +5775,7 @@ $$;
 
 ---
 
-## 2. trigger_update_student_baseline（FIX-71 最新版）
+## 2. trigger_update_student_baseline（历史快照：FIX-71）
 
 > 文件：`fix60_weekly_update_and_baseline_trigger.sql`  最后修改：FIX-71（2026-03-20）
 
@@ -5782,9 +5792,12 @@ $$;
 
 ---
 
-## 3. run_weekly_score_update（FIX-8/60 最新版）
+## 3. run_weekly_score_update（历史归档：FIX-8/60 旧版，勿部署）
 
 > 文件：`fix60_weekly_update_and_baseline_trigger.sql`
+>
+> ⚠️ 此段是历史版本留档，包含 `PERCENT_RANK` 与 `CURRENT_DATE::TIMESTAMPTZ` 旧口径，仅用于回溯对比。  
+> ✅ 当前生产应使用 `fix76_beijing_boundary_and_weekend_alignment.sql` / `fix75_weekly_snapshot_fix.sql` 中的新版函数。
 
 ```sql
 CREATE OR REPLACE FUNCTION public.run_weekly_score_update()
@@ -5871,7 +5884,7 @@ $$;
 
 ---
 
-## 4. backfill_score_history（FIX-62/53F 最新版）
+## 4. backfill_score_history（历史归档：FIX-62/53F 旧版，勿部署）
 
 > 文件：`fix53_backfill_update.sql`
 
@@ -6033,7 +6046,7 @@ $$;
 
 ---
 
-## 5. get_weekly_leaderboards（FIX-65/69 最新版）
+## 5. get_weekly_leaderboards（历史快照：FIX-65/69）
 
 > 文件：`leaderboard_rpc.sql`
 
@@ -6222,7 +6235,7 @@ GRANT EXECUTE ON FUNCTION public.get_weekly_leaderboards() TO anon, authenticate
 
 ---
 
-## 6. get_auto_reward_setting（FIX-68 最新版）
+## 6. get_auto_reward_setting（历史快照：FIX-68）
 
 > 文件：`fix_auto_reward_rls.sql`
 
@@ -6252,7 +6265,7 @@ GRANT EXECUTE ON FUNCTION public.get_auto_reward_setting() TO anon, authenticate
 
 ---
 
-## 触发器绑定关系（当前最新）
+## 触发器绑定关系（历史检查快照，请勿作为部署依据）
 
 | 触发器名 | 所属表 | 时机 | 事件 | 绑定函数 |
 |---------|--------|------|------|---------|
@@ -6263,7 +6276,7 @@ GRANT EXECUTE ON FUNCTION public.get_auto_reward_setting() TO anon, authenticate
 
 ---
 
-## 7. compute_baseline（最新版）
+## 7. compute_baseline（历史快照）
 
 > 简单 wrapper，调用 `compute_baseline_as_of(今天+1天)`，确保包含今天所有数据。
 
@@ -6284,7 +6297,7 @@ $$;
 
 ---
 
-## 8. update_student_baseline（最新版）
+## 8. update_student_baseline（历史快照）
 
 > 简单 wrapper，供触发器调用。
 
@@ -6301,7 +6314,7 @@ $$;
 
 ---
 
-## 9. set_auto_reward_enabled（FIX-68 最新版）
+## 9. set_auto_reward_enabled（历史快照：FIX-68）
 
 > 文件：`fix_auto_reward_rls.sql`  SECURITY DEFINER，写入 system_settings 表。
 
@@ -6324,9 +6337,9 @@ $$;
 
 ---
 
-## 10. clean_duration（FIX-53-H 最新版，新签名：student text, raw_dur float8）
+## 10. clean_duration（历史快照：FIX-53-H）
 
-> 文件：`fix53_clean_duration.sql`  注意：数据库中有两个重载，旧签名 `(raw_dur, student)` 保留兼容，新签名 `(student, raw_dur)` 为最新版。
+> 文件：`fix53_clean_duration.sql`  注意：数据库中有两个重载，旧签名 `(raw_dur, student)` 保留兼容，新签名 `(student, raw_dur)` 为当时版本。
 
 ```sql
 CREATE OR REPLACE FUNCTION public.clean_duration(student text, raw_dur double precision)
@@ -6403,7 +6416,7 @@ $$;
 
 ---
 
-## 11. compute_and_store_w_score（FIX-54 最新版）
+## 11. compute_and_store_w_score（历史快照：FIX-54）
 
 > 文件：`fix54_w_score_sunday.sql`  SECURITY DEFINER，计算并写入本周 W 分。
 
@@ -6494,25 +6507,25 @@ $$;
 
 ---
 
-## 完整函数版本对照表（数据库 vs 本地，2026-03-20 核查）
+## 完整函数版本对照表（数据库 vs 本地，2026-03-20 历史核查）
 
-| 函数名 | 数据库状态 | 本地最新文件 | 版本特征 |
+| 函数名 | 数据库状态（当时） | 本地对应文件（当时） | 版本特征 |
 |--------|----------|------------|---------|
-| `trigger_insert_session` | ✅ 最新 | `fix_stale_cleaned_duration.sql` | FIX-72 时区修正 |
-| `trigger_update_student_baseline` | ✅ 最新 | `fix60_weekly_update_and_baseline_trigger.sql` | FIX-71 每次必触发 |
-| `run_weekly_score_update` | ✅ 最新 | `fix60_weekly_update_and_baseline_trigger.sql` | FIX-8 raw_score IS NOT NULL |
-| `backfill_score_history` | ✅ 最新 | `fix53_backfill_update.sql` | FIX-62/70 NUMERIC 精度 |
-| `get_weekly_leaderboards` | ✅ 最新 | `leaderboard_rpc.sql` | FIX-65/69 comp_top10+绝对涨分 |
-| `get_auto_reward_setting` | ✅ 最新 | `fix_auto_reward_rls.sql` | FIX-68 SECURITY DEFINER |
-| `set_auto_reward_enabled` | ✅ 最新 | `fix_auto_reward_rls.sql` | FIX-68 UPSERT |
-| `compute_student_score` | ✅ 最新 | `fix44_46_score_functions.sql` | FIX-70 NUMERIC + FIX-57 W=70% |
-| `compute_student_score_as_of` | ✅ 最新 | `fix44_46_score_functions.sql` | FIX-57 W=70% |
-| `compute_baseline_as_of` | ✅ 最新 | `fix55_baseline_weekday_filter.sql` | FIX-55 NOT IN(0,6)×6+ |
-| `compute_baseline` | ✅ 最新 | — | 简单 wrapper |
-| `update_student_baseline` | ✅ 最新 | — | 简单 wrapper |
-| `clean_duration`（新） | ✅ 最新 | `fix53_clean_duration.sql` | FIX-53-H global_cap_returning |
+| `trigger_insert_session` | ✅ 当时核查通过 | `fix_stale_cleaned_duration.sql` | FIX-72 时区修正 |
+| `trigger_update_student_baseline` | ✅ 当时核查通过 | `fix60_weekly_update_and_baseline_trigger.sql` | FIX-71 每次必触发 |
+| `run_weekly_score_update` | ✅ 当时核查通过 | `fix60_weekly_update_and_baseline_trigger.sql` | FIX-8 raw_score IS NOT NULL |
+| `backfill_score_history` | ✅ 当时核查通过 | `fix53_backfill_update.sql` | FIX-62/70 NUMERIC 精度 |
+| `get_weekly_leaderboards` | ✅ 当时核查通过 | `leaderboard_rpc.sql` | FIX-65/69 comp_top10+绝对涨分 |
+| `get_auto_reward_setting` | ✅ 当时核查通过 | `fix_auto_reward_rls.sql` | FIX-68 SECURITY DEFINER |
+| `set_auto_reward_enabled` | ✅ 当时核查通过 | `fix_auto_reward_rls.sql` | FIX-68 UPSERT |
+| `compute_student_score` | ✅ 当时核查通过 | `fix44_46_score_functions.sql` | FIX-70 NUMERIC + FIX-57 W=70% |
+| `compute_student_score_as_of` | ✅ 当时核查通过 | `fix44_46_score_functions.sql` | FIX-57 W=70% |
+| `compute_baseline_as_of` | ✅ 当时核查通过 | `fix55_baseline_weekday_filter.sql` | FIX-55 NOT IN(0,6)×6+ |
+| `compute_baseline` | ✅ 当时核查通过 | — | 简单 wrapper |
+| `update_student_baseline` | ✅ 当时核查通过 | — | 简单 wrapper |
+| `clean_duration`（新） | ✅ 当时核查通过 | `fix53_clean_duration.sql` | FIX-53-H global_cap_returning |
 | `clean_duration`（旧） | ⚠️ 旧重载 | 已废弃 | 旧签名 (raw_dur, student)，保留兼容 |
-| `compute_and_store_w_score` | ✅ 最新 | `fix54_w_score_sunday.sql` | FIX-54 WHEN 0 THEN 5 |
+| `compute_and_store_w_score` | ✅ 当时核查通过 | `fix54_w_score_sunday.sql` | FIX-54 WHEN 0 THEN 5 |
 
 
 ---
@@ -6566,6 +6579,9 @@ AS $$ ... $$;
 
 **日期**：2026-03-21
 **文件**：`fix74_remove_percentile.sql`（新建），同步修改 `fix60_weekly_update_and_baseline_trigger.sql` 和 `fix53_backfill_update.sql`
+
+> ⚠️ 本节为 FIX-74 当时变更记录；后续已由 FIX-75 / FIX-76 / FIX-77 继续演进并覆盖。  
+> 部署请始终以顶部“唯一生效版本入口”列出的文件为准。
 
 ### 问题
 
@@ -6642,8 +6658,10 @@ FROM student_score_history h ...;
 
 | 函数名 | 状态 | Fix ID | 本地文件 |
 |--------|------|--------|---------|
-| `run_weekly_score_update` | ✅ 最新 | FIX-75（快照=终点分）+ FIX-74 | `fix60_weekly_update_and_baseline_trigger.sql` |
-| `backfill_score_history` | ✅ 最新 | FIX-74 + FIX-62 + FIX-53-F | `fix53_backfill_update.sql` |
+| `run_weekly_score_update` | ✅ 当时核查通过 | FIX-75（快照=终点分）+ FIX-74 | `fix60_weekly_update_and_baseline_trigger.sql` |
+| `backfill_score_history` | ✅ 当时核查通过 | FIX-74 + FIX-62 + FIX-53-F | `fix53_backfill_update.sql` |
+
+> 注：上表为 FIX-74 当天记录，后续以 FIX-76 / FIX-77 入口版本为准。
 
 ---
 
@@ -7094,7 +7112,7 @@ SELECT public.backfill_score_history();
 ### 当前最终推荐
 
 从现在开始，**不要再单独按旧顺序手工拼 `fix74` + `fix75` 了**。  
-如果数据库还没部署最新版，直接以：
+如果数据库还没部署当前最终版本，直接以：
 
 - `fix76_beijing_boundary_and_weekend_alignment.sql`
 - `setup_weekly_score_cron.sql`

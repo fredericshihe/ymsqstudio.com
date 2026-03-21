@@ -157,8 +157,9 @@
         }
         .card ul li strong {
             color: var(--primary-color);
-            display: block;
+            display: inline-block;
             margin-bottom: 2px;
+            margin-right: 4px;
         }
 
         /* 算法解析区 */
@@ -328,6 +329,11 @@
             <tr><td style="padding: 4px;">🏅 第 7–10 名</td><td style="padding: 4px;"><strong>40 币</strong> <span style="font-size:10px;color:#666">(优秀达人)</span></td><td style="padding: 4px;">—</td><td style="padding: 4px;">—</td><td style="padding: 4px;">—</td></tr>
         </tbody>
     </table>
+    <div style="font-size: 11.5px; color: var(--text-light); margin-bottom: 8px; background: rgba(26,43,76,.06); padding: 8px 10px; border-radius: 4px; border-left: 3px solid var(--gold-color); line-height: 1.55;">
+        <strong style="color: var(--primary-color);">📌 发币规则要点：</strong><br>
+        · <strong>综合榜前 10 名</strong>不参与进步榜、稳定榜、守则榜的排名。<br>
+        · 未进综合榜前 10、且同时登上多个分类榜时，各榜奖励按上表<strong>分别计算、可叠加发放</strong>。
+    </div>
     <div class="alert-box" style="display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; padding: 8px 15px;">
         <div>📢 <strong>正式启动：</strong>音符币奖励将于 <strong style="color:#d32f2f">2026年4月3日晚21:30</strong> 起正式发放！可在练琴跟踪系统查看实时排行榜与个人积分。</div>
         <div>⚠️ <strong>注意：</strong>前台管理员对于存在违规练琴记录的学生，有权进行音符币扣除！</div>
@@ -366,26 +372,16 @@
         </div>
     </div>
 
-    <!-- 传奇区 终极大奖 -->
-    <div style="margin-top: 8px; margin-bottom: 8px; background: #fff8ec; border: 1px solid #e8c96a; border-top: 3px solid #1a2b4c; padding: 10px 15px; border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.04);">
-        <h3 style="margin: 0 0 6px 0; color: var(--primary-color); font-size: 13px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #e8c96a; padding-bottom: 4px;">
-            <span>🌟 传奇荣誉 <span style="font-size: 10px; background: #1a2b4c; color: #fff; padding: 2px 6px; border-radius: 10px; font-weight: normal; margin-left: 6px;">全校唯一 · 学期末自动颁发</span></span>
-        </h3>
-        <ul style="margin: 0; padding-left: 16px; font-size: 11.5px; color: var(--text-light);">
-            <li style="margin-bottom: 0;">
-                <strong style="color: var(--primary-color); display: block; margin-bottom: 2px;">「梅纽因之星」荣耀专题</strong>
-                每学期末，学校将<strong>自动颁发</strong>给本学期通过排行榜累计获得音符币最多（≥ 400）的同学。获奖者以优秀学生代表身份由专业团队录制独家官方专题报道，永久珍藏并在校内展示宣传。<br>
-                <span style="color:#b8860b; font-size:10.5px;">✦ 无需手动兑换 · 学期末由老师统计并自动颁发 · 音符币余额不扣除</span>
-            </li>
-        </ul>
+    <!-- 传奇区（单行说明） -->
+    <div style="margin-top: 8px; margin-bottom: 8px; background: #fff8ec; border: 1px solid #e8c96a; border-top: 3px solid #1a2b4c; padding: 10px 14px; border-radius: 6px; font-size: 11.5px; color: var(--text-light); line-height: 1.55;">
+        <strong style="color: var(--primary-color);">🌟 传奇荣誉「梅纽因之星」</strong>（全校唯一、学期末颁发）— 自动授予本学期排行榜累计音符币最多（≥ 400）的同学，含官方专题报道；无需手动兑换、不扣除余额。
     </div>
 
     <!-- 兑换规则 -->
-    <div class="alert-box" style="margin-top: auto; margin-bottom: 0; background-color: rgba(26, 43, 76, 0.05); border-left-color: var(--primary-color); padding: 8px 12px;">
+    <div class="alert-box" style="margin-top: 8px; margin-bottom: 0; background-color: rgba(26, 43, 76, 0.05); border-left-color: var(--primary-color); padding: 8px 12px;">
         <strong>📜 说明：</strong><br>
         1. <strong>音符币可跨学期积累</strong> — 余额长期有效，可随时用于兑换各类特权奖励，无需担心过期。<br>
-        2. <strong>梅纽因之星单独结算</strong> — 每学期末统计本学期排行榜奖励累计总量，自动颁发给第一名（≥ 400 币）。新学期开始时学期累计清零重新计算，但 balance 总余额不变。<br>
-        3. <strong>兑换方式</strong> — 决定兑换后，请提前至少 <strong>1 天</strong> 向老师提交申请，扣除对应音符币后即可生效。
+        2. <strong>兑换方式</strong> — 决定兑换后，请提前至少 <strong>1 天</strong> 向老师提交申请，扣除对应音符币后即可生效。
     </div>
 </div>
 
@@ -421,7 +417,7 @@
             <div class="formula-icon">M</div>
             <div class="formula-text">
                 <strong>动量分 (稳定达标) —— 最近几周，你有没有完成每周的练琴目标？</strong>
-                <p>看你<strong>最近 4 个有练琴的周</strong>中，有多少周的工作日总时长<strong>达到了个人周均目标的 60%</strong>。达标周越多 → 分越高；最近一周的权重比之前更高。<strong>坚持稳定达标</strong>，这个分就会持续提升！</p>
+                <p>看你<strong>最近 4 个有练琴的周</strong>中，有多少周的工作日总时长<strong>达到了个人周均目标的 100%</strong>。达标周越多 → 分越高；最近一周的权重比之前更高。<strong>坚持稳定达标</strong>，这个分就会持续提升！</p>
             </div>
         </div>
         <div class="formula-item">

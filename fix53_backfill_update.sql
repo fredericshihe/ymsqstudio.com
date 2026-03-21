@@ -102,14 +102,16 @@ BEGIN
         v_current_date := v_next_date;
     END LOOP;
 
-    -- ④ [FIX-15] 同步最新有效分数到 student_baseline
+    -- ④ [FIX-77] 同步最新有效分数到 student_baseline（raw + composite 同步）
     --    触发器仍处于关闭状态，防止 UPDATE 触发 compute_student_score 覆盖快照
+    --    历史问题：旧逻辑只回写 composite_score，不回写 raw_score，会造成两者漂移。
     UPDATE public.student_baseline b
-    SET composite_score = latest.composite_score
+    SET raw_score       = latest.raw_score,
+        composite_score = ROUND((latest.raw_score * 100)::NUMERIC, 1)
     FROM (
-        SELECT DISTINCT ON (student_name) student_name, composite_score
+        SELECT DISTINCT ON (student_name) student_name, raw_score
         FROM public.student_score_history
-        WHERE composite_score > 0
+        WHERE raw_score IS NOT NULL
         ORDER BY student_name, snapshot_date DESC
     ) latest
     WHERE b.student_name = latest.student_name;

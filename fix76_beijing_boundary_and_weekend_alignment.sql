@@ -542,12 +542,14 @@ BEGIN
         v_current_date := v_next_date;
     END LOOP;
 
+    -- FIX-77: 回填 baseline 时同时同步 raw_score，避免 raw/composite 漂移
     UPDATE public.student_baseline b
-    SET composite_score = latest.composite_score
+    SET raw_score       = latest.raw_score,
+        composite_score = ROUND((latest.raw_score * 100)::NUMERIC, 1)
     FROM (
-        SELECT DISTINCT ON (student_name) student_name, composite_score
+        SELECT DISTINCT ON (student_name) student_name, raw_score
         FROM public.student_score_history
-        WHERE composite_score > 0
+        WHERE raw_score IS NOT NULL
         ORDER BY student_name, snapshot_date DESC
     ) latest
     WHERE b.student_name = latest.student_name;

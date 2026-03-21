@@ -22,17 +22,19 @@
   - `21:32` 结算音符币
   - `21:35` 刷新周快照
 
-## 最新部署文件
+## 当前唯一部署入口（推荐）
 
-- **`fix74_remove_percentile.sql`**：删除百分位归一化，分数改为纯绝对分。
-- **`fix75_weekly_snapshot_fix.sql`**：修复周快照逻辑，不再覆盖实时榜单分数。
 - **`fix76_beijing_boundary_and_weekend_alignment.sql`**：修复北京时间边界，并统一“周末不计榜”。
+- **`fix77_sync_raw_and_composite.sql`**：修复 `backfill_score_history()` 同步漂移，确保 `raw_score` 与 `composite_score` 一致。
 - **`setup_weekly_score_cron.sql`**：注册 `weekly_score_update_job`（周五 21:35）。
 
 ## 推荐部署顺序
 
 1. 运行 `fix76_beijing_boundary_and_weekend_alignment.sql`
-2. 运行 `setup_weekly_score_cron.sql`
-3. 运行 `SELECT public.backfill_score_history();`
+2. 运行 `fix77_sync_raw_and_composite.sql`
+3. 运行 `setup_weekly_score_cron.sql`
+4. 运行 `SELECT public.backfill_score_history();`
+
+> 说明：`fix74`、`fix75` 的内容已被后续入口文件覆盖，常规部署无需再单独执行。
 
 详细架构见 **`系统架构文档.md`** 和 **`baseline_monitoring_backup.md`**。

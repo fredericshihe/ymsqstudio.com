@@ -160,47 +160,60 @@ board_comp AS (
             ORDER BY display_score DESC NULLS LAST,
                      mean_duration  DESC NULLS LAST,
                      record_count   DESC NULLS LAST
-        )::INTEGER AS rank_no
+        )::INTEGER AS rank_no,
+        display_score, mean_duration, record_count
     FROM hist_pool
 ),
 
--- ② 稳定榜（近10次均时最长，α 为次级）
+-- 综合榜 Top 10 排除名单 (FIX-65)
+comp_top10 AS (
+    SELECT week_monday, student_name
+    FROM board_comp
+    WHERE rank_no <= 10
+),
+
+-- ② 稳定榜（FIX-64: 一致性优先，α DESC）
 board_stable AS (
-    SELECT week_monday, student_name, '稳定榜'::TEXT AS board,
+    SELECT hp.week_monday, hp.student_name, '稳定榜'::TEXT AS board,
         RANK() OVER (
-            PARTITION BY week_monday
-            ORDER BY r10_mean_dur DESC NULLS LAST,
-                     alpha         DESC NULLS LAST
+            PARTITION BY hp.week_monday
+            ORDER BY hp.alpha         DESC NULLS LAST,
+                     hp.r10_mean_dur  DESC NULLS LAST,
+                     hp.r10_outlier   ASC
         )::INTEGER AS rank_no
-    FROM hist_pool
-    WHERE alpha        >= 0.65
-      AND r10_cnt      >= 10
-      AND r10_outlier  <= 0.35
+    FROM hist_pool hp
+    LEFT JOIN comp_top10 t10 ON t10.week_monday = hp.week_monday AND t10.student_name = hp.student_name
+    WHERE hp.alpha        >= 0.55
+      AND hp.r10_cnt      >= 8
+      AND hp.r10_outlier  <= 0.40
+      AND t10.student_name IS NULL
 ),
 
--- ③ 守则榜（异常率最低，本周次数为次级）
+-- ③ 守则榜（FIX-64: 异常率最低，出勤达标）
 board_rules AS (
-    SELECT week_monday, student_name, '守则榜'::TEXT AS board,
+    SELECT hp.week_monday, hp.student_name, '守则榜'::TEXT AS board,
         RANK() OVER (
-            PARTITION BY week_monday
-            ORDER BY r10_outlier  ASC,
-                     week_sessions DESC NULLS LAST,
-                     r10_mean_dur  DESC
+            PARTITION BY hp.week_monday
+            ORDER BY hp.r10_outlier   ASC,
+                     hp.week_sessions DESC NULLS LAST,
+                     hp.r10_mean_dur  DESC
         )::INTEGER AS rank_no
-    FROM hist_pool
-    WHERE r10_cnt      >= 5
-      AND r10_mean_dur  > 30
-      AND r10_outlier  <= 0.50
-      AND alpha        >= 0.60
-      AND week_sessions >= 5
+    FROM hist_pool hp
+    LEFT JOIN comp_top10 t10 ON t10.week_monday = hp.week_monday AND t10.student_name = hp.student_name
+    WHERE hp.week_sessions >= 3
+      AND hp.r10_cnt       >= 4
+      AND hp.r10_mean_dur   > 25
+      AND hp.r10_outlier   <= 0.50
+      AND hp.alpha         >= 0.55
+      AND t10.student_name IS NULL
 ),
 
--- ④ 进步榜（相对涨幅百分比最大）
+-- ④ 进步榜（FIX-63: 绝对涨分最大）
 board_prog AS (
     SELECT hp.week_monday, hp.student_name, '进步榜'::TEXT AS board,
         RANK() OVER (
             PARTITION BY hp.week_monday
-            ORDER BY (hp.display_score - pb.lw_composite) / pb.lw_composite * 100 DESC NULLS LAST,
+            ORDER BY (hp.display_score - pb.lw_composite) DESC NULLS LAST,
                      hp.display_score DESC NULLS LAST,
                      hp.mean_duration DESC NULLS LAST
         )::INTEGER AS rank_no
@@ -208,21 +221,21 @@ board_prog AS (
     INNER JOIN hist_prog_baseline pb
         ON  pb.week_monday  = hp.week_monday
         AND pb.student_name = hp.student_name
-    WHERE hp.display_score  > pb.lw_composite
-      AND pb.lw_composite  >= 10
-      AND hp.alpha          >= 0.50
-      AND hp.r10_outlier   <= 0.70
-      AND hp.display_score >= 15
+    LEFT JOIN comp_top10 t10 ON t10.week_monday = hp.week_monday AND t10.student_name = hp.student_name
+    WHERE (hp.display_score - pb.lw_composite) > 0
+      AND hp.week_sessions >= 2
+      AND hp.r10_outlier   <= 0.50
+      AND t10.student_name IS NULL
 ),
 
 /* ─────────────────────────────────────────────────────────
    H. 合并四榜 + 按规则计算音符币
    ───────────────────────────────────────────────────────── */
 all_boards AS (
-    SELECT * FROM board_comp
-    UNION ALL SELECT * FROM board_stable
-    UNION ALL SELECT * FROM board_rules
-    UNION ALL SELECT * FROM board_prog
+    SELECT week_monday, student_name, board, rank_no FROM board_comp
+    UNION ALL SELECT week_monday, student_name, board, rank_no FROM board_stable
+    UNION ALL SELECT week_monday, student_name, board, rank_no FROM board_rules
+    UNION ALL SELECT week_monday, student_name, board, rank_no FROM board_prog
 ),
 coin_awards AS (
     SELECT
