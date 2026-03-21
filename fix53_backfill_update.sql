@@ -23,6 +23,8 @@ DECLARE
     v_end_date      DATE;
     v_current_date  DATE;
     v_next_date     DATE;
+    v_week_start_bjt TIMESTAMPTZ;
+    v_week_next_bjt  TIMESTAMPTZ;
     v_student       RECORD;
     v_week_count    INTEGER := 0;
     v_active_count  INTEGER := 0;
@@ -33,18 +35,20 @@ BEGIN
     SELECT DATE_TRUNC('week', MIN(session_start))::DATE INTO v_start_date
     FROM public.practice_sessions WHERE cleaned_duration > 0;
 
-    v_end_date     := DATE_TRUNC('week', CURRENT_DATE)::DATE;
+    v_end_date     := DATE_TRUNC('week', NOW() AT TIME ZONE 'Asia/Shanghai')::DATE;
     v_current_date := v_start_date;
     RAISE NOTICE '回溯范围：% → %（FIX-15）', v_start_date, v_end_date;
 
     WHILE v_current_date <= v_end_date LOOP
         v_week_count := v_week_count + 1;
         v_next_date  := v_current_date + INTERVAL '7 days';
+        v_week_start_bjt := (v_current_date::TIMESTAMP) AT TIME ZONE 'Asia/Shanghai';
+        v_week_next_bjt  := (v_next_date::TIMESTAMP) AT TIME ZONE 'Asia/Shanghai';
 
         -- ① baseline
         FOR v_student IN
             SELECT DISTINCT student_name FROM public.practice_sessions
-            WHERE session_start < v_current_date::TIMESTAMPTZ AND cleaned_duration > 0
+            WHERE session_start < v_week_start_bjt AND cleaned_duration > 0
             ORDER BY student_name
         LOOP
             BEGIN
@@ -57,7 +61,7 @@ BEGIN
         -- ② 成长分：本周活跃 → 重算；本周无练 → 写 0
         FOR v_student IN
             SELECT DISTINCT student_name FROM public.practice_sessions
-            WHERE session_start < v_current_date::TIMESTAMPTZ AND cleaned_duration > 0
+            WHERE session_start < v_week_start_bjt AND cleaned_duration > 0
             ORDER BY student_name
         LOOP
             BEGIN
@@ -65,8 +69,8 @@ BEGIN
                     SELECT 1 FROM public.practice_sessions
                     WHERE student_name    = v_student.student_name
                       AND cleaned_duration > 0
-                      AND session_start  >= v_current_date::TIMESTAMPTZ
-                      AND session_start  <  v_next_date::TIMESTAMPTZ
+                      AND session_start  >= v_week_start_bjt
+                      AND session_start  <  v_week_next_bjt
                 ) THEN
                     PERFORM public.compute_student_score_as_of(v_student.student_name, v_current_date);
                     v_active_count := v_active_count + 1;
@@ -110,10 +114,10 @@ BEGIN
     ) latest
     WHERE b.student_name = latest.student_name;
 
-    -- ⑤ FIX-62: 回溯完成后，用今天重新刷新所有学生基线
+    -- ⑤ FIX-62: 回溯完成后，用北京时间今天重新刷新所有学生基线
     --    backfill 循环最后一次用 v_current_date（本周一）调用 compute_baseline_as_of，
     --    会把 student_baseline 覆写为"截止本周一"的历史值（本周新练琴记录丢失）。
-    --    此步重新调用 compute_baseline（= CURRENT_DATE+1）确保基线恢复为最新状态。
+    --    此步重新调用 compute_baseline（= 北京时间今天+1）确保基线恢复为最新状态。
     FOR v_student IN SELECT student_name FROM public.student_baseline ORDER BY student_name LOOP
         BEGIN
             PERFORM public.compute_baseline(v_student.student_name);

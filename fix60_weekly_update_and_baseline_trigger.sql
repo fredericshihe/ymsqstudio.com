@@ -22,10 +22,12 @@ LANGUAGE plpgsql AS $$
 DECLARE
     v_student RECORD;
     v_monday  DATE;
+    v_week_start_bjt TIMESTAMPTZ;
 BEGIN
     PERFORM set_config('app.skip_score_trigger', 'on', TRUE);
 
-    v_monday := DATE_TRUNC('week', CURRENT_DATE)::DATE;
+    v_monday := DATE_TRUNC('week', NOW() AT TIME ZONE 'Asia/Shanghai')::DATE;
+    v_week_start_bjt := (v_monday::TIMESTAMP) AT TIME ZONE 'Asia/Shanghai';
     RAISE NOTICE '[%] 每周评分更新，快照日期：%', NOW(), v_monday;
 
     -- ① 重算所有学生基线（含本周一次未练的学生）
@@ -33,7 +35,7 @@ BEGIN
     LOOP
         BEGIN
             PERFORM public.compute_baseline_as_of(
-                v_student.student_name, (CURRENT_DATE + INTERVAL '1 day')::DATE
+                v_student.student_name, ((NOW() AT TIME ZONE 'Asia/Shanghai')::DATE + 1)
             );
         EXCEPTION WHEN OTHERS THEN
             RAISE WARNING '[weekly baseline] 学生 % 失败：%', v_student.student_name, SQLERRM;
@@ -48,8 +50,9 @@ BEGIN
         WHERE student_name NOT IN (
             SELECT DISTINCT student_name
             FROM public.practice_sessions
-            WHERE session_start >= v_monday::TIMESTAMPTZ
+            WHERE session_start >= v_week_start_bjt
               AND cleaned_duration > 0
+              AND EXTRACT(DOW FROM session_start AT TIME ZONE 'Asia/Shanghai') NOT IN (0, 6)
         )
         ORDER BY student_name
     LOOP

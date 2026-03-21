@@ -573,7 +573,7 @@ tbody td.b{color:var(--t1);font-weight:700}
           <div class="cat-board-icon" style="background:linear-gradient(135deg,rgba(16,185,129,.25),rgba(16,185,129,.1));border:1px solid rgba(16,185,129,.3)">📈</div>
           <div>
             <div class="cat-board-title" style="color:#34d399">进步榜</div>
-            <div class="cat-board-sub">本周综合分相对涨幅最大 · 比上周进步 · α ≥0.50</div>
+            <div class="cat-board-sub">本周绝对涨分最大 · 本周工作日 ≥2次 · 近10条异常率 ≤50%</div>
           </div>
           <button class="cbl-view-all-btn" onclick="openLbModal('进步榜')">查看全部</button>
         </div>
@@ -585,7 +585,7 @@ tbody td.b{color:var(--t1);font-weight:700}
           <div class="cat-board-icon" style="background:linear-gradient(135deg,rgba(79,142,247,.25),rgba(79,142,247,.1));border:1px solid rgba(79,142,247,.3)">🎯</div>
           <div>
             <div class="cat-board-title" style="color:#93c5fd">稳定榜</div>
-            <div class="cat-board-sub">近10次均时最长 · α ≥0.65 · 近10条异常率 ≤35% · 近10条 ≥10条</div>
+            <div class="cat-board-sub">α 最高 · 近10条工作日记录 ≥8条 · 近10条异常率 ≤40%</div>
           </div>
           <button class="cbl-view-all-btn" onclick="openLbModal('稳定榜')">查看全部</button>
         </div>
@@ -597,7 +597,7 @@ tbody td.b{color:var(--t1);font-weight:700}
           <div class="cat-board-icon" style="background:linear-gradient(135deg,rgba(168,85,247,.25),rgba(168,85,247,.1));border:1px solid rgba(168,85,247,.3)">🏅</div>
           <div>
             <div class="cat-board-title" style="color:#c4b5fd">守则榜</div>
-            <div class="cat-board-sub">近10条异常率最低 · ≤50% · α ≥0.60 · 均时 &gt;30min · 本周 ≥5次</div>
+            <div class="cat-board-sub">近10条异常率最低 · α ≥0.55 · 均时 &gt;25min · 本周工作日 ≥3次</div>
           </div>
           <button class="cbl-view-all-btn" onclick="openLbModal('守则榜')">查看全部</button>
         </div>
@@ -1139,7 +1139,7 @@ async function generateAIAnalysis(s,hist,sessions){
 prompt中会提供5个量化维度，仅在数值明显（绝对值>0.1）且有实际意义时才用通俗语言提及，否则忽略：
 - baseline_score（B 进步分）：最近两个活跃周的工作日练琴总时长 1v1 对比，Sigmoid（k=3.0）归一化至 0-1；>0.5 说明上周比前周练琴量更多，<0.5 说明有所回落，0.5 为持平中位
 - trend_score（T 趋势分）：近2活跃周练琴量均值 vs 前2活跃周均值块对比（取最近4活跃周，20周上限），Sigmoid（k=3.0）归一化至 0-1；>0.5 说明近期比此前更活跃，<0.5 说明有所回落；活跃周不足3周时为默认中位 0.5
-- momentum_score（M 动量分）：最近4个活跃周加权达标率（周练琴量≥个人日均×5天×60% 为达标），归一化至 0-1；最近一周权重最高（约42%），越往前权重越低（×0.65 递减）；>0.6 说明近期多数周达标，<0.4 说明达标频率偏低
+- momentum_score（M 动量分）：最近4个活跃周加权达标率（周练琴量≥个人日均×5天×100% 为达标），归一化至 0-1；最近一周权重最高（约42%），越往前权重越低（×0.65 递减）；>0.6 说明近期多数周达标，<0.4 说明达标频率偏低
 - accum_score（A 底盘分）：同专业 IQR 质量比较；反映该生整体练琴底子，越高说明积累越扎实
 - W 本周进度分（未单独列出）：本周工作日实际 / (日均值 × 已过工作日)，权重最高，每练一次立刻影响综合分和排名
 
@@ -1857,7 +1857,7 @@ function renderDP(s,hist,sessions=[]){
         <div class="dim-row">
           ${dimCard('B','进步分',s.baseline_score,'上1个活跃周 vs 前1个活跃周的工作日练琴总时长对比（Sigmoid k=3.0）。&gt;0.5 说明近期练琴量比此前多，&lt;0.5 说明有所回落，0.5 为持平。')}
           ${dimCard('T','趋势分',s.trend_score,'近2活跃周练琴量均值 vs 前2活跃周均值块对比（取最近4活跃周，20周上限）。&gt;0.5 说明近期更活跃，&lt;0.5 说明有所回落。需至少 3 个活跃周历史才能计算，否则默认 0.5。')}
-          ${dimCard('M','动量分',s.momentum_score,'最近 4 个活跃周加权达标率（周练琴量≥个人日均×5天×60% 为达标）。最近一周权重最大（约 42%），越往前权重越低（×0.65 递减）。值越高说明近期稳定达标频率越高。')}
+          ${dimCard('M','动量分',s.momentum_score,'最近 4 个活跃周加权达标率（周练琴量≥个人日均×5天×100% 为达标）。最近一周权重最大（约 42%），越往前权重越低（×0.65 递减）。值越高说明近期稳定达标频率越高。')}
           ${dimCard('A','底盘分',s.accum_score,'最近样本量 × 同专业时长质量形成的练琴底盘。它会影响稳定性判断，但不等于本周全校排名。')}
           ${dimCard('W','本周进度',s.w_score,'本周工作日实际练琴时长 / (个人日均值 × 已过工作日天数)，Sigmoid 归一化。每练完一次立即实时生效，是每日排名变动的主要来源。每次练琴后由后端实时写入并存储。')}
         </div>

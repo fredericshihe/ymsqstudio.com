@@ -6837,3 +6837,266 @@ student_baseline UPDATE
 3. `fix75_weekly_snapshot_fix.sql` — run_weekly_score_update FIX-75
 4. `setup_weekly_score_cron.sql` — 注册周五 21:35 定时任务
 5. `SELECT public.backfill_score_history();` — 历史数据全量重算（约1~3分钟）
+
+---
+
+## 第二轮深度排查（2026-03-21）
+
+本轮针对“排行榜每周波动是否准确、周末是否误计入、快照/回溯是否存在时间边界偏差”做了更细的代码级复核，发现以下 **真实风险点**。
+
+### P1：`DATE::TIMESTAMPTZ` 时区边界错误，会把周一凌晨的记录分到上一周
+
+**影响文件**：
+- `leaderboard_rpc.sql`
+- `fix53_backfill_update.sql`
+- `fix60_weekly_update_and_baseline_trigger.sql`
+
+**问题代码模式**：
+
+```sql
+WHERE session_start >= monday::TIMESTAMPTZ
+WHERE session_start >= v_current_date::TIMESTAMPTZ
+WHERE session_start <  v_next_date::TIMESTAMPTZ
+```
+
+这些写法把 `DATE` 直接强转成 `TIMESTAMPTZ`，实际会使用数据库 session 的时区（Supabase 通常是 UTC），而不是系统实际使用的 **北京时间**。
+
+### 具体后果
+
+如果学生在 **周一 00:00 ~ 07:59（北京时间）** 练琴：
+
+- `get_weekly_leaderboards()` 的 `week_cnt` 可能把这次记录当成“上一周”
+- `run_weekly_score_update()` 识别“本周是否练过”时可能漏掉这类学生
+- `backfill_score_history()` 重算历史时，活跃周判断和整周窗口可能整体向后偏 8 小时
+
+### 正确写法
+
+应统一改成：
+
+```sql
+(monday::TIMESTAMP) AT TIME ZONE 'Asia/Shanghai'
+(v_current_date::TIMESTAMP) AT TIME ZONE 'Asia/Shanghai'
+(v_next_date::TIMESTAMP) AT TIME ZONE 'Asia/Shanghai'
+```
+
+**结论**：这是当前排行榜/快照系统里最需要修的真实 Bug。
+
+---
+
+### P1：周末记录仍在影响排行榜资格，与“周末不算分”规则冲突
+
+**影响文件**：`leaderboard_rpc.sql`
+
+#### 1. `week_cnt` 没有过滤周末
+
+```sql
+week_cnt AS (
+    SELECT student_name, COUNT(*)::INTEGER AS cnt
+    FROM public.practice_sessions
+    CROSS JOIN week_monday
+    WHERE session_start >= monday::TIMESTAMPTZ
+    GROUP BY student_name
+)
+```
+
+这里没有 `EXTRACT(DOW ...) NOT IN (0, 6)`。
+
+#### 2. `recent10` 也没有过滤周末
+
+```sql
+FROM public.practice_sessions
+WHERE cleaned_duration > 0
+  AND session_start >= NOW() - INTERVAL '12 weeks'
+```
+
+这会导致：
+
+- **进步榜** 的 `week_sessions >= 2` 可能被周末练琴凑满
+- **守则榜** 的 `week_sessions >= 3` 可能把周末次数也算进出勤
+- **稳定榜 / 守则榜** 的近10条异常率、近10条均时会被周末数据干扰
+
+### 更严重的一点
+
+`ranked_pool` 用的是：
+
+```sql
+COALESCE(ws.composite_score, sb.composite_score) AS display_score
+```
+
+如果一个学生 **本周只有周末练琴**：
+
+- `week_cnt` 会把他视为“本周有练”
+- 但 `compute_student_score()` 因无工作日练琴，通常不会生成正的 `week_scores`
+- 结果榜单会退回去读旧的 `student_baseline.composite_score`
+
+也就是：**学生本周实际上不应参与排行榜，却可能带着旧分重新上榜。**
+
+**结论**：如果业务规则已经确定“周六周日练琴数据都不算”，这里必须改。
+
+---
+
+### P2：如果未执行 `backfill_score_history()`，进步榜和历史趋势会混用“旧百分位分”和“新绝对分”
+
+**影响文件**：
+- `leaderboard_rpc.sql`
+- `fix44_46_score_functions.sql`
+- `fix53_backfill_update.sql`
+
+#### 原因
+
+FIX-74 已把 `composite_score` 改为：
+
+```sql
+ROUND(raw_score * 100, 1)
+```
+
+但进步榜基准和成长加速度仍然读取历史 `student_score_history.composite_score`：
+
+```sql
+-- leaderboard_rpc.sql
+MAX(composite_score) AS lw_composite
+
+-- fix44_46_score_functions.sql
+SELECT sh.composite_score::FLOAT8 AS sc
+FROM public.student_score_history sh
+```
+
+如果数据库里旧历史还没通过 `backfill_score_history()` 全量重算，就会出现：
+
+- 当前周：绝对分
+- 历史周：旧百分位分
+
+二者混用后：
+
+- 进步榜涨幅失真
+- `growth_velocity` 失真
+- 排名波动看起来会“怪”
+
+**结论**：FIX-74 部署后，`SELECT public.backfill_score_history();` 不是可选项，而是必须项。
+
+---
+
+### P3：系统架构文档已落后于当前真实代码
+
+**影响文件**：`系统架构文档.md`
+
+当前文档仍存在几处过时描述，例如：
+
+- 未写入 `weekly_score_update_job`
+- 仍把部分排行榜口径描述成旧规则
+- 对 `alpha`、进步榜展示字段的描述与当前代码不完全一致
+
+**影响**：不会直接导致分数错误，但会误导后续维护、人工核查和前端文案同步。
+
+---
+
+## 本轮最终判断
+
+### 已确认没问题的部分
+
+- 触发链本身：`practice_logs → practice_sessions → student_baseline → compute_student_score`
+- FIX-74：去百分位方向正确
+- FIX-75：不再把周任务快照写回 `student_baseline`，方向正确
+- 历史回溯 `_as_of`：**包含该历史周完整 W 数据**，不是“只算周一起点”
+
+### 仍需处理的真实问题
+
+1. **修复所有 `DATE::TIMESTAMPTZ` 的北京时间边界问题**
+2. **把排行榜的 `week_cnt` / `recent10` 统一改成工作日口径**
+3. **确认数据库已执行 `backfill_score_history()`，否则进步榜仍可能失真**
+
+---
+
+## FIX-76：北京时间边界修正 + 周末不计榜
+
+**日期**：2026-03-21  
+**文件**：`fix76_beijing_boundary_and_weekend_alignment.sql`（新建）  
+**同步修改**：`leaderboard_rpc.sql`、`fix55_baseline_weekday_filter.sql`、`fix47_alpha_outlier_penalty.sql`、`fix53_backfill_update.sql`、`fix60_weekly_update_and_baseline_trigger.sql`、`practiceanalyse.html`、`系统架构文档.md`、`README.md`
+
+### 本次修复解决了什么
+
+#### 1. 北京时间周边界偏移
+
+原来多处写法是：
+
+```sql
+session_start >= monday::TIMESTAMPTZ
+session_start <  p_as_of_date::TIMESTAMPTZ
+```
+
+这会依赖数据库 session 时区（通常是 UTC），导致北京时间周一凌晨的数据有机会被算进上一周。
+
+现在统一改为：
+
+```sql
+(monday::TIMESTAMP) AT TIME ZONE 'Asia/Shanghai'
+(p_as_of_date::TIMESTAMP) AT TIME ZONE 'Asia/Shanghai'
+```
+
+修复后：
+- 周一 00:00 ~ 07:59（北京时间）的记录不再误分周
+- 每周快照、历史回溯、基线截止时间全部统一按北京时间
+
+#### 2. 周末不再影响排行榜资格
+
+`leaderboard_rpc.sql` 中：
+- `recent10` 改为只统计**工作日**
+- `week_cnt` 改为只统计**工作日**
+
+修复后：
+- 进步榜的 `本周工作日 ≥ 2 次` 不再被周末练琴凑数
+- 守则榜的 `本周工作日 ≥ 3 次` 不再把周末算进出勤
+- 稳定榜 / 守则榜的近10条异常率、近10条均时与评分口径一致
+
+#### 3. `compute_baseline` / `compute_baseline_as_of` 统一北京时间截止点
+
+之前 `compute_baseline_as_of()` 内部所有 `< p_as_of_date::TIMESTAMPTZ` 也存在同样的 8 小时边界风险。
+
+现已统一使用：
+
+```sql
+v_asof_bjt := (p_as_of_date::TIMESTAMP) AT TIME ZONE 'Asia/Shanghai';
+```
+
+并把 `compute_baseline()` 的“今天+1”改成北京时间：
+
+```sql
+((NOW() AT TIME ZONE 'Asia/Shanghai')::DATE + 1)
+```
+
+#### 4. 周任务与回溯任务也改成北京时间窗口
+
+- `run_weekly_score_update()`：本周一与“本周是否练过”判断改为北京时间窗口
+- `backfill_score_history()`：每一周的起止时间改为北京时间窗口
+
+这样历史回溯与实时榜单终于使用同一套周边界定义。
+
+### FIX-76 后的最终规则
+
+| 项目 | 最终口径 |
+|------|---------|
+| 综合分 | `composite_score = ROUND(raw_score × 100, 1)` |
+| 本周有效练琴 | **仅工作日（周一至周五）** |
+| 近10条榜单统计 | **仅工作日记录** |
+| 每周时间边界 | **统一北京时间 `Asia/Shanghai`** |
+| 周五任务顺序 | `21:30` 备份 → `21:32` 发币 → `21:35` 周快照 |
+
+### 最终部署顺序（以 FIX-76 为准）
+
+1. 运行 `fix76_beijing_boundary_and_weekend_alignment.sql`
+2. 运行 `setup_weekly_score_cron.sql`
+3. 运行：
+
+```sql
+SELECT public.backfill_score_history();
+```
+
+### 当前最终推荐
+
+从现在开始，**不要再单独按旧顺序手工拼 `fix74` + `fix75` 了**。  
+如果数据库还没部署最新版，直接以：
+
+- `fix76_beijing_boundary_and_weekend_alignment.sql`
+- `setup_weekly_score_cron.sql`
+
+作为最终部署入口即可。

@@ -44,7 +44,7 @@ week_monday AS (
     SELECT DATE_TRUNC('week', NOW() AT TIME ZONE 'Asia/Shanghai')::DATE AS monday
 ),
 
-/* ── 近12周内最多10条有效 session（不过滤工作日，与前端口径一致） ── */
+/* ── 近12周内最多10条有效工作日 session（与评分口径一致，周末不计榜） ── */
 recent10 AS (
     SELECT
         student_name,
@@ -60,19 +60,21 @@ recent10 AS (
         FROM public.practice_sessions
         WHERE cleaned_duration > 0
           AND session_start >= NOW() - INTERVAL '12 weeks'
+          AND EXTRACT(DOW FROM session_start AT TIME ZONE 'Asia/Shanghai') NOT IN (0, 6)
     ) sub
     WHERE rn <= 10
     GROUP BY student_name
 ),
 
-/* ── 本周练习次数（含周末，与前端 fetchActiveThisWeek 口径一致） ── */
+/* ── 本周工作日练习次数（与评分口径一致，周末不计榜） ── */
 week_cnt AS (
     SELECT
         student_name,
         COUNT(*)::INTEGER AS cnt
     FROM public.practice_sessions
     CROSS JOIN week_monday
-    WHERE session_start >= monday::TIMESTAMPTZ
+    WHERE session_start >= ((monday::TIMESTAMP) AT TIME ZONE 'Asia/Shanghai')
+      AND EXTRACT(DOW FROM session_start AT TIME ZONE 'Asia/Shanghai') NOT IN (0, 6)
     GROUP BY student_name
 ),
 
