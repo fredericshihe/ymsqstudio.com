@@ -6701,3 +6701,139 @@ END LOOP;
 下周进步榜基准 = 72分（真实上周终点分）✅
 排行榜分数不再因周任务运行而骤降 ✅
 ```
+
+---
+
+## 全系统审查报告（2026-03-21）
+
+本次审查覆盖所有得分、快照、排行榜相关函数，逐一核查 FIX-74、FIX-75 部署后的系统状态。
+
+---
+
+### 一、触发链完整性 ✅
+
+```
+practice_logs INSERT
+  → trg_insert_session → trigger_insert_session()
+      → 写入 practice_sessions（含 cleaned_duration、is_outlier）
+
+practice_sessions INSERT
+  → trg_update_baseline → trigger_update_student_baseline()  [SECURITY DEFINER]
+      → update_student_baseline() → compute_baseline_as_of(student, 今天+1)
+          → 更新 student_baseline.mean_duration / alpha / outlier_rate 等基线统计
+          → ⚠️ 不更新 composite_score（confirmed：代码中无此字段赋值）
+
+student_baseline UPDATE
+  → trg_compute_score_on_baseline_update → trigger_compute_student_score()  [SECURITY DEFINER]
+      → compute_student_score(student)
+          → 读取 student_baseline 基线统计（刚被上一步更新的值）
+          → 写入 student_score_history[本周一]（ON CONFLICT DO UPDATE）
+          → 写入 student_baseline.composite_score / raw_score / last_updated
+```
+
+**结论**：三段触发链完整、顺序正确，每次打卡后分数立即刷新。
+
+---
+
+### 二、得分公式正确性 ✅
+
+| 维度 | 数据范围 | 周末过滤 |
+|------|---------|---------|
+| B 基线 | 本周一之前 8 周 | ✅ DOW NOT IN (0,6) |
+| T 趋势 | 本周一之前 20 周（取近4活跃周） | ✅ |
+| M 动量 | 本周一之前 12 周 | ✅ |
+| A 累积 | 全历史（记录数+质量） | ✅（baseline stats 已过滤） |
+| W 本周 | 本周一到现在（当前周实时） | ✅ DOW NOT IN (0,6) |
+
+**FIX-74**：`composite_score = ROUND(raw_score × 100, 1)` 全链路统一，无百分位 ✅
+
+---
+
+### 三、快照逻辑正确性 ✅
+
+| 情况 | 写入方式 | 数据 |
+|------|---------|------|
+| 当周练琴 | 实时触发器 ON CONFLICT DO UPDATE | 最新累积终点分 |
+| 当周未练 | run_weekly_score_update 步骤② | score=0（体现停练） |
+| 停练>30天 | compute_student_score 早期返回 ON CONFLICT DO NOTHING | 保留上次有效分，不覆盖 |
+| 历史回溯 | backfill 逐周调用 _as_of + compute_baseline_as_of | 含那周完整 W 数据 |
+
+**关键确认**：`compute_baseline_as_of()` 只更新 mean_duration/alpha/outlier_rate 等统计字段，**不触及 composite_score**，FIX-75 删除步骤③正确。
+
+---
+
+### 四、排行榜计算正确性 ✅
+
+**综合榜** `display_score = COALESCE(week_scores.composite_score, student_baseline.composite_score)`
+- 优先用 `student_score_history[本周一]`（实时触发器已写入本周累积分）
+- 回退到 `student_baseline.composite_score`（同一值，两路互为冗余保护）✅
+
+**进步榜** `涨幅 = display_score - MAX(近2活跃周快照)`
+- `last_week_scores` 用 `WHERE snapshot_date < 本周一`，正确排除当周 ✅
+- 取近2活跃周 MAX，防节假日低分周当基准（虽然对强势学生较严格，属设计取舍）✅
+
+**稳定榜** 按 alpha 降序，数据来自 `student_baseline.alpha`（触发链实时维护）✅
+
+**守则榜** `week_sessions >= 3`，来自 `week_cnt`（含周末次数，与前端口径一致，属设计取舍）✅
+
+---
+
+### 五、每周定时任务流程 ✅
+
+```
+周五 21:30  backup_weekly_leaderboards_job   快照备份当前排行榜
+周五 21:32  reward_weekly_coins_job           读实时分发币（student_baseline）
+周五 21:35  weekly_score_update_job           ← FIX-74/75 新增
+
+  步骤① compute_baseline_as_of(all, 今天+1)
+        更新全员基线统计，含本周未练琴的学生
+        ⚠️ 会更新 student_baseline.last_updated = NOW()
+           （含未练琴学生，这是基线重算时间戳，非练琴时间）
+
+  步骤② compute_student_score(只针对本周未练琴学生)
+        写入 student_score_history[本周一] = 0（停练记录）
+        不更新 student_baseline.composite_score（早期返回机制）
+
+  注：已练琴学生 → 步骤①更新基线统计后，next_practice 时触发器会自动
+       用新基线重算分数。本周剩余时间内若无新练习，分数保持最后触发时的值。
+```
+
+---
+
+### 六、发现的设计取舍（非 Bug）
+
+| 编号 | 描述 | 影响 | 建议 |
+|------|------|------|------|
+| D-1 | 步骤①更新基线后，本周内已有快照不会立即重算 | 本周剩余无练习则快照不同步新基线 | 可接受，下次练习后自动修正 |
+| D-2 | 进步榜基准取近2周 MAX，强势周后较难上进步榜 | 对勤练学生略严格 | 属设计取舍，防节假日虚进步 |
+| D-3 | `week_cnt` 含周末次数，影响守则榜出勤门槛 | 周末练琴次数计入 `>= 3` 判断 | 已与前端口径一致，属设计取舍 |
+| D-4 | `student_baseline.last_updated` 含基线重算时间，非纯练琴时间 | 若前端显示此字段会有误导 | 建议前端改用 `practice_sessions` 最近记录时间 |
+
+---
+
+### 七、当前函数版本总表（审查后最终版）
+
+| 函数名 | Fix ID | 本地文件 |
+|--------|--------|---------|
+| `compute_student_score` | FIX-70 + FIX-57 + FIX-56 + FIX-53 | `fix44_46_score_functions.sql` |
+| `compute_student_score_as_of` | FIX-70 + FIX-57 | `fix44_46_score_functions.sql` |
+| `compute_baseline_as_of` | FIX-55（全周末过滤）| `fix55_baseline_weekday_filter.sql` |
+| `run_weekly_score_update` | **FIX-75** + FIX-74 | `fix60_weekly_update_and_baseline_trigger.sql` |
+| `backfill_score_history` | FIX-74 + FIX-62 + FIX-53-F | `fix53_backfill_update.sql` |
+| `get_weekly_leaderboards` | FIX-69 + FIX-65 | `leaderboard_rpc.sql` |
+| `trigger_insert_session` | FIX-73 + FIX-72 + FIX-51B | `fix_stale_cleaned_duration.sql` |
+| `trigger_update_student_baseline` | FIX-73 + FIX-71 | `fix60_weekly_update_and_baseline_trigger.sql` |
+| `trigger_compute_student_score` | FIX-23/22（SECURITY DEFINER）| 数据库直接管理 |
+| `reward_weekly_coins` | FIX-68 | `setup_coin_rewards.sql` |
+
+---
+
+### 八、待部署清单（数据库尚未执行的文件）
+
+按顺序在 Supabase SQL Editor 执行：
+
+1. `fix74_remove_percentile.sql` — 第1段（run_weekly_score_update）
+2. `fix74_remove_percentile.sql` — 第2段（backfill_score_history）
+3. `fix75_weekly_snapshot_fix.sql` — run_weekly_score_update FIX-75
+4. `setup_weekly_score_cron.sql` — 注册周五 21:35 定时任务
+5. `SELECT public.backfill_score_history();` — 历史数据全量重算（约1~3分钟）
