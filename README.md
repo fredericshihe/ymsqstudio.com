@@ -27,13 +27,15 @@
 - **`fix76_beijing_boundary_and_weekend_alignment.sql`**：修复北京时间边界，并统一“周末不计榜”。
 - **`fix77_sync_raw_and_composite.sql`**：修复 `backfill_score_history()` 同步漂移，确保 `raw_score` 与 `composite_score` 一致。
 - **`setup_weekly_score_cron.sql`**：注册 `weekly_score_update_job`（周五 21:35）。
+- **`simplify_semester_ranking.sql`**：精简学期管理（移除梅纽因之星对象，仅保留学期累计排行 + 新学期重置）。
 
 ## 推荐部署顺序
 
 1. 运行 `fix76_beijing_boundary_and_weekend_alignment.sql`
 2. 运行 `fix77_sync_raw_and_composite.sql`
 3. 运行 `setup_weekly_score_cron.sql`
-4. 运行 `SELECT public.backfill_score_history();`
+4. （如需精简学期管理）运行 `simplify_semester_ranking.sql`
+5. 运行 `SELECT public.backfill_score_history();`
 
 > 说明：`fix74`、`fix75` 的内容已被后续入口文件覆盖，常规部署无需再单独执行。
 

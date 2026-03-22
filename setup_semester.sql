@@ -5,17 +5,15 @@
 -- 功能：
 --   1. 为 student_coins 新增 semester_earned 字段
 --      （本学期通过排行榜自动奖励获得的音符币，每学期重置）
---   2. 梅纽因之星颁发记录表 meiyin_star_log
---   3. award_meiyin_star(semester)  — 学期末颁发函数
---   4. start_new_semester(confirm)  — 开启新学期（重置 semester_earned）
---   5. 更新 adjust_student_coins()  — 同步累加 semester_earned
---   6. 更新 vw_student_coin_balances 视图 — 暴露 semester_earned
+--   2. 移除梅纽因之星相关历史对象（表 + RPC）
+--   3. start_new_semester(confirm)  — 开启新学期（重置 semester_earned）
+--   4. 更新 adjust_student_coins()  — 同步累加 semester_earned
+--   5. 更新 vw_student_coin_balances 视图 — 暴露 semester_earned
 --
 -- 设计原则：
 --   - balance（总余额）：可跨学期积累，用于兑换任意奖励
---   - semester_earned：仅计入 auto_reward 发放的正向金额，
---     每学期末重置为 0；梅纽因之星以此为唯一判断依据
---   - 梅纽因之星不再手动兑换，由管理员学期末点击"颁发"按钮自动授予
+--   - semester_earned：计入所有正向调整（auto_reward + manual），每学期可重置
+--   - 后台仅保留“学期累计排行 + 学期重置”，移除梅纽因之星功能
 -- ============================================================
 
 
@@ -26,86 +24,18 @@ ALTER TABLE public.student_coins
 ADD COLUMN IF NOT EXISTS semester_earned INTEGER NOT NULL DEFAULT 0;
 
 COMMENT ON COLUMN public.student_coins.semester_earned IS
-    '本学期通过排行榜自动奖励（auto_reward）累计获得的音符币。
-     每学期初由管理员调用 start_new_semester() 重置为 0。
-     梅纽因之星颁发给本学期 semester_earned 最高且 ≥ 400 的学生。';
+    '本学期累计获得的音符币（正向调整会累加，学期初可调用 start_new_semester() 重置为 0）。';
 
 
 -- ============================================================
--- 2. 梅纽因之星颁发记录表
+-- 2. 移除梅纽因之星相关对象（历史功能下线）
 -- ============================================================
-CREATE TABLE IF NOT EXISTS public.meiyin_star_log (
-    id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    semester        TEXT         NOT NULL UNIQUE,    -- 学期标识，如 "2025秋" / "2026春"
-    student_name    TEXT         NOT NULL,
-    semester_earned INTEGER      NOT NULL,           -- 获奖时的学期已获得币数
-    awarded_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    note            TEXT                             -- 颁奖备注（可选）
-);
-
-COMMENT ON TABLE public.meiyin_star_log IS
-    '梅纽因之星每学期颁发记录；UNIQUE(semester) 确保每学期最多一次';
-
-GRANT SELECT ON public.meiyin_star_log TO anon, authenticated;
+DROP FUNCTION IF EXISTS public.award_meiyin_star(TEXT, TEXT, TEXT);
+DROP TABLE IF EXISTS public.meiyin_star_log;
 
 
 -- ============================================================
--- 3. 学期末颁发梅纽因之星
---    p_student_name：管理员手动指定获奖学生（必填）
---    p_semester    ：学期标识，如 "2026春"（必填）
---    p_note        ：颁奖备注（可选）
--- ============================================================
-CREATE OR REPLACE FUNCTION public.award_meiyin_star(
-    p_semester     TEXT,
-    p_student_name TEXT,
-    p_note         TEXT DEFAULT NULL
-)
-RETURNS TEXT
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    v_earned INTEGER;
-    v_existing TEXT;
-BEGIN
-    -- ① 参数校验
-    IF p_student_name IS NULL OR TRIM(p_student_name) = '' THEN
-        RETURN '❌ 请指定获奖学生姓名。';
-    END IF;
-
-    -- ② 防止同一学期重复颁发
-    IF EXISTS (
-        SELECT 1 FROM public.meiyin_star_log WHERE semester = p_semester
-    ) THEN
-        SELECT student_name INTO v_existing
-        FROM public.meiyin_star_log WHERE semester = p_semester;
-        RETURN '⚠️ ' || p_semester || ' 已颁发给 ' || v_existing || '，无法重复颁发。';
-    END IF;
-
-    -- ③ 读取该学生本学期已获得音符币
-    SELECT COALESCE(semester_earned, 0)
-    INTO v_earned
-    FROM public.student_coins
-    WHERE student_name = p_student_name;
-
-    IF v_earned IS NULL THEN
-        RETURN '❌ 未找到学生「' || p_student_name || '」，请确认姓名正确。';
-    END IF;
-
-    -- ④ 写入颁发记录
-    INSERT INTO public.meiyin_star_log (semester, student_name, semester_earned, note)
-    VALUES (p_semester, p_student_name, v_earned, p_note);
-
-    RETURN '🌟 ' || p_semester || ' 梅纽因之星已颁发给：' || p_student_name
-           || '（本学期通过排行榜累计获得 ' || v_earned || ' 音符币）';
-END;
-$$;
-
-GRANT EXECUTE ON FUNCTION public.award_meiyin_star(TEXT, TEXT, TEXT) TO anon, authenticated;
-
-
--- ============================================================
--- 4. 开启新学期（重置所有学生的 semester_earned）
+-- 3. 开启新学期（重置所有学生的 semester_earned）
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.start_new_semester(p_confirm TEXT)
 RETURNS TEXT
@@ -132,7 +62,7 @@ GRANT EXECUTE ON FUNCTION public.start_new_semester(TEXT) TO anon, authenticated
 
 
 -- ============================================================
--- 5. 更新 adjust_student_coins()：同步累加 semester_earned
+-- 4. 更新 adjust_student_coins()：同步累加 semester_earned
 --    所有正向调整（auto_reward 自动发放 + manual 手动补发）均计入本学期统计
 --    扣减操作（p_amount < 0）不影响 semester_earned
 -- ============================================================
@@ -189,7 +119,7 @@ GRANT EXECUTE ON FUNCTION public.adjust_student_coins(TEXT, INTEGER, TEXT, TEXT)
 
 
 -- ============================================================
--- 6. 更新视图，暴露 semester_earned 供管理后台读取
+-- 5. 更新视图，暴露 semester_earned 供管理后台读取
 --    必须先 DROP 再重建，否则 CREATE OR REPLACE 不允许改列顺序
 -- ============================================================
 DROP VIEW IF EXISTS public.vw_student_coin_balances;
@@ -216,12 +146,5 @@ GRANT SELECT ON public.vw_student_coin_balances TO anon, authenticated;
 -- FROM public.student_coins
 -- ORDER BY semester_earned DESC;
 
--- 学期末颁发梅纽因之星（填入当前学期标识）：
--- SELECT public.award_meiyin_star('2026春', '恭喜 XX 同学！');
-
 -- 开启新学期（重置 semester_earned）：
 -- SELECT public.start_new_semester('CONFIRM_NEW_SEMESTER');
-
--- 查看历届梅纽因之星记录：
--- SELECT semester, student_name, semester_earned, awarded_at
--- FROM public.meiyin_star_log ORDER BY awarded_at DESC;

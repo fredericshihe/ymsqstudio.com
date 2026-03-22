@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>🎶 音符币管理后台</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --bg: #0f172a; --sur: #1e293b; --card: #1e293b;
@@ -133,14 +133,7 @@
       color: var(--text); padding: 7px 12px; border-radius: 8px; font-size: .9rem;
       outline: none; width: 140px; }
     .sem-input:focus { border-color: var(--blue); }
-    /* 梅纽因之星历史 */
-    .star-history { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--bdr); }
-    .star-history-title { font-size: .78rem; color: var(--t3); font-weight: 600;
-      text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
-    .star-item { display: flex; align-items: center; gap: 10px; padding: 6px 0;
-      border-bottom: 1px solid var(--bdr); font-size: .85rem; }
-    .star-item:last-child { border-bottom: none; }
-    .star-sem { color: var(--t3); font-size: .78rem; min-width: 60px; }
+    /* 学期累计达标标记 */
 
     /* 自动结算开关卡片 */
     .settings-card {
@@ -194,13 +187,13 @@
     </div>
   </div>
 
-  <!-- 学期管理卡片 -->
+  <!-- 学期管理卡片（最简：仅累计排行 + 学期重置） -->
   <div class="semester-card">
     <div class="semester-card-hd" onclick="toggleSemesterCard()">
       <div class="semester-card-hd-left">
-        <div style="font-size:1.3rem">🌟</div>
+        <div style="font-size:1.3rem">📊</div>
         <div>
-          <div class="semester-card-title">梅纽因之星 · 学期管理</div>
+          <div class="semester-card-title">学期累计获得排行</div>
           <div class="semester-card-sub">学期累积音符币获得排名 · 点击展开管理</div>
         </div>
       </div>
@@ -218,7 +211,7 @@
             <button class="btn" onclick="confirmNewSemester()" id="newSemBtn" style="border-color:var(--red);color:var(--red)">开启新学期</button>
           </div>
           <div style="font-size:0.72rem;color:var(--t3);margin-top:4px;text-align:right">
-            在排名表中点击「颁发 🌟」选择获奖学生 · 开启新学期会将所有人本学期累积清零
+            开启新学期会将所有人本学期累积清零（总余额不变）
           </div>
         </div>
       </div>
@@ -231,20 +224,13 @@
             <th>学生</th>
             <th>专业</th>
             <th>本学期累积</th>
-            <th>资格</th>
-            <th>颁发</th>
+            <th>达标进度</th>
           </tr>
         </thead>
         <tbody id="semTableBody">
-          <tr><td colspan="6" style="color:var(--t3);text-align:center">加载中...</td></tr>
+          <tr><td colspan="5" style="color:var(--t3);text-align:center">加载中...</td></tr>
         </tbody>
       </table>
-
-      <!-- 历届梅纽因之星记录 -->
-      <div class="star-history" id="starHistorySection" style="display:none">
-        <div class="star-history-title">🏆 历届梅纽因之星</div>
-        <div id="starHistoryList"></div>
-      </div>
 
     </div>
   </div>
@@ -268,7 +254,7 @@
   </div>
 
   <div class="toolbar">
-    <input type="text" id="searchInput" class="search-input" placeholder="搜索姓名或专业..." oninput="renderTable()">
+    <input type="text" id="searchInput" class="search-input" placeholder="搜索姓名或专业..." oninput="debouncedRenderTable()">
     <button class="btn" onclick="loadData()">刷新数据</button>
   </div>
 
@@ -353,6 +339,83 @@
     let allStudents = [];
     let currentAdjType = 'add';
     let currentAdjStudent = '';
+    let loadDataRequestId = 0;
+    let renderTimer = null;
+
+    function debounce(fn, wait = 180) {
+      let t = null;
+      return (...args) => {
+        if (t) clearTimeout(t);
+        t = setTimeout(() => fn(...args), wait);
+      };
+    }
+    const debouncedRenderTable = debounce(() => renderTable(), 160);
+    window.debouncedRenderTable = debouncedRenderTable;
+
+    function withTimeout(promise, ms = 12000, label = '请求') {
+      let timer = null;
+      const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label}超时（>${Math.round(ms/1000)}s）`)), ms);
+      });
+      return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+    }
+
+    async function waitForSupabaseLib(maxMs = 10000) {
+      const start = Date.now();
+      while (!window.supabase || typeof window.supabase.createClient !== 'function') {
+        if (Date.now() - start > maxMs) return false;
+        await new Promise(r => setTimeout(r, 120));
+      }
+      return true;
+    }
+    async function loadScriptWithTimeout(src, timeoutMs = 5000) {
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.async = true;
+        const timer = setTimeout(() => {
+          script.onerror = null;
+          script.onload = null;
+          try { script.remove(); } catch(_) {}
+          reject(new Error(`加载超时: ${src}`));
+        }, timeoutMs);
+        script.onload = () => {
+          clearTimeout(timer);
+          resolve(true);
+        };
+        script.onerror = () => {
+          clearTimeout(timer);
+          reject(new Error(`加载失败: ${src}`));
+        };
+        document.head.appendChild(script);
+      });
+    }
+    async function ensureSupabaseLib() {
+      if (window.supabase && typeof window.supabase.createClient === 'function') return true;
+      const fallbackCdn = [
+        'https://unpkg.com/@supabase/supabase-js@2',
+        'https://cdn.skypack.dev/@supabase/supabase-js'
+      ];
+      for (const src of fallbackCdn) {
+        try {
+          await loadScriptWithTimeout(src, 5000);
+          const ok = await waitForSupabaseLib(2000);
+          if (ok) return true;
+        } catch (_) {}
+      }
+      return false;
+    }
+
+    async function fetchWithTimeout(input, init = {}, timeoutMs = 12000) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const merged = { ...init, signal: controller.signal };
+        return await fetch(input, merged);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
 
     function showToast(msg, isError = false) {
       const t = document.getElementById('toast');
@@ -369,11 +432,36 @@
       const url = (cfg && cfg.url) ? cfg.url : DEFAULT_URL;
       const key = (cfg && cfg.key) ? cfg.key : DEFAULT_KEY;
       
-      supabaseClient = window.supabase.createClient(url, key);
+      let sdkReady = await waitForSupabaseLib(3000);
+      if (!sdkReady) {
+        sdkReady = await ensureSupabaseLib();
+      }
+      if (!sdkReady) {
+        document.getElementById('connStatus').textContent = 'SDK 加载失败';
+        document.getElementById('connStatus').style.color = 'var(--red)';
+        showToast('Supabase SDK 加载超时，请检查网络后刷新', true);
+        return;
+      }
+
+      supabaseClient = window.supabase.createClient(url, key, {
+        global: {
+          fetch: (input, init) => fetchWithTimeout(input, init, 12000)
+        }
+      });
       document.getElementById('connStatus').textContent = '已连接';
       document.getElementById('connStatus').style.color = 'var(--green)';
 
-      await Promise.all([loadData(), loadAutoRewardSetting()]);
+      // 首屏先可用，后台并行加载；任一失败不阻塞另一项
+      const [dataRes, settingRes] = await Promise.allSettled([
+        loadData(),
+        loadAutoRewardSetting()
+      ]);
+      if (dataRes.status === 'rejected') {
+        showToast('学生数据加载失败：' + dataRes.reason.message, true);
+      }
+      if (settingRes.status === 'rejected') {
+        showToast('自动结算设置读取失败：' + settingRes.reason.message, true);
+      }
     }
 
     // ---------------------------------------------------------
@@ -381,18 +469,35 @@
     // ---------------------------------------------------------
     async function loadData() {
       if (!supabaseClient) return;
+      const reqId = ++loadDataRequestId;
       try {
+        const tbody = document.getElementById('tableBody');
+        if (tbody) {
+          tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--t3);">加载中...</td></tr>`;
+        }
         // 调用我们刚刚在 SQL 中创建的视图
-        const { data, error } = await supabaseClient
-          .from('vw_student_coin_balances')
-          .select('*')
-          .order('balance', { ascending: false });
+        const { data, error } = await withTimeout(
+          supabaseClient
+            .from('vw_student_coin_balances')
+            .select('*')
+            .order('balance', { ascending: false }),
+          12000,
+          '学生余额查询'
+        );
           
         if (error) throw error;
+        if (reqId !== loadDataRequestId) return; // 丢弃过期响应
         allStudents = data || [];
         renderTable();
+        document.getElementById('connStatus').textContent = '数据已同步';
+        document.getElementById('connStatus').style.color = 'var(--green)';
       } catch (err) {
         console.error('加载数据失败:', err);
+        if (reqId !== loadDataRequestId) return;
+        document.getElementById('connStatus').textContent = '数据加载失败';
+        document.getElementById('connStatus').style.color = 'var(--red)';
+        document.getElementById('tableBody').innerHTML =
+          `<tr><td colspan="6" style="text-align: center; color: var(--red);">加载失败：${err.message}</td></tr>`;
         showToast('加载数据失败: ' + err.message, true);
       }
     }
@@ -558,7 +663,7 @@
     }
 
     // ---------------------------------------------------------
-    // 5. 学期管理：折叠控制 + 排名渲染 + 颁奖 + 重置
+    // 5. 学期管理：折叠控制 + 累计排行 + 学期重置
     // ---------------------------------------------------------
     function toggleSemesterCard() {
       const body = document.getElementById('semesterCardBody');
@@ -585,11 +690,10 @@
 
         tbody.innerHTML = data.map((s, i) => {
           const earned = s.semester_earned || 0;
-          const pct    = Math.min(100, Math.round(earned / 400 * 100));
           const barPct = Math.min(100, Math.round(earned / maxEarned * 100));
           const rankLabel = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}`;
           const starTag  = earned >= 400
-            ? `<span class="star-badge">🌟 已达标</span>`
+            ? `<span class="star-badge">✅ 已达标</span>`
             : `<span style="font-size:.8rem;color:var(--t3)">${400 - earned} 币</span>`;
           return `
             <tr>
@@ -601,74 +705,18 @@
                 <span class="sem-bar-wrap"><span class="sem-bar" style="width:${barPct}%;background:${earned>=400?'var(--green)':'#3b82f6'}"></span></span>
               </td>
               <td>${starTag}</td>
-              <td>
-                <button class="btn primary" style="font-size:.78rem;padding:4px 10px"
-                  onclick="awardMeiyinStar('${s.student_name.replace(/'/g, "\\'")}')">颁发 🌟</button>
-              </td>
             </tr>`;
         }).join('');
-
-        // 加载梅纽因之星历史
-        await loadStarHistory();
       } catch (err) {
         document.getElementById('semTableBody').innerHTML =
-          `<tr><td colspan="6" style="color:var(--red);text-align:center">加载失败: ${err.message}</td></tr>`;
-      }
-    }
-
-    async function loadStarHistory() {
-      try {
-        const { data, error } = await supabaseClient
-          .from('meiyin_star_log')
-          .select('semester, student_name, semester_earned, awarded_at')
-          .order('awarded_at', { ascending: false });
-        if (error) throw error;
-
-        const section = document.getElementById('starHistorySection');
-        const list    = document.getElementById('starHistoryList');
-        if (!data || data.length === 0) { section.style.display = 'none'; return; }
-
-        section.style.display = 'block';
-        list.innerHTML = data.map(r => {
-          const date = new Date(r.awarded_at).toLocaleDateString('zh-CN', { year:'numeric', month:'2-digit', day:'2-digit' });
-          return `<div class="star-item">
-            <span style="font-size:1.1rem">🌟</span>
-            <span class="sem-sem" style="color:var(--t3);font-size:.8rem;min-width:60px">${r.semester}</span>
-            <span style="font-weight:700;flex:1">${r.student_name}</span>
-            <span style="font-size:.8rem;color:var(--t3)">${r.semester_earned} 币 · ${date}</span>
-          </div>`;
-        }).join('');
-      } catch (e) { /* 静默失败 */ }
-    }
-
-    async function awardMeiyinStar(studentName) {
-      const semester = document.getElementById('semesterInput').value.trim();
-      if (!semester) {
-        showToast('请先在右上角填写学期标识（如 "2026春"），再点击颁发', true);
-        document.getElementById('semesterInput').focus();
-        return;
-      }
-      if (!confirm(`确认为「${semester}」将梅纽因之星颁发给「${studentName}」？\n颁发后该学期不可重新颁发。`)) return;
-      if (!confirm(`二次确认：将「${semester}」梅纽因之星永久颁发给「${studentName}」？`)) return;
-
-      try {
-        const { data, error } = await supabaseClient.rpc('award_meiyin_star', {
-          p_semester:     semester,
-          p_student_name: studentName,
-          p_note:         null
-        });
-        if (error) throw error;
-        showToast(data);
-        await loadSemesterData();
-      } catch (err) {
-        showToast('颁发失败：' + err.message, true);
+          `<tr><td colspan="5" style="color:var(--red);text-align:center">加载失败: ${err.message}</td></tr>`;
       }
     }
 
     async function confirmNewSemester() {
       const semester = document.getElementById('semesterInput').value.trim();
       const hint = semester ? `（即将开启「${semester}」）` : '';
-      if (!confirm(`⚠️ 开启新学期${hint}\n\n所有学生的「本学期已获得」将归零（总余额 balance 不变）。\n\n此操作不可撤销，请确认已完成本学期梅纽因之星颁发。`)) return;
+      if (!confirm(`⚠️ 开启新学期${hint}\n\n所有学生的「本学期已获得」将归零（总余额 balance 不变）。\n\n此操作不可撤销。`)) return;
       if (!confirm('二次确认：确定要重置全员 semester_earned 为 0？')) return;
 
       const btn = document.getElementById('newSemBtn');
@@ -693,8 +741,11 @@
     async function loadAutoRewardSetting() {
       try {
         // 使用 SECURITY DEFINER RPC 读取，绕过 RLS 策略
-        const { data, error } = await supabaseClient
-          .rpc('get_auto_reward_setting');
+        const { data, error } = await withTimeout(
+          supabaseClient.rpc('get_auto_reward_setting'),
+          10000,
+          '自动结算设置读取'
+        );
 
         if (error) throw error;
 
@@ -747,7 +798,14 @@
     }
 
     // 启动
-    init();
+    document.addEventListener('DOMContentLoaded', () => {
+      init().catch(err => {
+        console.error('init fatal:', err);
+        document.getElementById('connStatus').textContent = '初始化失败';
+        document.getElementById('connStatus').style.color = 'var(--red)';
+        showToast('页面初始化失败：' + err.message, true);
+      });
+    });
   </script>
 </body>
 </html>
