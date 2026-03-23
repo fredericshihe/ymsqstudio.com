@@ -1,7 +1,9 @@
 # 学生练琴基线监控 — 函数备份与架构说明
 
+> 文档治理说明（2026-03-23）：`README.md` 已升级为统一总档案，包含整理版说明 + 本文件完整镜像附录。  
+> 本文件继续保留为独立历史备份与审计档案；如需统一检索全部内容，请优先查看 `README.md`。
 > 项目：menuhin-school-system（Supabase 项目 ID：waesizzoqodntrlvrwhw）
-> 备份日期：2026-03-10 | 最后更新：2026-03-23（FIX-W-01 新增 `w_score_updated_at` 可观测字段 + W 刷新链路补齐；新增 `backtest_score_reasonableness.sql`、`backtest_dimension_thresholds.sql`、`verify_w_dimension_alignment.sql`、`fix_w_score_staleness.sql`、`fix_w_score_updated_at.sql`；FIX-77 raw/composite 同步修复；FIX-76 北京时间边界+周末口径统一；FIX-75 周快照职责收敛；FIX-74 去除 PERCENT_RANK 百分位归一化；FIX-73 trigger_insert_session/trigger_update_student_baseline 补回 SECURITY DEFINER；FIX-72 饭点检测时区Bug+历史误判修复；FIX-71 trigger每次练琴必触发；FIX-70 composite_score改NUMERIC精度；FIX-69 进步榜显示绝对涨分；FIX-68 自动结算开关RLS修复；FIX-65 综合榜Top10退专项榜；FIX-64 稳定/守则榜科学重设计；FIX-63 进步榜最小必要门槛；FIX-62 backfill基线覆写bug）
+> 备份日期：2026-03-10 | 最后更新：2026-03-23（FIX-LB-80 三榜最低上榜门槛回测导向校准；新增 `backtest_leaderboard_min_thresholds.sql`；FIX-W-01 新增 `w_score_updated_at` 可观测字段 + W 刷新链路补齐；W 兜底刷新改为工作日每日 `20:05` + 周一 `00:10`；`admin_coins.html` 改为本地 `libs/supabase.min.js` 优先 + CDN 兜底；`practiceanalyse.html` 学生详情补充 W 周累计/周日均/W日均基准/完成率展示；新增 `backtest_score_reasonableness.sql`、`backtest_dimension_thresholds.sql`、`verify_w_dimension_alignment.sql`、`fix_w_score_staleness.sql`、`fix_w_score_updated_at.sql`；FIX-77 raw/composite 同步修复；FIX-76 北京时间边界+周末口径统一；FIX-75 周快照职责收敛；FIX-74 去除 PERCENT_RANK 百分位归一化；FIX-73 trigger_insert_session/trigger_update_student_baseline 补回 SECURITY DEFINER；FIX-72 饭点检测时区Bug+历史误判修复；FIX-71 trigger每次练琴必触发；FIX-70 composite_score改NUMERIC精度；FIX-69 进步榜显示绝对涨分；FIX-68 自动结算开关RLS修复；FIX-65 综合榜Top10退专项榜；FIX-64 稳定/守则榜科学重设计；FIX-63 进步榜最小必要门槛；FIX-62 backfill基线覆写bug）
 > 说明：本文件汇总了所有与学生练琴基线监控相关的 SQL 函数，包含完整代码、参数说明和调用关系。
 
 ## ⚠️ 唯一生效版本入口（部署只看这里）
@@ -7162,3 +7164,169 @@ SELECT public.backfill_score_history();
   - `w_score_updated_at = NOW()` 写入
   - `student_baseline` 上 `trg_sync_w_score_updated_at`
   否则会再次出现“W 已刷新但不可观测”的误判风险。
+
+### 本轮补充更新（2026-03-23 晚）
+
+1. `fix_w_score_staleness.sql` 调整为：
+   - `refresh_w_score_monday_bootstrap`：每周一 `00:10`
+   - `refresh_w_score_weekday_daily`：工作日每日 `20:05`
+   - 不再保留“每 2 小时一次”的高频兜底任务
+
+2. `admin_coins.html` 前端依赖容灾升级：
+   - `<script src="libs/supabase.min.js">` 本地优先
+   - 本地失败再回退 `jsdelivr` / `unpkg` / `skypack`
+   - 解决 Git 部署后弱网环境下 `cdn.jsdelivr.net` 超时导致页面长期停留“连接服务器”且无内容的问题
+
+3. `practiceanalyse.html` 学生详情页 W 展示优化：
+   - 新增：`当周累计（工作日）`
+   - 新增：`当周日均`
+   - 新增：`W日均基准`
+   - 新增：`日均完成率`
+   - 移除 tooltip 中“个人原始日均（mean_duration）”行，避免与 W 实际分母口径混淆
+
+4. 当前 W 计算口径补充说明：
+   - `ratio = 本周工作日累计分钟 / (W日均基准 × 已过工作日天数)`
+   - `W = 1 / (1 + EXP(-3 * (ratio - 0.5)))`
+   - `W日均基准 = GREATEST(v_effective_mean, 30)`
+   - `v_effective_mean = alpha * mean_duration + (1 - alpha) * median_mean`
+   - `alpha = LEAST(1, record_count / 15)`
+
+---
+
+## FIX-LB-78：双前端排行榜一致性修复（2026-03-23）
+
+**问题现象**
+
+- 在 `practiceanalyse.html` 中，存在“综合榜名次与分类榜展示不一致”的前端同步问题（主表、分类榜、详情卡的刷新节奏不同步）。
+- 在学生端 `menuhin-school-system/index.html` 中，`practicedThisWeek` 口径未严格限定工作日，且榜单刷新后详情区存在延迟刷新。
+
+**修复点**
+
+1. `practiceanalyse.html`
+   - 新增/统一 `isWorkdayDate()` 口径。
+   - 用 `syncStudentsWithLeaderboard()` 将 RPC 榜单结果同步回主学生列表（`display_rank/display_score`）。
+   - `refreshLeaderboards()` 后强制联动 `applyF()` 与 `refreshSelectedStudentDetail()`，保证主表/详情与分类榜同源刷新。
+   - 主表首列改为展示真实综合榜名次（非分页序号）。
+
+2. `menuhin-school-system/index.html`
+   - `fetchStudentScore()` 的“本周是否练过”改为“仅统计工作日 session_start”。
+   - 新增 `refreshCurrentStudentDetailAfterWlb()`，在 `loadWeeklyLeaderboards()` 成功/空数据/失败分支都触发详情重渲染。
+   - `scheduleWlbRefresh()` 增加 debounce，避免连续 clear 事件导致重复刷新。
+
+**结果**
+
+- 两端页面在自动刷新、清榜后刷新、手动切换视图等场景下，主榜、分类榜、详情卡保持同一份 `get_weekly_leaderboards()` 结果口径。
+- “综合榜 Top10 不进分类榜（FIX-65）”在页面展示层面不再出现同步延迟误差。
+
+---
+
+## FIX-COIN-79：音符币自动结算可审计增强（2026-03-23）
+
+**结论先行**
+
+- 自动发币主链路按“实时榜单”结算：`reward_weekly_coins()` 在执行时直接读取 `get_weekly_leaderboards()`，并按榜单+名次映射发币，方向正确。
+- 为了把“正确”升级为“可核验”，新增逐笔审计明细与一键核对脚本。
+
+**本轮增强**
+
+1. `setup_coin_rewards.sql`
+   - 新增 `weekly_coin_reward_detail` 表（每周/榜单/名次/学生唯一）。
+   - `reward_weekly_coins()` 在 `adjust_student_coins()` 成功后，同步写入每笔自动发放明细（amount/reason/display_score/alpha/trend_score/outlier_rate）。
+
+2. 新增 `verify_coin_reward_accuracy.sql`
+   - 先按当前榜单重算“应发”；
+   - 再对比 `weekly_coin_reward_detail`（实发明细）；
+   - 再对比 `weekly_coin_reward_log`（周汇总）；
+   - 最后对比 `coin_transactions(transaction_type='auto_reward')`（流水）。
+
+**验收标准（脚本输出）**
+
+- 无 `MISSING_ACTUAL` / `UNEXPECTED_ACTUAL` / `AMOUNT_MISMATCH`
+- `weekly_coin_reward_log.total_events == detail_events`
+- `weekly_coin_reward_log.total_coins == detail_coins`
+- 明细与流水无 `MISSING_TX` / `UNEXPECTED_TX` / `REASON_MISMATCH`
+
+通过以上四层校验，可确认“音符币按真实排名自动发放”在生产中可持续审计。
+
+### 生产验收记录（本次同步备份）
+
+- 结论：**全部通过**
+- 验收方式：按上线清单执行 `verify_coin_reward_accuracy.sql` 全部查询
+- 验收结果：
+  - “应发 vs 实发”未出现 `MISSING_ACTUAL` / `UNEXPECTED_ACTUAL` / `AMOUNT_MISMATCH`
+  - `weekly_coin_reward_log` 与 `weekly_coin_reward_detail` 的 `events` / `coins` 校验均为 `OK`
+  - 明细与 `coin_transactions(transaction_type='auto_reward')` 对比无 `MISSING_TX` / `UNEXPECTED_TX` / `AMOUNT_MISMATCH` / `REASON_MISMATCH`
+- 归档说明：本条作为 FIX-COIN-79 的首次生产验收快照，后续每周复核可沿用同一脚本与同一判定标准。
+
+---
+
+## FIX-LB-80：三榜最低上榜门槛（回测导向校准，2026-03-23）
+
+**背景**
+
+- FIX-63 之后，进步榜采取“最小必要门槛”，优点是避免空榜，但在少数周会出现“微小涨分也上榜”的噪声感。
+- 稳定榜/守则榜在样本较薄周，存在“刚过线”样本进入榜单的情况，老师侧反馈希望建立更清晰的“最低上榜限度”。
+
+**目标**
+
+- 保留“不过严、不空榜”的可用性；
+- 增加“最低有效表现”门槛，减少低样本/微波动上榜；
+- 所有阈值调整必须可回看、可复算、可解释。
+
+**本轮实施**
+
+1. `leaderboard_rpc.sql` 参数更新
+   - 进步榜：
+     - `delta > 0` → `delta >= 1.0`
+     - 新增 `recent10_count >= 4`
+     - `outlier_rate <= 0.50` → `<= 0.45`
+   - 稳定榜：
+     - `alpha >= 0.55` → `>= 0.60`
+     - `outlier_rate <= 0.40` → `<= 0.35`
+     - 新增 `recent10_mean_dur >= 30`
+   - 守则榜：
+     - `recent10_count >= 4` → `>= 5`
+     - `recent10_mean_dur > 25` → `>= 30`
+     - `outlier_rate <= 0.50` → `<= 0.40`
+     - `alpha >= 0.55` → `>= 0.60`
+     - `week_sessions >= 3` 保持不变（避免再次出现“门槛过严导致空榜”）
+
+2. 新增回测脚本 `backtest_leaderboard_min_thresholds.sql`
+   - 基于 `weekly_leaderboard_history` 统计三榜历史上榜样本分布；
+   - 结合 `practice_sessions` 反推每周工作日 `week_sessions`；
+   - 对比三组参数：
+     - `baseline_old`（旧参数）
+     - `fix_lb_80`（本次参数）
+     - `strict_high`（高强度对照组）
+   - 输出核心指标：`pass_rate`、`avg_pass_rows_per_week`、`empty_week_rate`
+
+**验收口径**
+
+- 首要：`fix_lb_80` 不能显著拉高 `empty_week_rate`（防空榜）
+- 次要：`pass_rate` 低于 `baseline_old`，但不应接近 `strict_high` 的极严水平
+- 结果解释以“专项榜激励覆盖面 + 上榜含金量平衡”为准
+
+### 全历史回测定稿结果（22周）
+
+- 样本充分性：三榜 `week_cnt = 22`，均为 `SUFFICIENT`，可作为正式调参依据。
+- 参数结论：**采用 `fix_lb_80`，不采用 `strict_high`**。
+
+1) 守则榜  
+- `baseline_old`: `pass_rate=0.4363`，`empty_week_rate=0.1364`  
+- `fix_lb_80`: `pass_rate=0.3837`，`empty_week_rate=0.1364`（含金量提升且不增加空榜）  
+- `strict_high`: `pass_rate=0.2784`，`empty_week_rate=0.1818`（空榜风险升高）
+
+2) 稳定榜  
+- `baseline_old`: `pass_rate=0.4598`，`empty_week_rate=0.0909`  
+- `fix_lb_80`: `pass_rate=0.3633`，`empty_week_rate=0.0909`（筛噪声且空榜率不变）  
+- `strict_high`: `pass_rate=0.3555`，`empty_week_rate=0.1364`（进一步收紧收益有限，空榜风险升高）
+
+3) 进步榜  
+- `baseline_old`: `pass_rate=0.7164`，`empty_week_rate=0.2273`  
+- `fix_lb_80`: `pass_rate=0.5970`，`empty_week_rate=0.2273`（过滤微小涨分噪声，不增加空榜）  
+- `strict_high`: `pass_rate=0.5160`，`empty_week_rate=0.2273`（收紧收益有限）
+
+**最终定稿参数（已在 `leaderboard_rpc.sql` 生效）**
+- 进步榜：`delta >= 1.0`、`recent10_count >= 4`、`outlier_rate <= 0.45`
+- 稳定榜：`alpha >= 0.60`、`recent10_count >= 8`、`recent10_mean_dur >= 30`、`outlier_rate <= 0.35`
+- 守则榜：`week_sessions >= 3`、`recent10_count >= 5`、`recent10_mean_dur >= 30`、`outlier_rate <= 0.40`、`alpha >= 0.60`

@@ -83,6 +83,38 @@ COMMENT ON COLUMN public.weekly_coin_reward_log.summary IS
 -- 允许前端只读查询（管理员页面可展示历史结算记录）
 GRANT SELECT ON public.weekly_coin_reward_log TO anon, authenticated;
 
+-- ============================================================
+-- 2.1 结算明细表（审计增强）
+--     记录每周每个榜单每位学生的实际发放明细，便于事后核对
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.weekly_coin_reward_detail (
+    id                   UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    week_monday          DATE         NOT NULL,
+    board                TEXT         NOT NULL,      -- 综合榜 / 进步榜 / 稳定榜 / 守则榜
+    rank_no              INTEGER      NOT NULL,
+    student_name         TEXT         NOT NULL,
+    amount               INTEGER      NOT NULL,      -- 本笔发放音符币
+    reason               TEXT         NOT NULL,      -- 实际写入 coin_transactions 的 reason
+    display_score        NUMERIC,
+    alpha                NUMERIC,
+    trend_score          NUMERIC,
+    recent10_outlier_rate NUMERIC,
+    rewarded_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_weekly_coin_reward_detail
+      UNIQUE (week_monday, board, rank_no, student_name)
+);
+
+COMMENT ON TABLE public.weekly_coin_reward_detail IS
+    '周榜自动结算逐笔明细（每周/榜单/名次/学生唯一），用于发币准确性审计';
+
+CREATE INDEX IF NOT EXISTS idx_weekly_coin_reward_detail_week
+    ON public.weekly_coin_reward_detail (week_monday, board, rank_no);
+
+CREATE INDEX IF NOT EXISTS idx_weekly_coin_reward_detail_student
+    ON public.weekly_coin_reward_detail (student_name, week_monday DESC);
+
+GRANT SELECT ON public.weekly_coin_reward_detail TO anon, authenticated;
+
 
 -- ============================================================
 -- 2. 核心结算函数
@@ -141,6 +173,16 @@ BEGIN
         RETURN '⚠️ ' || v_monday::TEXT
                || ' 当周已结算，跳过（如需重新结算，先 DELETE FROM weekly_coin_reward_log WHERE week_monday = '''
                || v_monday::TEXT || ''';）';
+    END IF;
+
+    -- 审计安全网：若周汇总被误删但明细仍在，仍视为已结算，阻止重复发币
+    IF EXISTS (
+        SELECT 1 FROM public.weekly_coin_reward_detail
+        WHERE week_monday = v_monday
+    ) THEN
+        RETURN '⚠️ ' || v_monday::TEXT
+               || ' 当周结算明细已存在，判定为已结算。'
+               || ' 如确需重算，请先核对并回滚相关 auto_reward 流水，再清理 weekly_coin_reward_log + weekly_coin_reward_detail。';
     END IF;
 
     /* ── ⑤ 生成流水说明中的周标签，例如 "2026年04月03日当周" ── */
@@ -232,6 +274,32 @@ BEGIN
                 p_reason       := v_reason,
                 p_type         := 'auto_reward'
             );
+
+            INSERT INTO public.weekly_coin_reward_detail (
+                week_monday,
+                board,
+                rank_no,
+                student_name,
+                amount,
+                reason,
+                display_score,
+                alpha,
+                trend_score,
+                recent10_outlier_rate
+            )
+            VALUES (
+                v_monday,
+                r.board,
+                r.rank_no,
+                r.student_name,
+                v_amount,
+                v_reason,
+                r.display_score,
+                r.alpha,
+                r.trend_score,
+                r.recent10_outlier_rate
+            );
+
             v_total_events := v_total_events + 1;
             v_total_coins  := v_total_coins  + v_amount;
         END IF;
@@ -315,8 +383,9 @@ SELECT cron.schedule(
 -- 查看历次结算记录：
 -- SELECT week_monday, rewarded_at, total_events, total_coins, summary FROM public.weekly_coin_reward_log ORDER BY week_monday DESC;
 
--- 删除某周结算记录（允许重新结算）：
--- DELETE FROM public.weekly_coin_reward_log WHERE week_monday = '2026-03-30';
+-- 删除某周结算记录（谨慎；仅删除 log/detail 不会自动回滚已发流水）：
+-- DELETE FROM public.weekly_coin_reward_log    WHERE week_monday = '2026-03-30';
+-- DELETE FROM public.weekly_coin_reward_detail WHERE week_monday = '2026-03-30';
 
 -- 暂停/恢复任务（不删除）：
 -- UPDATE cron.job SET active = false WHERE jobname = 'reward_weekly_coins_job';

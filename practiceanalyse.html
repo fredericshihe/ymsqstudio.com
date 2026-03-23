@@ -579,7 +579,7 @@ tbody td.b{color:var(--t1);font-weight:700}
           <div class="cat-board-icon" style="background:linear-gradient(135deg,rgba(16,185,129,.25),rgba(16,185,129,.1));border:1px solid rgba(16,185,129,.3)">📈</div>
           <div>
             <div class="cat-board-title" style="color:#34d399">进步榜</div>
-            <div class="cat-board-sub">本周绝对涨分最大 · 本周工作日 ≥2次 · 近10条异常率 ≤50%</div>
+            <div class="cat-board-sub">本周绝对涨分最大 · 涨分 ≥1.0 · 本周工作日 ≥2次 · 近10条记录 ≥4 · 异常率 ≤45%</div>
           </div>
           <button class="cbl-view-all-btn" onclick="openLbModal('进步榜')">查看全部</button>
         </div>
@@ -591,7 +591,7 @@ tbody td.b{color:var(--t1);font-weight:700}
           <div class="cat-board-icon" style="background:linear-gradient(135deg,rgba(79,142,247,.25),rgba(79,142,247,.1));border:1px solid rgba(79,142,247,.3)">🎯</div>
           <div>
             <div class="cat-board-title" style="color:#93c5fd">稳定榜</div>
-            <div class="cat-board-sub">α 最高 · 近10条工作日记录 ≥8条 · 近10条异常率 ≤40%</div>
+            <div class="cat-board-sub">α 最高 · α ≥0.60 · 近10条工作日记录 ≥8 · 近10条均时 ≥30min · 异常率 ≤35%</div>
           </div>
           <button class="cbl-view-all-btn" onclick="openLbModal('稳定榜')">查看全部</button>
         </div>
@@ -603,7 +603,7 @@ tbody td.b{color:var(--t1);font-weight:700}
           <div class="cat-board-icon" style="background:linear-gradient(135deg,rgba(168,85,247,.25),rgba(168,85,247,.1));border:1px solid rgba(168,85,247,.3)">🏅</div>
           <div>
             <div class="cat-board-title" style="color:#c4b5fd">守则榜</div>
-            <div class="cat-board-sub">近10条异常率最低 · α ≥0.55 · 均时 &gt;25min · 本周工作日 ≥3次</div>
+            <div class="cat-board-sub">近10条异常率最低 · α ≥0.60 · 近10条记录 ≥5 · 均时 ≥30min · 异常率 ≤40% · 本周工作日 ≥3次</div>
           </div>
           <button class="cbl-view-all-btn" onclick="openLbModal('守则榜')">查看全部</button>
         </div>
@@ -634,7 +634,7 @@ tbody td.b{color:var(--t1);font-weight:700}
     <div class="tbl-scroll">
       <table>
         <thead><tr>
-          <th style="width:46px">#</th>
+          <th style="width:72px">综合榜名次</th>
           <th data-col="student_name" onclick="srt(this)">姓名</th>
           <th data-col="student_major" onclick="srt(this)">专业</th>
           <th data-col="student_grade" onclick="srt(this)">年级</th>
@@ -802,18 +802,93 @@ function getWeekMondayLocalISO(){
   return d.toISOString();
 }
 
+function isWorkdayDate(v){
+  const d=v instanceof Date?v:new Date(v);
+  const day=d.getDay();
+  return day!==0&&day!==6;
+}
+
+function buildLeaderboardSnapshot(lbRows=[]){
+  const lbCompMap={};
+  (lbRows||[]).filter(r=>r.board==='综合榜').forEach(r=>{
+    lbCompMap[r.student_name]={
+      rank_no:r.rank_no,
+      display_score:r.display_score
+    };
+  });
+  return {
+    lbCompMap,
+    activeRankedTotal:Object.keys(lbCompMap).length
+  };
+}
+
+function syncStudentsWithLeaderboard(students=[],weekScores=[],activeThisWeek=null,lbRows=[]){
+  const weekMap={};
+  (weekScores||[]).forEach(r=>{
+    weekMap[r.student_name]={
+      composite_score:r.composite_score,
+      raw_score:r.raw_score
+    };
+  });
+
+  const {lbCompMap,activeRankedTotal}=buildLeaderboardSnapshot(lbRows);
+
+  students.forEach(s=>{
+    const name=s.student_name;
+    const practicedThisWeek = activeThisWeek!==null
+      ? activeThisWeek.has(name)
+      : (name in weekMap && ((weekMap[name].composite_score||0)>0 || (weekMap[name].raw_score||0)>0));
+
+    if(practicedThisWeek){
+      // 与综合榜 RPC 完全对齐；如果 RPC 暂时未返回该生，则回退到本周快照/当前 baseline
+      s.display_score = lbCompMap[name]?.display_score ?? (name in weekMap ? weekMap[name].composite_score : s.composite_score);
+      s.display_raw_score = name in weekMap ? weekMap[name].raw_score : s.raw_score;
+      s.display_rank = lbCompMap[name]?.rank_no ?? null;
+      s.display_rank_total = activeRankedTotal || null;
+      s.has_week_snapshot = false;
+    }else{
+      s.display_score = s.composite_score ?? null;
+      s.display_raw_score = s.raw_score ?? null;
+      s.display_rank = null;
+      s.display_rank_total = activeRankedTotal || null;
+      s.has_week_snapshot = true;
+    }
+  });
+
+  return {weekMap,lbCompMap,activeRankedTotal};
+}
+
+async function refreshSelectedStudentDetail(){
+  if(!S.selected)return;
+  const s=S.students.find(x=>x.student_name===S.selected);
+  if(!s)return;
+  try{
+    const [hist,sessions,weekSessions]=await Promise.all([
+      fetchHistory(S.selected),
+      fetchSessions(S.selected),
+      fetchWeekSessions(S.selected)
+    ]);
+    renderDP(s,hist,sessions,weekSessions);
+  }catch(e){
+    console.warn('[detail] 刷新当前学生详情失败:',e.message);
+  }
+}
+
 // 调用后端一次性返回全部四个排行榜（综合/进步/稳定/守则）
 const fetchLeaderboards=()=>rpc('get_weekly_leaderboards')
   .then(rows=>{ window._lbLastError=null; return rows; })
   .catch(err=>{ window._lbLastError=err; console.warn('[lb] RPC 失败:', err?.message||err); return []; });
 
 // 【核心】直接查 practice_sessions，找出本周内有练琴记录的学生集合，同时统计每人次数
-// 不依赖数据库是否写了 0 分快照（避免 FIX-13 未部署时的失效问题）
+// 仅统计工作日，和排行榜/README 口径保持一致
 const fetchActiveThisWeek=()=>api(
-  `practice_sessions?session_start=gte.${encodeURIComponent(getWeekMondayLocalISO())}&select=student_name`
+  `practice_sessions?session_start=gte.${encodeURIComponent(getWeekMondayLocalISO())}&select=student_name,session_start`
 ).then(rows=>{
   const countMap={};
-  rows.forEach(r=>{countMap[r.student_name]=(countMap[r.student_name]||0)+1;});
+  rows.forEach(r=>{
+    if(!isWorkdayDate(r.session_start))return;
+    countMap[r.student_name]=(countMap[r.student_name]||0)+1;
+  });
   return {activeSet:new Set(Object.keys(countMap)),countMap};
 }).catch(()=>({activeSet:null,countMap:{}}));
 
@@ -1337,38 +1412,7 @@ async function loadAll(){
       fetchHealth(),fetchStudents(),fetchCurrentWeekScores(),fetchActiveThisWeek(),fetchLeaderboards()
     ]);
 
-    // weekMap: 本周已有快照（DB 侧写了快照）的学生及其全校排名分/原始成长值
-    const weekMap={};
-    (weekScores||[]).forEach(r=>{weekMap[r.student_name]={composite_score:r.composite_score,raw_score:r.raw_score};});
-
-    // lbCompMap: 直接从综合榜 RPC 结果取排名和分数，与排行榜完全一致
-    const lbCompMap={};
-    (lbRows||[]).filter(r=>r.board==='综合榜').forEach(r=>{
-      lbCompMap[r.student_name]={rank_no:r.rank_no, display_score:r.display_score};
-    });
-    const activeRankedTotal=Object.keys(lbCompMap).length;
-
-    students.forEach(s=>{
-      const name=s.student_name;
-      const practicedThisWeek = activeThisWeek!==null
-        ? activeThisWeek.has(name)
-        : (name in weekMap && ((weekMap[name].composite_score||0)>0 || (weekMap[name].raw_score||0)>0));
-
-      if(practicedThisWeek){
-        // 优先用综合榜 display_score，与排行榜一致；raw_score 仍从快照取
-        s.display_score = lbCompMap[name]?.display_score ?? (name in weekMap ? weekMap[name].composite_score : s.composite_score);
-        s.display_raw_score = name in weekMap ? weekMap[name].raw_score : s.raw_score;
-        s.display_rank = lbCompMap[name]?.rank_no ?? null;
-        s.display_rank_total = activeRankedTotal || null;
-        s.has_week_snapshot = false;
-      } else {
-        s.display_score = s.composite_score ?? null;
-        s.display_raw_score = s.raw_score ?? null;
-        s.display_rank = null;
-        s.display_rank_total = activeRankedTotal || null;
-        s.has_week_snapshot = true;
-      }
-    });
+    syncStudentsWithLeaderboard(students,weekScores,activeThisWeek,lbRows);
 
     S.health=health;S.students=students;
     setConn(true);
@@ -1551,11 +1595,20 @@ function renderCatBoards(lbMap){
 // 刷新时保留各榜当前的展开/折叠状态
 async function refreshLeaderboards(){
   try{
-    const lbRows=await fetchLeaderboards();
+    const [weekScores,{activeSet:activeThisWeek},lbRows]=await Promise.all([
+      fetchCurrentWeekScores(),
+      fetchActiveThisWeek(),
+      fetchLeaderboards()
+    ]);
+    syncStudentsWithLeaderboard(S.students,weekScores,activeThisWeek,lbRows);
     const lbMap={};
     (lbRows||[]).forEach(r=>{(lbMap[r.board]||(lbMap[r.board]=[])).push(r);});
     window._lbMap=lbMap; // 同步缓存
     renderCatBoards(lbMap);
+    if(S.students.length){
+      applyF(); // 主表排序/筛选与详情页名次一起刷新，避免与分类榜不同步
+      refreshSelectedStudentDetail();
+    }
   }catch(e){console.warn('[lb] 排行榜刷新失败:',e.message);}
 }
 
@@ -1633,7 +1686,7 @@ function renderTable(){
   if(!rows.length){tbody.innerHTML='<tr><td colspan="12" style="padding:40px;text-align:center;color:var(--t3)">暂无匹配数据</td></tr>';$('pager').innerHTML='';return}
 
   tbody.innerHTML=rows.map((s,i)=>{
-    const rank=st+i+1,al=s.alpha??0;
+    const al=s.alpha??0;
     // has_week_snapshot=true 表示本周无练琴（由 loadAll 统一判断）
     const noPracticeThisWeek = !!s.has_week_snapshot;
     const sc = 'display_score' in s ? s.display_score : (s.composite_score??null);
@@ -1650,7 +1703,7 @@ function renderTable(){
       ?`<span style="color:var(--t3);font-size:.78rem">未练</span>`
       :raw!==null?(()=>{const cls=raw>0.55?'up':raw<0.45?'down':'flat';const txt=raw>0.55?'进步':raw<0.45?'退步':'稳定';return`<span class="dp-mini-tag ${cls}" style="font-size:.78rem">${txt}</span>`;})():'—';
     return`<tr class="${sel?'sel':''}" data-name="${esc(s.student_name)}" onclick="pickStudent(this.dataset.name)">
-      <td style="color:var(--t3)">${rank}</td>
+      <td style="color:var(--t3)">${noPracticeThisWeek?'<span title="本周未进入综合榜">—</span>':(s.display_rank!=null?`<span title="与综合榜 RPC 实时一致">#${s.display_rank}</span>`:`<span title="当前未进入综合榜">—</span>`)}</td>
       <td class="b">${s.student_name}</td>
       <td>${s.student_major||'—'}</td>
       <td>${s.student_grade||'—'}</td>

@@ -167,16 +167,17 @@ comp_top10 AS (
     WHERE rank_no <= 10
 ),
 
-/* ── ② 进步榜：绝对分提升最大（FIX-63 科学最小门槛设计）
-   设计原则：过滤条件只"防假"，不"防小"——小进步也是进步，由排名决定位次
+/* ── ② 进步榜：绝对分提升最大（FIX-LB-80 最低上榜门槛校准）
+   设计原则：在“防低基数噪声”和“不把榜单卡死”之间取平衡
    FIX-58: 改为绝对涨分排序，百分比仅作展示
-   FIX-63: 取消分数绝对值门槛（lw_composite/display_score/alpha），
-           只保留最小必要防护条件
-   过滤条件（最小必要）：
+   FIX-63: 曾取消绝大多数门槛以避免榜单空白
+   FIX-LB-80: 基于历史回测记录补回“最低有效进步”门槛，过滤微小噪声
+   过滤条件（最低有效）：
      · 有历史对比数据（INNER JOIN last_week_scores，无快照则无从比较）
      · 本周练琴次数 ≥ 2（最低参与度，至少两次才算一周有效参与）
-     · 绝对涨幅 > 0（有真实进步，哪怕 +1 分）
-     · 近10条异常率 ≤ 0.50（防明显刷数据，宽容正常波动）
+     · 绝对涨幅 ≥ 1.0（过滤接近测量噪声的小波动）
+     · 近10条记录 ≥ 4（样本过少不参与进步榜）
+     · 近10条异常率 ≤ 0.45（防明显刷数据，同时保留正常波动）
      · 不在综合榜 Top 10（FIX-65，保持榜单差异化）
    排序：绝对涨分 DESC → 本周综合分 DESC → 均时 DESC ── */
 prog AS (
@@ -199,19 +200,21 @@ prog AS (
     FROM ranked_pool rp
     INNER JOIN last_week_scores lws ON lws.student_name = rp.student_name
     LEFT JOIN  recent10         r10 ON r10.student_name = rp.student_name
-    WHERE (rp.display_score - lws.lw_composite)      >  0    -- 有任意正增长（排名决定位次）
+    WHERE (rp.display_score - lws.lw_composite)      >= 1.0  -- 至少达到 1 分的有效进步
       AND rp.week_sessions                            >= 2    -- 本周至少练 2 次
-      AND COALESCE(r10.outlier_rate, 1)               <= 0.50 -- 防明显刷数据（宽容正常波动）
+      AND COALESCE(r10.cnt, 0)                         >= 4    -- 至少有 4 条近况可评估
+      AND COALESCE(r10.outlier_rate, 1)               <= 0.45 -- 近10次异常率上限
       AND rp.student_name NOT IN (SELECT student_name FROM comp_top10)  -- FIX-65
 ),
 
-/* ── ③ 稳定榜 Top 6：练琴模式最可预测（FIX-64 概念修正）
+/* ── ③ 稳定榜 Top 6：练琴模式最可预测（FIX-LB-80 最低上榜门槛校准）
    科学定义："稳定"= 练琴行为一致、可预测，而非练得最久
    排序：α DESC（可预测性/一致性）→ mean_dur DESC（同等稳定时，练得更长的排前）→ outlier_rate ASC
-   过滤条件（最小防假）：
-     · α ≥ 0.55（有足够历史数据支撑可信度评估）
+   过滤条件（最低有效）：
+     · α ≥ 0.60（把“可预测性”门槛提升到稳定榜应有强度）
      · 近10条 ≥ 8 条（有连续性记录积累，才能谈稳定）
-     · 近10条异常率 ≤ 0.40（异常太多的练习模式称不上稳定）
+     · 近10条异常率 ≤ 0.35（进一步过滤波动过大的模式）
+     · 近10条均时 ≥ 30min（避免“稳定但练得过短”的弱样本）
    FIX-65: 综合榜 Top10 退出本榜 ── */
 stable AS (
     SELECT
@@ -228,21 +231,22 @@ stable AS (
         r10.cnt           AS recent10_count
     FROM ranked_pool rp
     LEFT JOIN recent10 r10 ON r10.student_name = rp.student_name
-    WHERE COALESCE(rp.alpha, 0)         >= 0.55  -- 有足够历史积累的可信度门槛
+    WHERE COALESCE(rp.alpha, 0)         >= 0.60  -- 稳定榜最低可信度门槛
       AND COALESCE(r10.cnt, 0)          >= 8     -- 近12周至少8次有效记录（约每10天一次）
-      AND COALESCE(r10.outlier_rate, 1) <= 0.40  -- 近10次中至多4次异常
+      AND COALESCE(r10.outlier_rate, 1) <= 0.35  -- 近10次中至多3次异常
+      AND COALESCE(r10.mean_dur, 0)     >= 30    -- 平均时长至少30分钟
       AND rp.student_name NOT IN (SELECT student_name FROM comp_top10)  -- FIX-65
 ),
 
-/* ── ④ 守则榜 Top 6：遵守练习规则最好（FIX-64 次数门槛修正）
+/* ── ④ 守则榜 Top 6：遵守练习规则最好（FIX-LB-80 最低上榜门槛校准）
    科学定义："守则"= 出勤达标 + 练习内容合规（低异常率）+ 时长合格
    排序：outlier_rate ASC（异常最少）→ week_sessions DESC（出勤更多）→ mean_dur DESC（时长更长）
-   过滤条件：
+   过滤条件（最低有效）：
      · 本周练琴次数 ≥ 3（出勤达标：一周至少3天，体现"有在认真来"）
-     · 近10条 ≥ 4 条（有足够历史记录评估合规性）
-     · 近10条均时 > 25min（时长须达到最低练习标准，防走过场）
-     · 近10条异常率 ≤ 0.50（异常多于一半则失去"守则"资格）
-     · α ≥ 0.55（有数据积累，行为有据可查）
+     · 近10条 ≥ 5 条（提升样本充分性，降低偶然值影响）
+     · 近10条均时 ≥ 30min（对齐最低有效练琴时长）
+     · 近10条异常率 ≤ 0.40（提高“守则”合规要求）
+     · α ≥ 0.60（提高行为可信度要求）
    FIX-65: 综合榜 Top10 退出本榜 ── */
 rules AS (
     SELECT
@@ -261,10 +265,10 @@ rules AS (
     FROM ranked_pool rp
     LEFT JOIN recent10 r10 ON r10.student_name = rp.student_name
     WHERE rp.week_sessions              >= 3     -- 本周至少3次（合规出勤，非要求每天必到）
-      AND COALESCE(r10.cnt, 0)          >= 4     -- 近12周至少4次有效记录
-      AND COALESCE(r10.mean_dur, 0)     > 25    -- 平均时长须超25分钟（防走过场）
-      AND COALESCE(r10.outlier_rate, 1) <= 0.50 -- 近10次中至多5次异常
-      AND COALESCE(rp.alpha, 0)         >= 0.55 -- 有足够历史数据
+      AND COALESCE(r10.cnt, 0)          >= 5     -- 近12周至少5次有效记录
+      AND COALESCE(r10.mean_dur, 0)     >= 30    -- 平均时长至少30分钟
+      AND COALESCE(r10.outlier_rate, 1) <= 0.40  -- 近10次中至多4次异常
+      AND COALESCE(rp.alpha, 0)         >= 0.60  -- 有足够历史数据与稳定性
       AND rp.student_name NOT IN (SELECT student_name FROM comp_top10)  -- FIX-65
 )
 
