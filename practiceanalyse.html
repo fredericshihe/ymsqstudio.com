@@ -777,6 +777,7 @@ const fetchHealth=()=>api('v_baseline_health?select=*').then(r=>r[0]||null);
 const fetchStudents=()=>api('student_baseline?select=*&order=composite_score.desc.nullslast');
 const fetchHistory=n=>api(`student_score_history?student_name=eq.${encodeURIComponent(n)}&select=snapshot_date,composite_score,raw_score,baseline_score,trend_score,momentum_score,accum_score,outlier_rate,short_session_rate,mean_duration,record_count&order=snapshot_date.asc&limit=52`);
 const fetchSessions=n=>api(`practice_sessions?student_name=eq.${encodeURIComponent(n)}&select=session_start,session_end,raw_duration,cleaned_duration,room_name,is_outlier,outlier_reason&order=session_start.desc&limit=20`);
+const fetchWeekSessions=n=>api(`practice_sessions?student_name=eq.${encodeURIComponent(n)}&select=session_start,cleaned_duration&session_start=gte.${encodeURIComponent(getWeekMondayLocalISO())}&order=session_start.asc&limit=500`);
 
 // 返回本周一的「本地日期」字符串，格式 YYYY-MM-DD
 // 注意：必须用本地日期，不能用 toISOString()（UTC 日期会使中国用户偏移一天）
@@ -1704,15 +1705,15 @@ async function pickStudent(name){
   dp.innerHTML=`<div style="padding:40px;text-align:center;color:var(--t3)"><div class="spin"></div><br><br>加载 ${name} 的数据…</div>`;
   try{
     const s=S.students.find(x=>x.student_name===name);
-    const [hist,sessions]=await Promise.all([fetchHistory(name),fetchSessions(name)]);
+    const [hist,sessions,weekSessions]=await Promise.all([fetchHistory(name),fetchSessions(name),fetchWeekSessions(name)]);
     S.currentStudent=s;
-    renderDP(s,hist,sessions);
+    renderDP(s,hist,sessions,weekSessions);
     // AI 分析由后端生成，异步触发不阻塞面板渲染
     loadStudentAnalysis(s);
   }catch(e){dp.innerHTML=`<div style="padding:28px;color:var(--red)">加载失败：${e.message}</div>`;toast(`加载失败：${e.message}`,'err')}
 }
 
-function renderDP(s,hist,sessions=[]){
+function renderDP(s,hist,sessions=[],weekSessions=[]){
   const dp=$('dp');
   // has_week_snapshot=true 表示本周无练琴（由 loadAll 根据 practice_sessions 判断）
   const noPracticeWeek = !!s.has_week_snapshot;
@@ -1747,6 +1748,28 @@ function renderDP(s,hist,sessions=[]){
 
   // ── weekday data from student_baseline.weekday_pattern
   const wd=buildWD(s.weekday_pattern);
+
+  // ── W 维度补充指标：当周累计/日均/完成率（仅工作日）
+  const elapsedWeekdays = (() => {
+    const d = new Date().getDay(); // 0=周日, 1=周一...
+    return (d === 0 || d === 6) ? 5 : d;
+  })();
+  const weekWorkdayMinutes = (weekSessions || []).reduce((sum, r) => {
+    const dt = new Date(r.session_start);
+    const dow = dt.getDay();
+    if (dow === 0 || dow === 6) return sum;
+    const mins = Number(r.cleaned_duration || 0);
+    return sum + (mins > 0 ? mins : 0);
+  }, 0);
+  const weekDailyAvg = elapsedWeekdays > 0 ? (weekWorkdayMinutes / elapsedWeekdays) : 0;
+  const wRef = calcWRefDailyFromStudents(s, S.students);
+  const meanRefW = Number(wRef.denomDailyRef || 0);
+  const weekCompletionPct = meanRefW > 0 ? (weekDailyAvg / meanRefW) * 100 : null;
+  const wTip = `本周工作日实际练琴时长 / (个人日均值 × 已过工作日天数)，Sigmoid 归一化。每练完一次立即实时生效，是每日排名变动的主要来源。每次练琴后由后端实时写入并存储。<br><br>
+当前周累计（工作日）：${weekWorkdayMinutes.toFixed(0)} 分钟<br>
+当前周日均（已过 ${elapsedWeekdays} 天）：${weekDailyAvg.toFixed(1)} 分钟/天<br>
+W计算日均基准：${meanRefW > 0 ? meanRefW.toFixed(1) : '—'} 分钟/天（贝叶斯收缩后）<br>
+按W计算基准估算完成率：${weekCompletionPct !== null ? `${weekCompletionPct.toFixed(0)}%` : '—'}`;
 
   // ── 总记录数分类（FIX-55 后 record_count 只统计工作日且 cleaned_duration>0 的有效记录）
   // sessions 来自 practice_sessions，包含全部记录（含周末 + cleaned_duration=0）
@@ -1889,9 +1912,13 @@ function renderDP(s,hist,sessions=[]){
           ${dimCard('T','趋势分',s.trend_score,'近2活跃周练琴量均值 vs 前2活跃周均值块对比（取最近4活跃周，20周上限）。&gt;0.5 说明近期更活跃，&lt;0.5 说明有所回落。需至少 3 个活跃周历史才能计算，否则默认 0.5。')}
           ${dimCard('M','动量分',s.momentum_score,'最近 4 个活跃周加权达标率（周练琴量≥个人日均×5天×100% 为达标）。最近一周权重最大（约 42%），越往前权重越低（×0.65 递减）。值越高说明近期稳定达标频率越高。')}
           ${dimCard('A','底盘分',s.accum_score,'最近样本量 × 同专业时长质量形成的练琴底盘。它会影响稳定性判断，但不等于本周全校排名。')}
-          ${dimCard('W','本周进度',s.w_score,'本周工作日实际练琴时长 / (个人日均值 × 已过工作日天数)，Sigmoid 归一化。每练完一次立即实时生效，是每日排名变动的主要来源。每次练琴后由后端实时写入并存储。')}
+          ${dimCard('W','本周进度',s.w_score,wTip)}
         </div>
         <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
+          ${xMetric('当周累计（工作日）',weekWorkdayMinutes.toFixed(0),'分钟','当前周一到现在、仅工作日（周一至周五）的 cleaned_duration 累计。','var(--teal)')}
+          ${xMetric('当周日均',weekDailyAvg.toFixed(1),'分钟/天',`当周累计（工作日）÷ 已过工作日天数（当前按 ${elapsedWeekdays} 天计算）。`,'var(--blue)')}
+          ${xMetric('W日均基准',meanRefW>0?meanRefW.toFixed(1):'—','分钟/天','W 公式实际使用的日均基准：先做贝叶斯收缩（record_count 越少越向同专业中位数靠拢），再取不低于 30 分钟/天。','var(--teal)')}
+          ${xMetric('日均完成率',weekCompletionPct!==null?`${weekCompletionPct.toFixed(0)}`:'—','%', '当周日均 ÷ W日均基准（与后端 W 公式一致）得到的估算完成率。','var(--yellow)')}
           ${xMetric('近期达标周数',s.weeks_improving??'—','周','近4活跃周中练琴量达标（≥个人日均×5天×60%）的加权计数（越近权重越高），与 M 动量分同源','var(--green)')}
           ${xMetric('成长加速度',s.growth_velocity!==null&&s.growth_velocity!==undefined?(s.growth_velocity>0?'+':'')+((s.growth_velocity||0)*100).toFixed(2)+'%/周':'—','','近4周斜率 − 近8周斜率。正数说明加速进步，负数说明进步在放缓甚至倒退','var(--blue)')}
           ${xMetric('历史最高全校排名',s.personal_best??'—','分','该学生有史以来最高的 composite_score（全校百分位）','var(--yellow)')}
@@ -2025,6 +2052,38 @@ function xMetric(label,val,unit,tip,color='var(--t2)'){
     </div>
     <div style="font-size:1.1rem;font-weight:900;color:${color}">${val}<span style="font-size:.75rem;font-weight:400;color:var(--t3);margin-left:3px">${unit}</span></div>
   </div>`;
+}
+
+function medianOf(arr){
+  if(!arr || !arr.length) return null;
+  const nums = arr.slice().sort((a,b)=>a-b);
+  const mid = Math.floor(nums.length/2);
+  return nums.length % 2 ? nums[mid] : (nums[mid-1] + nums[mid]) / 2;
+}
+
+// 与后端 W 口径对齐（前端估算）：
+// v_effective_mean = alpha*mean_duration + (1-alpha)*median_mean，alpha=min(1,record_count/15)
+// W 分母日均 = GREATEST(v_effective_mean, 30)
+function calcWRefDailyFromStudents(student, allStudents){
+  const safeAll = Array.isArray(allStudents) ? allStudents : [];
+  const major = (student?.student_major || '').trim();
+  const recCount = Number(student?.record_count || 0);
+  const meanDuration = Number(student?.mean_duration || 0);
+
+  const globalMeans = safeAll
+    .map(x=>Number(x?.mean_duration || 0))
+    .filter(v=>v>0);
+  const majorMeans = safeAll
+    .filter(x=>(x?.student_major || '').trim() === major)
+    .map(x=>Number(x?.mean_duration || 0))
+    .filter(v=>v>0);
+
+  const medianMean = (majorMeans.length >= 5 ? medianOf(majorMeans) : medianOf(globalMeans)) ?? 30;
+  const alpha = Math.min(1, Math.max(0, recCount) / 15);
+  const effectiveMean = Math.max(15, alpha * meanDuration + (1 - alpha) * medianMean);
+  const denomDailyRef = Math.max(effectiveMean, 30);
+
+  return { alpha, medianMean, effectiveMean, denomDailyRef };
 }
 
 function renderHistCh(hist){

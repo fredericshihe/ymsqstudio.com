@@ -1,7 +1,7 @@
 # 学生练琴基线监控 — 函数备份与架构说明
 
 > 项目：menuhin-school-system（Supabase 项目 ID：waesizzoqodntrlvrwhw）
-> 备份日期：2026-03-10 | 最后更新：2026-03-21（FIX-77 raw/composite 同步修复；FIX-76 北京时间边界+周末口径统一；FIX-75 周快照职责收敛；FIX-74 去除 PERCENT_RANK 百分位归一化；FIX-73 trigger_insert_session/trigger_update_student_baseline 补回 SECURITY DEFINER；FIX-72 饭点检测时区Bug+历史误判修复；FIX-71 trigger每次练琴必触发；FIX-70 composite_score改NUMERIC精度；FIX-69 进步榜显示绝对涨分；FIX-68 自动结算开关RLS修复；FIX-65 综合榜Top10退专项榜；FIX-64 稳定/守则榜科学重设计；FIX-63 进步榜最小必要门槛；FIX-62 backfill基线覆写bug）
+> 备份日期：2026-03-10 | 最后更新：2026-03-23（FIX-W-01 新增 `w_score_updated_at` 可观测字段 + W 刷新链路补齐；新增 `backtest_score_reasonableness.sql`、`backtest_dimension_thresholds.sql`、`verify_w_dimension_alignment.sql`、`fix_w_score_staleness.sql`、`fix_w_score_updated_at.sql`；FIX-77 raw/composite 同步修复；FIX-76 北京时间边界+周末口径统一；FIX-75 周快照职责收敛；FIX-74 去除 PERCENT_RANK 百分位归一化；FIX-73 trigger_insert_session/trigger_update_student_baseline 补回 SECURITY DEFINER；FIX-72 饭点检测时区Bug+历史误判修复；FIX-71 trigger每次练琴必触发；FIX-70 composite_score改NUMERIC精度；FIX-69 进步榜显示绝对涨分；FIX-68 自动结算开关RLS修复；FIX-65 综合榜Top10退专项榜；FIX-64 稳定/守则榜科学重设计；FIX-63 进步榜最小必要门槛；FIX-62 backfill基线覆写bug）
 > 说明：本文件汇总了所有与学生练琴基线监控相关的 SQL 函数，包含完整代码、参数说明和调用关系。
 
 ## ⚠️ 唯一生效版本入口（部署只看这里）
@@ -11,7 +11,8 @@
 > 1. `fix76_beijing_boundary_and_weekend_alignment.sql`（评分/榜单/快照口径统一）
 > 2. `fix77_sync_raw_and_composite.sql`（`backfill_score_history` 同步 `raw_score` + `composite_score`）
 > 3. `setup_weekly_score_cron.sql`（周任务时间链：21:30 备份、21:32 发币、21:35 周快照）
-> 4. 执行：`SELECT public.backfill_score_history();`
+> 4. `fix_w_score_updated_at.sql`（新增 `w_score_updated_at`，补齐 W 刷新可观测性）
+> 5. 执行：`SELECT public.backfill_score_history();`
 >
 > 本文其余 SQL 片段用于审计与历史追踪。凡标注“历史归档 / 旧版 / 勿部署”的代码**禁止直接复制到生产执行**。
 
@@ -7118,3 +7119,46 @@ SELECT public.backfill_score_history();
 - `setup_weekly_score_cron.sql`
 
 作为最终部署入口即可。
+
+---
+
+## FIX-W-01：W 维度可观测性与回测链路补齐（2026-03-23）
+
+**背景**：本轮先做了“全维度参数阈值合理性回测”，随后聚焦 W 维度出现“统计上看不稳定”的现象，最终确认核心问题是**刷新时效可观测性不足**，不是 W 公式本身错误。
+
+### 本轮新增文件（全部为最新备份，已纳入当前口径）
+
+1. `backtest_score_reasonableness.sql`  
+   - 历史评分一致性核对：`raw_score/composite_score` 范围、链路一致性、异常明细、霸榜风险（连冠/占比/分差）
+
+2. `backtest_dimension_thresholds.sql`  
+   - B/T/M/A/W 维度阈值专项回测：分布、饱和率、区分度、M 阈值敏感性（60/80/100/120）、A 单调性、W 一致性、B/T 假期中性化命中率
+
+3. `verify_w_dimension_alignment.sql`  
+   - W 维度专项核对：线上函数定义、W 分布、W 与 `progress_ratio` / sigmoid 后比值的相关性、异常样本抽样、`weekly_mins=0 且 W 高分` 异常计数
+
+4. `fix_w_score_staleness.sql`  
+   - 新增 `refresh_all_w_scores()`，并配置工作日周期刷新任务，避免 W 因“已过工作日天数变化”产生陈旧值
+
+5. `fix_w_score_updated_at.sql`  
+   - 新增 `student_baseline.w_score_updated_at TIMESTAMPTZ`
+   - `compute_and_store_w_score()` 每次刷新 W 时写入 `w_score_updated_at`
+   - 新增触发器 `trg_sync_w_score_updated_at`：`compute_student_score` 路径更新 `w_score` / `last_updated` 时，同步更新时间
+   - 回填历史空值，避免首轮统计误报
+
+### W 维度最终结论（本轮验收结果）
+
+- 公式一致性：`compute_student_score` 与 `compute_and_store_w_score` 的 W 计算口径一致（同样基于 `ratio` + sigmoid）
+- 相关性通过：`corr_w_vs_ratio = 0.9529`、`corr_w_vs_sigmoid_ratio = 0.9999`
+- 异常清零：`suspicious_cnt = 0`（无 “本周分钟=0 但 W 高分” 残留）
+- 时效性通过：`w_updated_since_week_start = 192/192`，`w_not_updated_ratio = 0.0000`
+
+**结论**：W 维度现已达到“计算正确 + 时效完整 + 可观测可审计”的稳定状态。
+
+### 备注（防回滚提示）
+
+- `verify_w_dimension_alignment.sql` 中“W 刷新时效”统计，现已**优先使用 `w_score_updated_at`**，仅在历史环境缺列时回退 `last_updated`。
+- 任何后续若重建 `compute_and_store_w_score()`，必须保留：
+  - `w_score_updated_at = NOW()` 写入
+  - `student_baseline` 上 `trg_sync_w_score_updated_at`
+  否则会再次出现“W 已刷新但不可观测”的误判风险。

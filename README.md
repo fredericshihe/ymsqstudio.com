@@ -29,6 +29,7 @@
 - **`fix77_sync_raw_and_composite.sql`**：修复 `backfill_score_history()` 同步漂移，确保 `raw_score` 与 `composite_score` 一致。
 - **`setup_weekly_score_cron.sql`**：注册 `weekly_score_update_job`（周五 21:35）。
 - **`simplify_semester_ranking.sql`**：精简学期管理（移除梅纽因之星对象，仅保留学期累计排行 + 新学期重置）。
+- **`fix_w_score_updated_at.sql`**：新增 `student_baseline.w_score_updated_at`，用于精确监控 W 分刷新时效。
 
 ## 推荐部署顺序
 

@@ -4,7 +4,12 @@
   <meta charset="UTF-8">
   <title>🎶 音符币管理后台</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- 本地优先，CDN 兜底：避免外网超时导致页面空白 -->
+  <script
+    defer
+    src="libs/supabase.min.js"
+    onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';"
+  ></script>
   <style>
     :root {
       --bg: #0f172a; --sur: #1e293b; --card: #1e293b;
@@ -393,6 +398,9 @@
     async function ensureSupabaseLib() {
       if (window.supabase && typeof window.supabase.createClient === 'function') return true;
       const fallbackCdn = [
+        'libs/supabase.min.js',
+        './libs/supabase.min.js',
+        'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
         'https://unpkg.com/@supabase/supabase-js@2',
         'https://cdn.skypack.dev/@supabase/supabase-js'
       ];
