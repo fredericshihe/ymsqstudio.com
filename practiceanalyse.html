@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>青岛耶胡迪梅纽因学校 学生练琴智能监控系统</title>
-<script src="libs/supabase.min.js"></script>
-<script src="libs/chart.umd.min.js"></script>
+<script src="libs/supabase.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'"></script>
+<script src="libs/chart.umd.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js'"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -400,6 +400,11 @@ tbody td.b{color:var(--t1);font-weight:700}
 .cat-boards-hd h2{font-size:.88rem;font-weight:800;color:var(--t2);
   text-transform:uppercase;letter-spacing:.08em}
 .cat-boards-hd .sep{flex:1;height:1px;background:var(--bdr)}
+.cat-boards-note{
+  margin:0 0 14px;padding:11px 14px;border-radius:12px;
+  background:rgba(79,142,247,.08);border:1px solid rgba(79,142,247,.18);
+  color:var(--t2);font-size:.78rem;line-height:1.7
+}
 .cat-boards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
 @media(max-width:900px){.cat-boards{grid-template-columns:1fr}}
 
@@ -566,6 +571,7 @@ tbody td.b{color:var(--t1);font-weight:700}
       <div class="sep"></div>
       <span style="font-size:.72rem;color:var(--t3)">仅统计本周有练琴的学生 · 默认显示前6名</span>
     </div>
+    <div class="cat-boards-note" id="catBoardsNotice" style="display:none"></div>
     <div class="cat-boards" id="catBoards">
       <!-- 进步榜 -->
       <div class="cat-board">
@@ -796,7 +802,9 @@ function getWeekMondayLocalISO(){
 }
 
 // 调用后端一次性返回全部四个排行榜（综合/进步/稳定/守则）
-const fetchLeaderboards=()=>rpc('get_weekly_leaderboards').catch(()=>[]);
+const fetchLeaderboards=()=>rpc('get_weekly_leaderboards')
+  .then(rows=>{ window._lbLastError=null; return rows; })
+  .catch(err=>{ window._lbLastError=err; console.warn('[lb] RPC 失败:', err?.message||err); return []; });
 
 // 【核心】直接查 practice_sessions，找出本周内有练琴记录的学生集合，同时统计每人次数
 // 不依赖数据库是否写了 0 分快照（避免 FIX-13 未部署时的失效问题）
@@ -1402,14 +1410,36 @@ function renderKPIs(h,ss){
 // ── 分类排行榜（后端 RPC 数据驱动）────────────────
 function renderCatBoards(lbMap){
   const wrap=$('catBoardsWrap');
+  const notice=$('catBoardsNotice');
+  const grid=$('catBoards');
   const hasData=lbMap&&(
     (lbMap['综合榜']||[]).length||
     (lbMap['进步榜']||[]).length||
     (lbMap['稳定榜']||[]).length||
     (lbMap['守则榜']||[]).length
   );
-  if(!hasData){if(wrap)wrap.style.display='none';return;}
   if(wrap)wrap.style.display='';
+  if(!hasData){
+    if(notice){
+      const err=window._lbLastError;
+      const day=new Date().getDay();
+      const isWeekStart=(day===1||day===2);
+      notice.style.display='';
+      notice.textContent=err
+        ? `分类排行榜加载失败：${err.message||err}。请先检查 Supabase 连接或后端函数状态。`
+        : isWeekStart
+        ? '本周分类排行榜暂时为空。现在已经进入新的一周，需等本周第一批工作日练琴记录写入后，进步榜、稳定榜、守则榜才会自动出现。'
+        : '本周分类排行榜暂时为空。通常表示当前还没有满足上榜条件的本周数据，例如练琴次数不足、历史记录不足，或本周尚无有效工作日练琴记录。';
+    }
+    if(grid)grid.style.display='';
+    renderBoard('cbl-progress','进步榜',[],()=> '');
+    renderBoard('cbl-stable',  '稳定榜',[],()=> '');
+    renderBoard('cbl-rules',   '守则榜',[],()=> '');
+    return;
+  }
+  if(wrap)wrap.style.display='';
+  if(notice)notice.style.display='none';
+  if(grid)grid.style.display='';
 
   const majShort=m=>{
     if(!m)return'';

@@ -9,6 +9,7 @@
 若修改规则，请**同时更新**以上三处及 `fix44_46_score_functions.sql`（权重）等对应 SQL。
 
 快捷入口：根目录 **`menuhin-school-system-index.html`** 会跳转到 `menuhin-school-system/index.html`。
+- **前端依赖容灾**：`practiceanalyse.html` 采用 **本地 `libs/*.js` 优先 + CDN 自动兜底**。请保留 `libs/supabase.min.js` 与 `libs/chart.umd.min.js`，避免离线或 CDN 异常时排行榜空白。
 
 ---
 
