@@ -1,7 +1,7 @@
 # piano-room-system
 
 > 琴房练琴数据、排行榜、音符币、AI 分析统一说明文档  
-> 最后更新：2026-03-23  
+> 最后更新：2026-03-26  
 > 本文档是当前**唯一整理版说明文档 / 单一阅读入口**。  
 > `baseline_monitoring_backup.md` 保留为**完整备份与历史审计档案**，`系统架构文档.md` 保留为扩展说明参考。
 
@@ -55,11 +55,16 @@
 5. `setup_weekly_score_cron.sql`
    - 注册周五三段任务链
 
-6. `simplify_semester_ranking.sql`（如需学期管理精简）
+6. `fix80_trigger_chain_stable.sql`
+   - 触发链稳定版修复：解决“新增 `practice_session` 后分数不自动更新 / 手动触发才更新 / 栈溢出递归”问题
+   - 稳定策略：`trigger_update_student_baseline` 回归纯 baseline 更新；`trigger_compute_student_score` 同时保留
+     `skip_score_trigger`、`app.computing_score`、`pg_trigger_depth()>2` 三层保护（兼容 `on/true/1`）
+
+7. `simplify_semester_ranking.sql`（如需学期管理精简）
    - 移除梅纽因之星相关对象
    - 保留学期累计排行 + 新学期重置
 
-7. 执行：
+8. 执行：
 
 ```sql
 SELECT public.backfill_score_history();
@@ -72,8 +77,9 @@ SELECT public.backfill_score_history();
 3. 运行 `fix_w_score_updated_at.sql`
 4. 运行 `fix_w_score_staleness.sql`
 5. 运行 `setup_weekly_score_cron.sql`
-6. （可选）运行 `simplify_semester_ranking.sql`
-7. 运行 `SELECT public.backfill_score_history();`
+6. 运行 `fix80_trigger_chain_stable.sql`
+7. （可选）运行 `simplify_semester_ranking.sql`
+8. 运行 `SELECT public.backfill_score_history();`
 
 > 说明：`fix74`、`fix75` 已被后续入口覆盖，常规部署不需要再单独执行。
 
@@ -1012,7 +1018,7 @@ renderStudentDetail(studentName)
 ──── 每周五自动结算 ────
 pg_cron BJT 21:32 触发 reward_weekly_coins()
   ├── 检查 auto_coin_reward_enabled（开关）
-  ├── 开始日期保护（< 2026-04-03 跳过）
+  ├── 开始日期保护（< 2026-03-27 跳过）
   ├── 检查 weekly_coin_reward_log（防重复）
   ├── 调用 get_weekly_leaderboards() 获取四榜
   ├── 按名次规则对每个上榜学生调用 adjust_student_coins(..., 'auto_reward')
@@ -1049,7 +1055,7 @@ pg_cron BJT 21:32 触发 reward_weekly_coins()
 
 **执行逻辑：**
 1. 读取北京时间本周一/五日期
-2. **开始日期保护**：`v_friday_bjt < 2026-04-03` 时直接返回，不执行
+2. **开始日期保护**：`v_friday_bjt < 2026-03-27` 时直接返回，不执行
 3. **防重复**：若 `weekly_coin_reward_log` 已有本周记录则跳过
 4. 调用 `get_weekly_leaderboards()` 获取四榜实时数据
 5. 遍历每条上榜记录，按名次规则确定金额和流水说明
@@ -1079,7 +1085,7 @@ pg_cron BJT 21:32 触发 reward_weekly_coins()
 | 任务名称 | Cron 表达式（UTC） | 北京时间 | 执行函数 | 说明 |
 |---------|-----------------|---------|---------|------|
 | `backup_weekly_leaderboards_job` | `30 13 * * 5` | 每周五 21:30 | `backup_weekly_leaderboards()` | 将当周四榜快照写入 `weekly_leaderboard_history` |
-| `reward_weekly_coins_job` | `32 13 * * 5` | 每周五 21:32 | `reward_weekly_coins()` | 按名次发放音符币；正式开始日期 2026-04-03 |
+| `reward_weekly_coins_job` | `32 13 * * 5` | 每周五 21:32 | `reward_weekly_coins()` | 按名次发放音符币；正式开始日期 2026-03-27 |
 | `weekly_score_update_job` | `35 13 * * 5` | 每周五 21:35 | `run_weekly_score_update()` | 全员基线重算 + 为本周未练学生补写快照 |
 
 > 三个任务按 21:30 → 21:32 → 21:35 顺序执行。先备份榜单，再按实时分结算发币，最后刷新周快照，避免结算过程被周任务干扰。
@@ -1127,7 +1133,7 @@ SELECT cron.unschedule('reward_weekly_coins_job');
 | `leaderboard_rpc.sql` | SQL | 定义 `get_weekly_leaderboards()` RPC 函数 |
 | `leaderboard_backup.sql` | SQL | 定义备份表 + `backup_weekly_leaderboards()` + pg_cron 定时任务 |
 | `setup_coins_db.sql` | SQL | 定义音符币表（`student_coins` + `coin_transactions`）+ 初始版 `adjust_student_coins()` + 视图（**已被 setup_semester.sql 中的 CREATE OR REPLACE 覆盖更新**） |
-| `setup_coin_rewards.sql` | SQL | 定义 `weekly_coin_reward_log` + `system_settings` 表、`reward_weekly_coins()`、`set_auto_reward_enabled()` + pg_cron 任务（每周五 BJT 21:32，正式开始 2026-04-03） |
+| `setup_coin_rewards.sql` | SQL | 定义 `weekly_coin_reward_log` + `system_settings` 表、`reward_weekly_coins()`、`set_auto_reward_enabled()` + pg_cron 任务（每周五 BJT 21:32，正式开始 2026-03-27） |
 | `verify_coin_reward_accuracy.sql` | SQL | 音符币自动结算核对脚本：按当前榜单重算应发金额，并与 `weekly_coin_reward_detail` / `weekly_coin_reward_log` / `coin_transactions` 做一致性校验 |
 | `setup_semester.sql` | SQL | `student_coins.semester_earned` 字段、`start_new_semester()`、更新版 `adjust_student_coins()`（累加 semester_earned）、更新版 `vw_student_coin_balances` 视图；并下线梅纽因之星相关对象 |
 | `simplify_semester_ranking.sql` | SQL | 学期管理精简脚本：下线 `award_meiyin_star()` 与 `meiyin_star_log`，保留学期累计排行与 `start_new_semester()` |
@@ -1136,6 +1142,15 @@ SELECT cron.unschedule('reward_weekly_coins_job');
 | `fix44_46_score_functions.sql` | SQL | 综合成长分计算体系（B/T/M/A/W 五维），排行榜数据的上游来源 |
 | `fix47_alpha_outlier_penalty.sql` | SQL | α 可信度计算 + 异常练琴惩罚逻辑 |
 | `backtest_leaderboard_min_thresholds.sql` | SQL | 三榜最低上榜门槛回测：历史样本分布 + 参数组通过率/空榜率对比（`baseline_old` / `fix_lb_80` / `strict_high`） |
+| `fix81_w_daily_ref_personalized.sql` | SQL | W 日均基准个性化升级：按“工作日日总分钟习惯”建模，保留群体收缩兜底，提升个体适配性 |
+| `verify_w_daily_ref_personalized.sql` | SQL | FIX-81 验证脚本：基准构成抽样、完成率过高收敛、W 分区分度体检 |
+| `debug_w_daily_ref_single_student.sql` | SQL | 单学生 W 日均基准拆解诊断（personal/peer/alpha/floor 来源） |
+| `verify_student_detail_metrics.sql` | SQL | 学生详情关键字段全量一致性核对（含 personal_best） |
+| `fix82_backfill_personal_best.sql` | SQL | personal_best 按历史最高综合分批量回填（整数口径） |
+| `debug_accum_score_single_student.sql` | SQL | 单学生 A 底盘分诊断（record_count/quality_score/recomputed_a） |
+| `fix83_a_fair_only.sql` | SQL | A 维度公平补丁（动态替换 quality_score，避免覆盖 W 链路） |
+| `fix84_chain_security_and_w_unify.sql` | SQL | 链路安全与 W 口径统一补丁：收口发币权限 + compute_student_score 切换个性化 W 分母 |
+| `debug_b_score_single_student.sql` | SQL | 单学生 B 进步分诊断（week1/week2/b_change/b_level） |
 | `baseline_monitoring_backup.md` | 文档 | 历史修复记录（FIX-1 至 FIX-48+） |
 
 ---
@@ -1165,6 +1180,8 @@ SELECT cron.unschedule('reward_weekly_coins_job');
 
 | 日期 | 修改内容 | 涉及文件 |
 |------|---------|---------|
+| 2026-03-26 | **FIX-84 链路安全与 W 口径统一（验收通过）**：① 发币相关函数权限完成收口，`reward_weekly_coins()` 与 `set_auto_reward_enabled()` 仅保留 `postgres/service_role` 执行权（`anon/authenticated/PUBLIC` 均已移除）；② `compute_student_score()` 的 W 维度入口切换为 `get_personalized_w_daily_ref()`，与 FIX-81 个性化口径统一，避免 `composite_score` 与展示 W 口径漂移。 | `fix84_chain_security_and_w_unify.sql`、`setup_coin_rewards.sql`、`README.md` |
+| 2026-03-26 | **音符币自动结算起始日提前**：`reward_weekly_coins()` 的“开始日期保护”由 2026-04-03 调整为 2026-03-27，pg_cron 触发时间保持每周五 BJT 21:32 不变。 | `setup_coin_rewards.sql`、`README.md` |
 | 2026-03-13 | **admin_coins 后台加载稳定性优化**：Supabase SDK 改为 defer + fallback CDN；初始化改为并行容错（`Promise.allSettled`）；关键查询增加超时与错误可视化；搜索改为 debounce，缓解弱网首屏长时间“无内容”问题。 | `admin_coins.html`、`系统架构文档.md` |
 | 2026-03-13 | **学期精简一键验证脚本**：新增 `verify_semester_simplification.sql`，一次检查梅纽因对象下线、`start_new_semester()` 可用、视图字段与 `adjust_student_coins` 累加逻辑。 | `verify_semester_simplification.sql`、`系统架构文档.md` |
 | 2026-03-13 | **学期管理精简**：移除梅纽因之星颁发与历史记录（前端/后端），后台仅保留“学期累计获得排行 + 新学期重置”。下线 `award_meiyin_star()` 与 `meiyin_star_log`，保留 `semester_earned`、`start_new_semester()`。 | `admin_coins.html`、`setup_semester.sql`、`simplify_semester_ranking.sql`、`系统架构文档.md` |
@@ -1181,6 +1198,15 @@ SELECT cron.unschedule('reward_weekly_coins_job');
 | 2026-03-19 | **进步榜门槛平衡化（FIX-61）**：FIX-58 门槛过严导致进步榜无人上榜，调整为：上周 ≥ 20（原 35）、本周 ≥ 30（原 45）、练琴 ≥ 2次（原 3次）、涨幅 ≥ 3分（原 5分）。异常率 ≤ 40% 保持不变。 | `leaderboard_rpc.sql`、`系统架构文档.md` |
 | 2026-03-21 | **FIX-76 北京时间边界 + 周末不计榜**：修复 `DATE::TIMESTAMPTZ` 导致的周边界偏移；`recent10` 与 `week_cnt` 统一改为只统计工作日，避免周末练琴影响进步榜/守则榜资格；新增 `weekly_score_update_job` 的定时任务文档。 | `leaderboard_rpc.sql`、`fix55_baseline_weekday_filter.sql`、`fix47_alpha_outlier_penalty.sql`、`fix53_backfill_update.sql`、`fix60_weekly_update_and_baseline_trigger.sql`、`fix76_beijing_boundary_and_weekend_alignment.sql`、`practiceanalyse.html`、`系统架构文档.md` |
 | 2026-03-21 | **FIX-77 raw/composite 同步修复**：`backfill_score_history()` 在回填后同步 `student_baseline.raw_score` 与 `student_baseline.composite_score`，避免 `composite_score != ROUND(raw_score×100,1)` 漂移。 | `fix77_sync_raw_and_composite.sql`、`fix53_backfill_update.sql`、`系统架构文档.md` |
+| 2026-03-26 | **FIX-78 实时触发链深度误拦截修复**：修复“新增 `practice_session` 后 `composite_score` 未立刻更新，但手动触发可更新”的问题。根因是 `trigger_compute_student_score` 的 `pg_trigger_depth` 阈值误伤正常嵌套触发链；改为保留 `skip_score_trigger` 与 `app.computing_score` 双保险并去除误拦截。 | `fix78_realtime_score_trigger_depth.sql`、`README.md`、`baseline_monitoring_backup.md` |
+| 2026-03-26 | **FIX-79 强制实时重算实验补丁**：在 `trigger_update_student_baseline` 内显式补执行 `compute_student_score + compute_and_store_w_score`，用于验证“baseline 无写回时第3环可能漏触发”的假设。该方案可提升命中率，但与第3环触发器并存时存在重复重算风险。 | `fix79_force_realtime_score_after_session.sql`、`README.md` |
+| 2026-03-26 | **FIX-80 触发链稳定版（最终推荐）**：基于实际报错 `stack depth limit exceeded` 完成链路稳定化：① `trigger_update_student_baseline` 回归纯 baseline 更新；② `trigger_compute_student_score` 增加三层防护（`skip_score_trigger` / `app.computing_score` / `pg_trigger_depth()>2`）并兼容 `on/true/1`，同时保留实时更新能力，避免递归爆栈。 | `fix80_trigger_chain_stable.sql`、`README.md`、`baseline_monitoring_backup.md` |
+| 2026-03-26 | **FIX-81 W 日均基准个性化升级（迭代完善）**：新增 `get_personalized_w_daily_ref()`，将 W 分母从“单次均时”升级为“工作日日总分钟”建模，并引入个体稳健统计（d50/d70/avg）、频率因子、稳定性因子、同专业收缩与 30~240 夹紧；补充最近4周锚点与条件化 peer floor（仅在样本与频率足够时启用）以减少低样本误抬高。 | `fix81_w_daily_ref_personalized.sql`、`verify_w_daily_ref_personalized.sql`、`debug_w_daily_ref_single_student.sql` |
+| 2026-03-26 | **学生详情页口径对齐（W 基准与历史最高分）**：`practiceanalyse.html` 学生详情改为优先读取后端 RPC `get_personalized_w_daily_ref`（失败回退前端估算），并在刷新详情时保持同口径；“历史最高综合排名分”改为由 `student_score_history` 实时计算，避免 `student_baseline.personal_best` 陈旧导致展示偏差。 | `practiceanalyse.html` |
+| 2026-03-26 | **学生详情全量核对与回填**：新增 `verify_student_detail_metrics.sql` 全量体检（`personal_best`、本周活跃状态、record_count、mean/outlier 巡检）；新增 `fix82_backfill_personal_best.sql` 将 `personal_best` 按历史最高综合分（整数口径）批量回填，修复详情页历史最高分大面积不一致。 | `verify_student_detail_metrics.sql`、`fix82_backfill_personal_best.sql` |
+| 2026-03-26 | **FIX-83 A 维度公平性补丁（只改 A，不覆盖 W）**：针对“低均时但认真练习”学生被 A=0 硬清零问题，提供动态补丁脚本，仅替换 `compute_student_score/compute_student_score_as_of` 中 `quality_score` 语句为“质量基线 + 用心保底（记录数/异常率/短时率）”方案，其余逻辑（含 W 优化）保持原样；补充 `debug_accum_score_single_student.sql` 进行单学生可解释诊断。 | `fix83_a_fair_only.sql`、`debug_accum_score_single_student.sql` |
+| 2026-03-26 | **B 进步分高分原因专项诊断**：新增 `debug_b_score_single_student.sql`，用于拆解“仅两周记录但 B 分偏高”的计算来源（周总分钟、变化分量、绝对水平分量、最终混合值），便于区分“模型行为”与“数据异常”。 | `debug_b_score_single_student.sql` |
+| 2026-03-26 | **音符币自动结算提前生效**：`reward_weekly_coins()` 开始日期保护改为 `2026-03-27`；cron 保持每周五 BJT `21:32` 不变。 | `setup_coin_rewards.sql`、`README.md` |
 | 2026-03-23 | **FIX-LB-80 三榜最低上榜门槛（回测导向）**：基于历史回测记录为进步榜/稳定榜/守则榜补齐“最低有效上榜限度”，防止轻微波动或低样本噪声上榜，同时避免参数过严导致空榜。新增 `backtest_leaderboard_min_thresholds.sql` 对比 `baseline_old` / `fix_lb_80` / `strict_high` 三组参数，通过率与空榜率可追溯。 | `leaderboard_rpc.sql`、`backtest_leaderboard_min_thresholds.sql`、`README.md`、`baseline_monitoring_backup.md` |
 | 2026-03-23 | **FIX-LB-80 回测定稿（22周全历史）**：全历史回测显示三榜样本周数均为 22（`SUFFICIENT`）。采用 `fix_lb_80` 作为最终参数：相较 `baseline_old`，守则榜通过率 `0.4363→0.3837`、稳定榜 `0.4598→0.3633`、进步榜 `0.7164→0.5970`，且守则/稳定空榜率不变（`0.1364` / `0.0909`），进步榜空榜率与历史活跃度一致（`0.2273`）；`strict_high` 明显提高空榜风险，故不采用。 | `backtest_leaderboard_min_thresholds.sql`、`leaderboard_rpc.sql`、`README.md`、`baseline_monitoring_backup.md` |
 | 2026-03-23 | **排行榜一致性修复（双前端）+ 发币审计增强**：`practiceanalyse.html` 与 `menuhin-school-system/index.html` 统一“本周练过”工作日口径、榜单刷新后联动刷新主表/详情，修复综合榜与分类榜显示不同步；`setup_coin_rewards.sql` 新增 `weekly_coin_reward_detail` 明细审计表并在 `reward_weekly_coins()` 落库每笔发放记录；新增 `verify_coin_reward_accuracy.sql` 一键核对“应发=实发=流水”。 | `practiceanalyse.html`、`/Users/shihe/menuhin-school-system/index.html`、`setup_coin_rewards.sql`、`verify_coin_reward_accuracy.sql`、`README.md`、`baseline_monitoring_backup.md` |

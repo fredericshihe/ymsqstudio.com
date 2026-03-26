@@ -23,6 +23,22 @@
 
 
 -- ============================================================
+-- ⚠ 2026-03-26 安全提示：
+-- 该文件为“整包重建评分函数”脚本，误执行可能覆盖后续热修（尤其 W 口径与触发链）。
+-- 若仅做增量修复，请优先执行 fix83/fix84 系列补丁脚本。
+-- 如确需执行本文件，请先显式：
+--   SELECT set_config('app.allow_legacy_score_rebuild', 'on', true);
+-- ============================================================
+DO $$
+BEGIN
+  IF LOWER(COALESCE(current_setting('app.allow_legacy_score_rebuild', true), '')) NOT IN ('on','true','1') THEN
+    RAISE EXCEPTION
+      'Safety stop: fix44_46_score_functions.sql blocked. Set app.allow_legacy_score_rebuild=on explicitly before running.';
+  END IF;
+END
+$$;
+
+-- ============================================================
 -- 函数一：compute_student_score  (实时触发版)
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.compute_student_score(p_student_name TEXT)
@@ -129,6 +145,7 @@ DECLARE
   v_weekly_minutes     FLOAT8;
   v_elapsed_days       INT;
   v_weekly_ratio       FLOAT8;
+  v_w_daily_ref        FLOAT8;
   v_dow                INT;
 
   -- ── 停琴判断
@@ -249,16 +266,29 @@ BEGIN
 
   -- ══════════════════════════════════════════════════════════════
   -- 7. A 维度：同专业积累质量 × 记录数 → LN 归一化
-  --    FIX-57: quality_score 改用 v_effective_mean（贝叶斯收缩后均值）
-  --      旧版用原始 mean_duration：新生前几次若练习较短则 quality_score→0，
-  --      A 分直接归零，拉低综合分最多 13 分。
-  --      v_effective_mean 在 record_count=0 时等于全班中位数，
-  --      随记录数增加逐渐信任个人值（15条后完全个人化），
-  --      与 B/T/M/W 保持一致的贝叶斯保护逻辑。
+  --    公平性增强：避免“低均时但持续认真练习”被硬清零
+  --    1) quality_base 仍基于同专业相对水平（不放弃质量对比）
+  --    2) 新增 effort_floor：由记录数 + 异常率 + 短时率共同决定的保底
+  --       - 记录多、异常少、短时少 => 保底更高
+  --       - 仅仅刷短时或异常多 => 保底有限
+  --    3) quality_score = max(quality_base, effort_floor)，再进入原 ln 归一化
   -- ══════════════════════════════════════════════════════════════
-  quality_score := GREATEST(0.0, LEAST(1.0,
-    0.5 + (v_effective_mean - COALESCE(median_mean, 0.0))
-        / (2.0 * pop_iqr)));
+  quality_score := GREATEST(
+    GREATEST(0.0, LEAST(1.0,
+      0.5 + (v_effective_mean - COALESCE(median_mean, 0.0))
+          / (2.0 * pop_iqr)
+    )),
+    LEAST(0.35,
+      0.22
+      * LEAST(1.0, LN(GREATEST(COALESCE(r.record_count, 0), 0)::FLOAT8 + 1.0) / LN(31.0))
+      * GREATEST(
+          0.35,
+          1.0
+          - 0.60 * COALESCE(r.outlier_rate, 0.0)
+          - 0.40 * COALESCE(r.short_session_rate, 0.0)
+        )
+    )
+  );
   a_score := LEAST(1.0,
     LN(GREATEST(COALESCE(r.record_count, 0), 0)::FLOAT8 * quality_score + 1.0)
     / LN(31.0));
@@ -429,8 +459,8 @@ BEGIN
   END;
 
   -- ══════════════════════════════════════════════════════════════
-  -- 11. W 维度 (FIX-20/26/27/32/37)
-  --     本周工作日实际时长 / (v_effective_mean × 已过工作日天数)
+  -- 11. W 维度（与 FIX-81 统一口径）
+  --     本周工作日实际时长 / (个性化 w_daily_ref × 已过工作日天数)
   -- ══════════════════════════════════════════════════════════════
   SELECT COALESCE(SUM(cleaned_duration), 0) INTO v_weekly_minutes
   FROM public.practice_sessions
@@ -442,9 +472,17 @@ BEGIN
   -- FIX-53: 周日(DOW=0)应视为本周已过5个工作日，而非0（旧值导致W分恒=0.5）
   v_elapsed_days := CASE v_dow WHEN 0 THEN 5 WHEN 6 THEN 5 ELSE v_dow END;
 
-  IF v_elapsed_days > 0 AND v_effective_mean > 0 THEN
+  SELECT w_daily_ref
+  INTO v_w_daily_ref
+  FROM public.get_personalized_w_daily_ref(p_student_name);
+
+  IF v_w_daily_ref IS NULL OR v_w_daily_ref <= 0 THEN
+    v_w_daily_ref := GREATEST(v_effective_mean, 30.0);
+  END IF;
+
+  IF v_elapsed_days > 0 AND v_w_daily_ref > 0 THEN
     v_weekly_ratio := v_weekly_minutes::FLOAT8
-                    / NULLIF(GREATEST(v_effective_mean, 30.0) * v_elapsed_days, 0.0);
+                    / NULLIF(v_w_daily_ref * v_elapsed_days, 0.0);
     v_w_score := GREATEST(0.0, LEAST(1.0,
       1.0 / (1.0 + EXP(-3.0 * (COALESCE(v_weekly_ratio, 0.0) - 0.5)))));
   END IF;
@@ -851,11 +889,25 @@ BEGIN
 
   -- ══════════════════════════════════════════════════════════════
   -- 7. A 维度
-  --    FIX-57: quality_score 改用 v_effective_mean（贝叶斯收缩后均值）
+  --    公平性增强：避免“低均时但持续认真练习”被硬清零
+  --    quality_score = max(quality_base, effort_floor)
   -- ══════════════════════════════════════════════════════════════
-  quality_score := GREATEST(0.0, LEAST(1.0,
-    0.5 + (v_effective_mean - COALESCE(median_mean, 0.0))
-        / (2.0 * pop_iqr)));
+  quality_score := GREATEST(
+    GREATEST(0.0, LEAST(1.0,
+      0.5 + (v_effective_mean - COALESCE(median_mean, 0.0))
+          / (2.0 * pop_iqr)
+    )),
+    LEAST(0.35,
+      0.22
+      * LEAST(1.0, LN(GREATEST(COALESCE(r.record_count, 0), 0)::FLOAT8 + 1.0) / LN(31.0))
+      * GREATEST(
+          0.35,
+          1.0
+          - 0.60 * COALESCE(r.outlier_rate, 0.0)
+          - 0.40 * COALESCE(r.short_session_rate, 0.0)
+        )
+    )
+  );
   a_score := LEAST(1.0,
     LN(GREATEST(COALESCE(r.record_count, 0), 0)::FLOAT8 * quality_score + 1.0)
     / LN(31.0));

@@ -3,7 +3,7 @@
 > 文档治理说明（2026-03-23）：`README.md` 已升级为统一总档案，包含整理版说明 + 本文件完整镜像附录。  
 > 本文件继续保留为独立历史备份与审计档案；如需统一检索全部内容，请优先查看 `README.md`。
 > 项目：menuhin-school-system（Supabase 项目 ID：waesizzoqodntrlvrwhw）
-> 备份日期：2026-03-10 | 最后更新：2026-03-23（FIX-LB-80 三榜最低上榜门槛回测导向校准；新增 `backtest_leaderboard_min_thresholds.sql`；FIX-W-01 新增 `w_score_updated_at` 可观测字段 + W 刷新链路补齐；W 兜底刷新改为工作日每日 `20:05` + 周一 `00:10`；`admin_coins.html` 改为本地 `libs/supabase.min.js` 优先 + CDN 兜底；`practiceanalyse.html` 学生详情补充 W 周累计/周日均/W日均基准/完成率展示；新增 `backtest_score_reasonableness.sql`、`backtest_dimension_thresholds.sql`、`verify_w_dimension_alignment.sql`、`fix_w_score_staleness.sql`、`fix_w_score_updated_at.sql`；FIX-77 raw/composite 同步修复；FIX-76 北京时间边界+周末口径统一；FIX-75 周快照职责收敛；FIX-74 去除 PERCENT_RANK 百分位归一化；FIX-73 trigger_insert_session/trigger_update_student_baseline 补回 SECURITY DEFINER；FIX-72 饭点检测时区Bug+历史误判修复；FIX-71 trigger每次练琴必触发；FIX-70 composite_score改NUMERIC精度；FIX-69 进步榜显示绝对涨分；FIX-68 自动结算开关RLS修复；FIX-65 综合榜Top10退专项榜；FIX-64 稳定/守则榜科学重设计；FIX-63 进步榜最小必要门槛；FIX-62 backfill基线覆写bug）
+> 备份日期：2026-03-10 | 最后更新：2026-03-26（FIX-83 A维度公平性补丁（只改A不碰W）；FIX-82 历史最高分全量回填与详情核对；FIX-81 W 日均基准个性化升级迭代（最近4周锚点 + 条件化 peer floor）；`practiceanalyse.html` 详情页 W 基准改为后端 RPC 优先并在刷新链路保持一致；其余沿用 FIX-80/79/78、FIX-LB-80、FIX-W-01、FIX-77/76 等既有更新）
 > 说明：本文件汇总了所有与学生练琴基线监控相关的 SQL 函数，包含完整代码、参数说明和调用关系。
 
 ## ⚠️ 唯一生效版本入口（部署只看这里）
@@ -17,6 +17,55 @@
 > 5. 执行：`SELECT public.backfill_score_history();`
 >
 > 本文其余 SQL 片段用于审计与历史追踪。凡标注“历史归档 / 旧版 / 勿部署”的代码**禁止直接复制到生产执行**。
+
+---
+
+## 2026-03-26 增量备份（FIX-81/82/83 与详情页核对）
+
+### FIX-81（W 日均基准个性化升级，迭代完善）
+- 新增/迭代 `public.get_personalized_w_daily_ref()`：
+  - 以“工作日日总分钟”替代“单次均时”作为 W 分母建模基础
+  - 引入 d50/d70/avg 稳健统计、active_days_per_wk 频率因子、cv 稳定性因子
+  - 使用同专业 peer 中位数做样本不足收缩
+  - 增加最近4周活跃日均锚点，避免分母偏低
+  - 将 peer 下限改为条件生效（样本和频率足够才启用），避免低样本学生被误抬高
+- `compute_and_store_w_score()` 已切换读取该函数返回的 `w_daily_ref`
+- 新增验证/诊断脚本：
+  - `verify_w_daily_ref_personalized.sql`
+  - `debug_w_daily_ref_single_student.sql`
+
+### 详情页口径对齐（practiceanalyse）
+- 详情页 W 计算日均基准：
+  - 优先读后端 RPC `get_personalized_w_daily_ref`
+  - RPC 失败才回退前端估算
+- 详情页刷新函数补齐同样逻辑，避免首次打开与刷新后口径不一致
+- 历史最高综合排名分：
+  - 改为从 `student_score_history` 实时计算，不再直接依赖 `student_baseline.personal_best` 陈旧值
+
+### FIX-82（历史最高分一致性修复）
+- 新增 `verify_student_detail_metrics.sql`：
+  - 全量核查 `personal_best`、本周活跃状态、record_count、mean_duration/outlier_rate
+- 新增 `fix82_backfill_personal_best.sql`：
+  - 将 `student_baseline.personal_best` 按历史最高 `composite_score`（整数口径）回填
+
+### FIX-83（A 维度公平性补丁，只改 A 不覆盖 W）
+- 背景：存在“低均时但练得用心”学生被 A=0 硬清零的公平性问题
+- 新增 `debug_accum_score_single_student.sql`：
+  - 对单学生输出 `record_count/median/IQR/v_effective_mean/quality_score/recomputed_a_score`
+- 新增 `fix83_a_fair_only.sql`：
+  - 动态读取数据库当前函数定义
+  - 仅替换 `compute_student_score` 与 `compute_student_score_as_of` 内 `quality_score` 语句
+  - 其余逻辑（尤其 W 口径）保持现状，不做整函数覆盖
+
+### B 进步分专项诊断（两周样本高分排查）
+- 新增 `debug_b_score_single_student.sql`：
+  - 输出 `week1_mins/week2_mins`、`b_change_raw`、`b_level`、`recomputed_b_score`
+  - 用于确认“仅两周活跃记录但 B 偏高”是模型对短期跃升的正常响应，还是数据异常
+
+### 音符币自动结算起始日提前
+- `reward_weekly_coins()` 开始日期保护从 `2026-04-03` 提前到 `2026-03-27`
+- `reward_weekly_coins_job` cron 保持不变：UTC `32 13 * * 5`（BJT 每周五 21:32）
+- 影响范围：仅提前首个可自动发放周，不改变发放规则与防重逻辑
 
 ---
 
@@ -7330,3 +7379,96 @@ SELECT public.backfill_score_history();
 - 进步榜：`delta >= 1.0`、`recent10_count >= 4`、`outlier_rate <= 0.45`
 - 稳定榜：`alpha >= 0.60`、`recent10_count >= 8`、`recent10_mean_dur >= 30`、`outlier_rate <= 0.35`
 - 守则榜：`week_sessions >= 3`、`recent10_count >= 5`、`recent10_mean_dur >= 30`、`outlier_rate <= 0.40`、`alpha >= 0.60`
+
+---
+
+## FIX-78：新增 session 后分数未实时更新（2026-03-26）
+
+**现象**
+
+- 学生新增 `practice_sessions` 记录后，`student_baseline.composite_score` 未立即变化；
+- 手动执行 `update_student_baseline('学生名')` 后分数才更新（且可能出现明显变化）。
+
+**根因**
+
+- `trigger_compute_student_score` 中使用了 `pg_trigger_depth()` 阈值拦截；
+- 在真实链路中（`practice_logs -> practice_sessions -> student_baseline`）属于嵌套触发，深度会大于阈值，导致本应执行的 `compute_student_score` 被误判为递归并跳过；
+- 手动触发路径深度较浅，因此可更新，形成“自动不变、手动才变”。
+
+**修复**
+
+- 新增 `fix78_realtime_score_trigger_depth.sql`，重建 `trigger_compute_student_score`：
+  - 去除误伤正常链路的 `pg_trigger_depth` 阈值拦截；
+  - 保留 `app.skip_score_trigger='on'`（批量任务保护）；
+  - 保留 `app.computing_score='on'`（事务内重入保护）；
+  - 异常分支中确保释放 `app.computing_score` 标记。
+
+**预期结果**
+
+- 新增 `practice_session` 后，`student_baseline.last_updated` 秒级刷新；
+- `composite_score` 可即时更新（若变动小于 0.1 可能仅体现在 `raw_score` 小数位）；
+- 不再出现“必须手动触发才更新”的链路断点。
+
+---
+
+## FIX-79：强制实时重算实验补丁（2026-03-26）
+
+**目的**
+
+- 验证“第2环触发后，第3环可能因 baseline 无写回而漏触发”的假设。
+
+**变更**
+
+- `trigger_update_student_baseline` 中临时补充：
+  - `compute_student_score(NEW.student_name)`
+  - `compute_and_store_w_score(NEW.student_name)`
+
+**结论**
+
+- 可提升“自动触发命中率”，但与第3环触发器并存时存在重复计算与递归放大风险；
+- 作为定位实验有效，不作为最终推荐版本。
+
+---
+
+## FIX-80：触发链稳定版（最终推荐，2026-03-26）
+
+**现场证据**
+
+- 手动触发时报错 `stack depth limit exceeded`；
+- `CONTEXT` 栈显示循环链路：
+  - `trigger_compute_student_score` -> `compute_student_score`
+  - `compute_student_score` 内部 `UPDATE student_baseline`
+  - 再次触发 `trigger_compute_student_score`
+  - 循环至爆栈。
+
+**根因**
+
+- 第3环触发器递归保护条件在实链路中不稳定：
+  - 既要允许正常嵌套触发链通过，
+  - 又要阻断 score 内部回写 baseline 的深层递归。
+- 单一阈值或单一标记在不同调用路径下会出现误伤/漏拦截。
+
+**最终修复（`fix80_trigger_chain_stable.sql`）**
+
+1. `trigger_update_student_baseline` 回归“纯 baseline 更新”：
+   - 仅执行 `update_student_baseline(NEW.student_name)`；
+   - 避免在第2环强行叠加额外重算，降低链路复杂度。
+
+2. `trigger_compute_student_score` 三层防护同时启用：
+   - `skip_score_trigger`：批量任务跳过（backfill/weekly）；
+   - `app.computing_score`：事务内重入跳过；
+   - `pg_trigger_depth() > 2`：仅拦深层递归，放行正常链路；
+   - 标记值兼容 `on/true/1`。
+
+**部署顺序（针对实时不更新场景）**
+
+1. 执行 `fix80_trigger_chain_stable.sql`
+2. 用真实学生新增一条 clear 记录后，验证：
+   - `student_baseline.last_updated` 是否自动推进
+   - `sec_diff = last_updated - latest_session` 是否回落到可接受范围
+
+**验收标准**
+
+- 不再出现 `stack depth limit exceeded`
+- 不需要手动执行 `update_student_baseline` 也可自动更新分数
+- 触发链保持稳定，不出现长时间卡在旧分数的情况

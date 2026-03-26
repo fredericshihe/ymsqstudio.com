@@ -13,7 +13,7 @@
 --   第 4–6 名     60      20       18       15
 --   第 7–10 名    40      —        —        —
 --
--- 正式开始日期：北京时间 2026-04-03（周五）
+-- 正式开始日期：北京时间 2026-03-27（周五）
 -- pg_cron 表达式（UTC）：32 13 * * 5
 --
 -- 依赖：
@@ -59,7 +59,8 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.set_auto_reward_enabled(BOOLEAN) TO anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.set_auto_reward_enabled(BOOLEAN) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.set_auto_reward_enabled(BOOLEAN) TO service_role;
 
 
 -- ============================================================
@@ -159,9 +160,9 @@ BEGIN
     v_monday     := DATE_TRUNC('week', NOW() AT TIME ZONE 'Asia/Shanghai')::DATE;
     v_friday_bjt := v_monday + 4;   -- 周一 + 4 天 = 周五
 
-    /* ── ③ 正式开始日期保护：2026-04-03 之前不运行 ── */
-    IF v_friday_bjt < '2026-04-03'::DATE THEN
-        RETURN '⏳ 正式结算日期为 2026年4月3日，当前周五为 '
+    /* ── ③ 正式开始日期保护：2026-03-27 之前不运行 ── */
+    IF v_friday_bjt < '2026-03-27'::DATE THEN
+        RETURN '⏳ 正式结算日期为 2026年3月27日，当前周五为 '
                || TO_CHAR(v_friday_bjt, 'YYYY年MM月DD日') || '，跳过。';
     END IF;
 
@@ -335,10 +336,11 @@ $$;
 COMMENT ON FUNCTION public.reward_weekly_coins() IS
     '每周五 BJT 21:32 自动结算四榜音符币。
      防重复：UNIQUE(week_monday) 保证同一周只发一次。
-     开始日期：2026-04-03。
+     开始日期：2026-03-27。
      流水 p_type 固定为 auto_reward（前端显示"系统结算"紫色标签）。';
 
-GRANT EXECUTE ON FUNCTION public.reward_weekly_coins() TO anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.reward_weekly_coins() FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.reward_weekly_coins() TO service_role;
 
 
 -- ============================================================
