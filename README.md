@@ -1150,6 +1150,7 @@ SELECT cron.unschedule('reward_weekly_coins_job');
 | `debug_accum_score_single_student.sql` | SQL | 单学生 A 底盘分诊断（record_count/quality_score/recomputed_a） |
 | `fix83_a_fair_only.sql` | SQL | A 维度公平补丁（动态替换 quality_score，避免覆盖 W 链路） |
 | `fix84_chain_security_and_w_unify.sql` | SQL | 链路安全与 W 口径统一补丁：收口发币权限 + compute_student_score 切换个性化 W 分母 |
+| `fix85_outlier_penalty_25pct.sql` | SQL | 异常率惩罚前移：25% 开始明显惩罚，并同步实时/历史评分函数 |
 | `debug_b_score_single_student.sql` | SQL | 单学生 B 进步分诊断（week1/week2/b_change/b_level） |
 | `baseline_monitoring_backup.md` | 文档 | 历史修复记录（FIX-1 至 FIX-48+） |
 
@@ -1180,6 +1181,7 @@ SELECT cron.unschedule('reward_weekly_coins_job');
 
 | 日期 | 修改内容 | 涉及文件 |
 |------|---------|---------|
+| 2026-03-26 | **FIX-85 异常率惩罚前移到 25%**：将评分函数中的 outlier 惩罚曲线改为“25% 即明显下降（约 0.85）”，25%~60% 区间加速下压，>60% 保持指数衰减；实时 `compute_student_score` 与历史 `compute_student_score_as_of` 同步口径。 | `fix85_outlier_penalty_25pct.sql`、`README.md` |
 | 2026-03-26 | **FIX-84 链路安全与 W 口径统一（验收通过）**：① 发币相关函数权限完成收口，`reward_weekly_coins()` 与 `set_auto_reward_enabled()` 仅保留 `postgres/service_role` 执行权（`anon/authenticated/PUBLIC` 均已移除）；② `compute_student_score()` 的 W 维度入口切换为 `get_personalized_w_daily_ref()`，与 FIX-81 个性化口径统一，避免 `composite_score` 与展示 W 口径漂移。 | `fix84_chain_security_and_w_unify.sql`、`setup_coin_rewards.sql`、`README.md` |
 | 2026-03-26 | **音符币自动结算起始日提前**：`reward_weekly_coins()` 的“开始日期保护”由 2026-04-03 调整为 2026-03-27，pg_cron 触发时间保持每周五 BJT 21:32 不变。 | `setup_coin_rewards.sql`、`README.md` |
 | 2026-03-13 | **admin_coins 后台加载稳定性优化**：Supabase SDK 改为 defer + fallback CDN；初始化改为并行容错（`Promise.allSettled`）；关键查询增加超时与错误可视化；搜索改为 debounce，缓解弱网首屏长时间“无内容”问题。 | `admin_coins.html`、`系统架构文档.md` |

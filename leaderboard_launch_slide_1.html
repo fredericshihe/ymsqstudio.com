@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>练琴排行榜 2.0 · 启动</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background: #000;
+      color: #f5f5f7;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+    .stage {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 6vmin 8vmin;
+      position: relative;
+      background:
+        radial-gradient(
+          circle at 50% 50%,
+          #000 0%,
+          #000 27%,
+          rgba(99, 102, 241, 0.17) 36%,
+          rgba(129, 140, 248, 0.12) 43%,
+          rgba(236, 72, 153, 0.07) 50%,
+          rgba(0, 0, 0, 0.72) 62%,
+          #000 80%
+        ),
+        #000;
+    }
+    .stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      opacity: 0.6;
+    }
+    .glow-ring {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: min(100vmin, 880px);
+      height: min(100vmin, 880px);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      background: #000;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow:
+        0 0 28px rgba(99, 102, 241, 0.2),
+        0 0 72px rgba(99, 102, 241, 0.09);
+      pointer-events: none;
+      z-index: 0;
+      animation: pulse 4s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+      50% { transform: translate(-50%, -50%) scale(1.02); opacity: 0.85; }
+    }
+    .content {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      max-width: min(52rem, 94%);
+      margin: 0 auto;
+      padding: 0 clamp(8px, 2vmin, 20px);
+    }
+    .eyebrow {
+      font-size: clamp(0.82rem, 2.2vmin, 1.15rem);
+      font-weight: 700;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: rgba(245, 245, 247, 0.52);
+      margin-bottom: clamp(1.1rem, 3vmin, 1.75rem);
+      animation: fadeUp 1s ease-out 0.1s both;
+    }
+    .eyebrow span {
+      background: linear-gradient(90deg, #a5b4fc, #f472b6, #93c5fd);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    h1 {
+      font-size: clamp(2.35rem, 8.5vmin, 4.75rem);
+      font-weight: 800;
+      letter-spacing: -0.035em;
+      line-height: 1.06;
+      margin-bottom: clamp(1rem, 2.5vmin, 1.5rem);
+      animation: fadeUp 1s ease-out 0.25s both;
+    }
+    h1 .ver {
+      display: block;
+      margin-top: 0.34em;
+      font-size: 0.44em;
+      font-weight: 600;
+      letter-spacing: -0.015em;
+      line-height: 1.38;
+      background: linear-gradient(180deg, #fff 0%, rgba(255,255,255,0.78) 45%, rgba(200, 210, 255, 0.85) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .tagline {
+      font-size: clamp(1.05rem, 3vmin, 1.65rem);
+      font-weight: 500;
+      color: rgba(245, 245, 247, 0.74);
+      line-height: 1.58;
+      max-width: 26em;
+      margin: 0 auto clamp(1.5rem, 4vmin, 2.25rem);
+      animation: fadeUp 1s ease-out 0.45s both;
+    }
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: clamp(0.65rem, 1.8vmin, 1.1rem);
+      justify-content: center;
+      align-items: center;
+      animation: fadeUp 1s ease-out 0.65s both;
+    }
+    .pill {
+      padding: 0.65rem 1.35rem;
+      border-radius: 100px;
+      font-size: clamp(0.88rem, 2vmin, 1.05rem);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.07);
+      backdrop-filter: blur(12px);
+    }
+    .pill.accent {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(236, 72, 153, 0.2));
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+    .footer {
+      position: absolute;
+      bottom: 4vmin;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: clamp(0.78rem, 1.65vmin, 0.92rem);
+      color: rgba(245, 245, 247, 0.38);
+      letter-spacing: 0.1em;
+      animation: fadeUp 1.2s ease-out 0.9s both;
+    }
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(18px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="glow-ring" aria-hidden="true"></div>
+    <div class="content">
+      <p class="eyebrow"><span>Practice</span> Leaderboard</p>
+      <h1>
+        练琴排行榜
+        <span class="ver">2.0 版，正式启动！</span>
+      </h1>
+      <p class="tagline">
+        更聪明的算法 · 一眼能懂的规则 · 更带劲的冲榜体验。<br />
+        你练的每一分钟，都算数。
+      </p>
+      <div class="cta-row">
+        <span class="pill accent">实时更新</span>
+        <span class="pill">五维综合评分</span>
+        <span class="pill">音符币奖励</span>
+      </div>
+    </div>
+    <p class="footer">青岛耶胡迪梅纽因学校 · 练琴跟踪系统</p>
+  </div>
+</body>
+</html>

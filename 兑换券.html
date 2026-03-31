@@ -463,15 +463,15 @@
 
 <script>
     const ticketData = [
-        { tier: "BRONZE / 青铜", coins: "80 音符币", title: "专属琴房特权", desc: "凭此券可获得三天专属琴房使用权，彰显专属排面（每个月仅限一次）！", theme: "theme-bronze", mark: "𝄞", prefix: "B-801", stubText: "凭券核销" },
-        { tier: "SILVER / 白银", coins: "100 音符币", title: "施坦威体验日", desc: "凭此券可在老师空闲无课时段，独享一天教师教室施坦威三角钢琴练习特权（每周仅限一次）。", theme: "theme-silver", mark: "𝄢", prefix: "S-100B", stubText: "凭券核销" },
-        { tier: "SILVER / 白银", coins: "120 音符币", title: "旁听神仙课", desc: "凭此券特批进入教室，旁听任何一节其他老师的课程（需提前1天预约）。", theme: "theme-silver", mark: "𝄢", prefix: "S-100A", stubText: "凭券核销" },
-        { tier: "SILVER / 白银", coins: "150 音符币", title: "作业豁免券", desc: "凭此券可合法免除一次常规作业。具体科目需提前与任课老师协商（每个月仅限一次）。", theme: "theme-silver", mark: "𝄢", prefix: "S-150A", stubText: "凭券核销" },
-        { tier: "GOLD / 黄金", coins: "180 音符币", title: "课表 DIY 日", desc: "凭此券获得一天“选课自由”，自主决定是否出席当天的非专业课和非考试类课程（每个月仅限一次）。", theme: "theme-gold", mark: "𝄡", prefix: "G-180A", stubText: "凭券核销" },
-        { tier: "GOLD / 黄金", coins: "200 音符币", title: "期末加分特权", desc: "坚持练琴的最强回报！凭此券可在期末专业课考试成绩基础上额外 +0.5 分，直接计入最终成绩（每人仅可兑换一次，兑换后不可退回）。", theme: "theme-gold", mark: "𝄡", prefix: "G-200A", stubText: "凭券核销" },
-        { tier: "DIAMOND / 钻石", coins: "260 音符币", title: "大师级专属 MV", desc: "由老师动用专业设备，为你精修录制并剪辑一首专属演奏视频（每学期仅限一次）。永久留存！", theme: "theme-diamond", mark: "𝅗𝅥", prefix: "D-260A", stubText: "终极特权" },
-        { tier: "DIAMOND / 钻石", coins: "300 音符币", title: "额外专业课", desc: "超级大奖！凭此券可和自己的专业老师多上一节专业课，享受名师加餐指导（每个月仅限一次）。", theme: "theme-diamond", mark: "𝅗𝅥", prefix: "D-300B", stubText: "终极特权" },
-        { fullPage: true, coins: "本学期排行榜累计 ≥ 400 音符币", title: "「梅纽因之星」荣耀专题", prefix: "LEGEND-400" }
+        { tier: "BRONZE / 青铜", coins: "100 音符币", title: "专属琴房特权", desc: "凭此券可获得三天专属琴房使用权，彰显专属排面（每个月仅限一次）！", theme: "theme-bronze", mark: "𝄞", prefix: "B-100A", stubText: "凭券核销" },
+        { tier: "BRONZE / 青铜", coins: "120 音符币", title: "施坦威体验日", desc: "凭此券可在周六、周日独享一天施坦威教室练习特权（每周仅限一次，不可叠加兑换）。", theme: "theme-bronze", mark: "𝄞", prefix: "B-120A", stubText: "凭券核销" },
+        { tier: "SILVER / 白银", coins: "150 音符币", title: "旁听神仙课", desc: "凭此券特批进入教室，旁听任何一节其他老师的课程（如音乐素养课、专业课、室内乐课等），需提前 1 天与老师预约。", theme: "theme-silver", mark: "𝄢", prefix: "S-150A", stubText: "凭券核销" },
+        { tier: "SILVER / 白银", coins: "150 音符币", title: "作业豁免券", desc: "凭此券可合法免除一次常规作业。具体科目需提前与任课老师协商（每个月仅限一次）。", theme: "theme-silver", mark: "𝄢", prefix: "S-150B", stubText: "凭券核销" },
+        { tier: "GOLD / 黄金", coins: "200 音符币", title: "课表 DIY 日", desc: "凭此券获得一天“选课自由”，自主决定是否出席当天的非专业课和非考试类课程（每个月仅可以使用一次）。", theme: "theme-gold", mark: "𝄡", prefix: "G-200A", stubText: "凭券核销" },
+        { tier: "GOLD / 黄金", coins: "280 音符币", title: "期末加分特权", desc: "凭此券在期末专业课考试成绩基础上额外 +0.5 分，直接计入最终成绩。坚持练琴的你，让期末成绩再进一步！（每人仅可兑换一次，兑换后不可退回）", theme: "theme-gold", mark: "𝄡", prefix: "G-280A", stubText: "凭券核销" },
+        { tier: "DIAMOND / 钻石", coins: "300 音符币", title: "大师级专属 MV", desc: "老师动用专业录音设备，在学校排练厅用九尺雅马哈三角钢琴，为你专业录制一首专属演奏视频（每学期仅限一次）。朋友圈炫技必备，永久留存！", theme: "theme-diamond", mark: "𝅗𝅥", prefix: "D-300A", stubText: "终极特权" },
+        { tier: "DIAMOND / 钻石", coins: "350 音符币", title: "额外专业课", desc: "超级大奖！凭此券和自己的专业老师多上一节专业课，名师一对一加餐指导（每个月仅限一次，每学期最多两次）。", theme: "theme-diamond", mark: "𝅗𝅥", prefix: "D-350A", stubText: "终极特权" },
+        { fullPage: true, coins: "本学期排行榜累计音符币最多", title: "「梅纽因之星」荣耀专题", prefix: "LEGEND-400" }
     ];
 
     // 核心算法：生成横向条纹，从上往下堆叠

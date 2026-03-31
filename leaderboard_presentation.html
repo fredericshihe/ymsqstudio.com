@@ -1,0 +1,2233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>练琴排行榜 2.0 · 发布会演示（16:9）</title>
+  <style>
+    /* ========== 全屏演示：占满视口，底部浮层控制条 ========== */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .ppt-app {
+      min-height: 100vh;
+      min-height: 100dvh;
+      position: relative;
+    }
+    .ppt-main {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+    }
+    .ppt-viewport {
+      position: relative;
+      width: 100vw;
+      width: 100dvw;
+      height: 100vh;
+      height: 100dvh;
+      background: #000;
+      overflow: hidden;
+    }
+    /* 与底部工具条留白上下对称，主内容区重心落在视口垂直中线 */
+    .ppt-slide {
+      container-type: size;
+      container-name: slide;
+      position: absolute;
+      inset: 0;
+      display: none;
+      overflow: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      --ppt-safe-band: max(88px, env(safe-area-inset-bottom, 0px) + 72px);
+      padding-top: var(--ppt-safe-band);
+      padding-bottom: var(--ppt-safe-band);
+      box-sizing: border-box;
+    }
+    .ppt-slide.is-active { display: block; }
+    /* 首页光晕需溢出扩散，避免圆圈与阴影被裁出「平切口」 */
+    .ppt-slide--intro {
+      overflow: visible !important;
+    }
+    .ppt-slide--coins {
+      overflow: visible !important;
+    }
+    .ppt-slide--dim {
+      overflow: visible !important;
+    }
+    /* 传奇荣誉：一屏内左右完整展示，不出现纵向滚动 */
+    .ppt-slide--legend {
+      overflow: hidden !important;
+    }
+    .ppt-slide--legend.is-active {
+      display: flex !important;
+      flex-direction: column;
+    }
+    /* 登记还卡 · 升位演示（首页后） */
+    .ppt-slide--checkin {
+      overflow: hidden !important;
+    }
+    .ppt-slide--checkin.is-active {
+      display: flex !important;
+      flex-direction: column;
+    }
+    .ppt-s-checkin {
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+      max-width: min(96cqw, 900px);
+      margin: 0 auto;
+      padding: clamp(10px, 2cqh, 24px) clamp(14px, 3cqw, 28px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: clamp(10px, 1.8cqh, 20px);
+      position: relative;
+      z-index: 1;
+    }
+    .checkin-glow {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 90% 55% at 50% -15%, rgba(99, 102, 241, 0.28), transparent 52%),
+        radial-gradient(ellipse 60% 50% at 100% 60%, rgba(197, 160, 89, 0.12), transparent 48%),
+        #050508;
+      pointer-events: none;
+    }
+    .checkin-head { text-align: center; flex-shrink: 0; }
+    .checkin-eyebrow {
+      margin: 0 0 0.35em;
+      font-size: clamp(11px, 1.65cqh, 15px);
+      font-weight: 700;
+      letter-spacing: 0.28em;
+      color: rgba(129, 140, 248, 0.85);
+      text-transform: uppercase;
+    }
+    .checkin-title {
+      margin: 0 0 0.25em;
+      font-size: clamp(22px, 4.2cqh, 40px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #f5f5f7;
+      text-shadow: 0 2px 28px rgba(0,0,0,0.45);
+    }
+    .checkin-sub {
+      margin: 0;
+      font-size: clamp(13px, 2.1cqh, 18px);
+      color: rgba(245, 245, 247, 0.55);
+      line-height: 1.45;
+    }
+    .checkin-flow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(8px, 2cqw, 20px);
+      flex-wrap: wrap;
+      flex-shrink: 0;
+    }
+    .checkin-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      padding: clamp(10px, 1.5cqh, 14px) clamp(14px, 2.5cqw, 20px);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: rgba(245,245,247,0.65);
+      font-size: clamp(12px, 1.85cqh, 16px);
+      font-weight: 600;
+      transition: box-shadow 0.35s ease, border-color 0.35s ease, color 0.35s ease, transform 0.35s ease;
+    }
+    .checkin-step-ico { font-size: 1.35em; line-height: 1; }
+    .checkin-step-tag {
+      font-size: 0.78em;
+      font-style: normal;
+      font-weight: 600;
+      color: rgba(245,245,247,0.38);
+      letter-spacing: 0.06em;
+    }
+    .checkin-root--flash1 .checkin-step[data-step="1"] {
+      border-color: rgba(129, 140, 248, 0.65);
+      color: #e0e7ff;
+      box-shadow: 0 0 32px rgba(99, 102, 241, 0.35);
+      transform: scale(1.03);
+    }
+    .checkin-root--flash1 .checkin-step[data-step="1"] .checkin-step-tag { color: rgba(165, 180, 252, 0.95); }
+    .checkin-root--flash2 .checkin-step[data-step="2"] {
+      border-color: rgba(197, 160, 89, 0.7);
+      color: #fef3c7;
+      box-shadow: 0 0 36px rgba(197, 160, 89, 0.28);
+      transform: scale(1.03);
+    }
+    .checkin-root--flash2 .checkin-step[data-step="2"] .checkin-step-tag { color: rgba(253, 224, 71, 0.9); }
+    .checkin-connector {
+      width: clamp(28px, 6cqw, 48px);
+      height: 2px;
+      border-radius: 1px;
+      background: linear-gradient(90deg, rgba(99,102,241,0.35), rgba(197,160,89,0.5));
+      opacity: 0.85;
+    }
+    .checkin-lb-wrap {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+    }
+    .checkin-lb-caption {
+      font-size: clamp(11px, 1.6cqh, 14px);
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: rgba(245,245,247,0.4);
+      text-align: center;
+    }
+    .checkin-lb {
+      --checkin-row-h: clamp(46px, 7.5cqh, 58px);
+      --checkin-gap: clamp(6px, 1cqh, 10px);
+      --checkin-row-shift: calc(var(--checkin-row-h) + var(--checkin-gap));
+      display: flex;
+      flex-direction: column;
+      gap: var(--checkin-gap);
+      padding: clamp(12px, 2cqh, 18px);
+      border-radius: clamp(14px, 2cqh, 20px);
+      background: rgba(0,0,0,0.28);
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+    }
+    .checkin-lb-row {
+      display: grid;
+      grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+      align-items: center;
+      gap: clamp(10px, 2cqw, 16px);
+      min-height: var(--checkin-row-h);
+      padding: 0 clamp(12px, 2cqw, 16px);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid transparent;
+      transition: transform 0.9s cubic-bezier(0.34, 1.2, 0.64, 1);
+      will-change: transform;
+    }
+    .checkin-lb-row--you {
+      background: linear-gradient(105deg, rgba(99, 102, 241, 0.22) 0%, rgba(197, 160, 89, 0.12) 100%);
+      border-color: rgba(197, 160, 89, 0.45);
+      box-shadow: 0 0 24px rgba(99, 102, 241, 0.2);
+    }
+    .checkin-lb--bump .checkin-lb-row:nth-child(3) {
+      transform: translateY(var(--checkin-row-shift));
+    }
+    .checkin-lb--bump .checkin-lb-row:nth-child(4) {
+      transform: translateY(calc(-1 * var(--checkin-row-shift)));
+    }
+    .checkin-lb-rank {
+      font-size: clamp(14px, 2.2cqh, 18px);
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      color: rgba(245,245,247,0.45);
+    }
+    .checkin-lb-row--you .checkin-lb-rank { color: #fcd34d; }
+    .checkin-lb-name { min-width: 0; }
+    .checkin-lb-name-main {
+      display: block;
+      font-size: clamp(13px, 2.1cqh, 17px);
+      font-weight: 700;
+      color: #f5f5f7;
+    }
+    .checkin-lb-name-sub {
+      display: block;
+      font-size: clamp(11px, 1.55cqh, 13px);
+      color: rgba(245,245,247,0.38);
+      margin-top: 2px;
+    }
+    .checkin-lb-score {
+      font-size: clamp(13px, 2cqh, 17px);
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      color: rgba(129, 140, 248, 0.95);
+    }
+    .checkin-lb-pulse {
+      animation: checkin-pulse 1.1s ease-out 2;
+    }
+    @keyframes checkin-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+      40% { box-shadow: 0 0 0 6px rgba(251, 191, 36, 0.25); }
+    }
+    .checkin-cta {
+      flex-shrink: 0;
+      text-align: center;
+      font-size: clamp(14px, 2.35cqh, 20px);
+      line-height: 1.55;
+      font-weight: 700;
+      color: rgba(255, 250, 240, 0.92);
+      padding: clamp(14px, 2.2cqh, 20px) clamp(16px, 3cqw, 28px);
+      border-radius: clamp(12px, 1.8cqh, 18px);
+      background: linear-gradient(165deg, rgba(185, 28, 28, 0.22) 0%, rgba(127, 29, 29, 0.35) 50%, rgba(197, 160, 89, 0.18) 100%);
+      border: 2px solid rgba(252, 211, 77, 0.5);
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.08) inset,
+        0 12px 40px rgba(0,0,0,0.4);
+      text-shadow: 0 1px 12px rgba(0,0,0,0.35);
+    }
+    .checkin-cta strong {
+      color: #fde047;
+      font-weight: 800;
+    }
+
+    .ppt-toolbar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      padding: 16px 24px max(16px, env(safe-area-inset-bottom, 0px) + 8px);
+      background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.55) 40%, rgba(0, 0, 0, 0.88) 100%);
+      pointer-events: none;
+    }
+    .ppt-toolbar > * { pointer-events: auto; }
+    .ppt-toolbar button {
+      font: inherit;
+      font-size: 18px;
+      font-weight: 600;
+      padding: 12px 28px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.1);
+      color: #f5f5f7;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s;
+    }
+    .ppt-toolbar button:hover:not(:disabled) {
+      background: rgba(255,255,255,0.18);
+    }
+    .ppt-toolbar button:active:not(:disabled) { transform: scale(0.97); }
+    .ppt-toolbar button:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+    .ppt-counter {
+      min-width: 6em;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 700;
+      color: rgba(245, 245, 247, 0.65);
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8);
+    }
+
+    /* ========== 第 1 页：启动 — 全屏底光 + 圆环叠在上 ========== */
+    .ppt-s-intro {
+      min-height: 100%;
+      min-height: 100cqh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(12px, 3cqh, 32px) clamp(16px, 4cqw, 48px);
+      position: relative;
+      z-index: 0;
+      background: transparent;
+      color: #f5f5f7;
+    }
+    /* 铺满视口的氛围光（最底层，仅在首页展示） */
+    .intro-glow-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      /* 全屏以黑为底；环形光晕略亮、略远，仍向内外收至黑 */
+      background:
+        radial-gradient(
+          circle at 50% 50%,
+          #000 0%,
+          #000 27%,
+          rgba(99, 102, 241, 0.17) 36%,
+          rgba(129, 140, 248, 0.12) 43%,
+          rgba(236, 72, 153, 0.07) 50%,
+          rgba(0, 0, 0, 0.72) 62%,
+          #000 80%
+        ),
+        #000;
+    }
+    .intro-glow-screen::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      opacity: 0.55;
+      pointer-events: none;
+    }
+    /* 圆内纯黑；仅外沿少量光晕；首页与五维页共用更大一圈 */
+    .ppt-s-intro .glow-ring,
+    .ppt-s-dim .glow-ring {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      z-index: 1;
+      width: min(132cqw, 98cqh);
+      aspect-ratio: 1;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      background: #000;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow:
+        0 0 28px rgba(99, 102, 241, 0.2),
+        0 0 72px rgba(99, 102, 241, 0.09);
+      pointer-events: none;
+      animation: ppt-pulse 4s ease-in-out infinite;
+    }
+    @keyframes ppt-pulse {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+      50% { transform: translate(-50%, -50%) scale(1.02); opacity: 0.92; }
+    }
+    .ppt-s-intro .content {
+      position: relative;
+      z-index: 2;
+      text-align: center;
+      max-width: min(52rem, 94%);
+      margin: 0 auto;
+      padding: 0 clamp(8px, 2cqw, 20px);
+    }
+    .ppt-s-intro .eyebrow {
+      font-size: clamp(13px, 2.5cqh, 30px);
+      font-weight: 700;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: rgba(245, 245, 247, 0.52);
+      margin-bottom: clamp(14px, 2.2cqh, 32px);
+      text-shadow: 0 0 28px rgba(99, 102, 241, 0.28);
+    }
+    .ppt-s-intro .eyebrow span {
+      background: linear-gradient(90deg, #a5b4fc, #f472b6, #93c5fd);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .ppt-s-intro h1 {
+      font-size: clamp(40px, 11.5cqh, 152px);
+      font-weight: 800;
+      letter-spacing: -0.035em;
+      line-height: 1.05;
+      margin: 0 0 clamp(14px, 1.8cqh, 28px);
+      text-shadow: 0 4px 80px rgba(0, 0, 0, 0.55), 0 0 60px rgba(99, 102, 241, 0.22);
+    }
+    .ppt-s-intro h1 .ver {
+      display: block;
+      margin-top: 0.34em;
+      font-size: 0.44em;
+      font-weight: 600;
+      letter-spacing: -0.015em;
+      line-height: 1.38;
+      background: linear-gradient(180deg, #fff 0%, rgba(255,255,255,0.78) 45%, rgba(200, 210, 255, 0.85) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      filter: drop-shadow(0 2px 20px rgba(99, 102, 241, 0.32));
+    }
+    .ppt-s-intro .tagline {
+      font-size: clamp(16px, 3.15cqh, 40px);
+      font-weight: 500;
+      color: rgba(245, 245, 247, 0.74);
+      line-height: 1.58;
+      margin: 0 auto clamp(18px, 2.6cqh, 38px);
+      max-width: 26em;
+    }
+    .ppt-s-intro .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: clamp(11px, 1.4cqw, 20px);
+      justify-content: center;
+      align-items: center;
+    }
+    .ppt-s-intro .pill {
+      padding: clamp(10px, 1.25cqh, 16px) clamp(16px, 2.2cqw, 32px);
+      border-radius: 100px;
+      font-size: clamp(14px, 2.05cqh, 26px);
+      font-weight: 600;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.07);
+      backdrop-filter: blur(16px);
+      letter-spacing: 0.02em;
+    }
+    .ppt-s-intro .pill.accent {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(236, 72, 153, 0.2));
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+    .ppt-s-intro .footer {
+      position: absolute;
+      bottom: max(12%, env(safe-area-inset-bottom, 0px) + 56px);
+      left: 0; right: 0;
+      z-index: 2;
+      text-align: center;
+      font-size: clamp(12px, 1.65cqh, 20px);
+      font-weight: 500;
+      color: rgba(245, 245, 247, 0.38);
+      letter-spacing: 0.1em;
+    }
+
+    /* 第 2 页底光：与首页同环形径向光 + 噪点 */
+    .dim-glow-screen {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(
+          circle at 50% 50%,
+          #000 0%,
+          #000 27%,
+          rgba(99, 102, 241, 0.17) 36%,
+          rgba(129, 140, 248, 0.12) 43%,
+          rgba(236, 72, 153, 0.07) 50%,
+          rgba(0, 0, 0, 0.72) 62%,
+          #000 80%
+        ),
+        #000;
+    }
+    .dim-glow-screen::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      opacity: 0.55;
+      pointer-events: none;
+    }
+    /* ========== 第 2 页：五维 — 整体居中、卡内不溢出 ========== */
+    .ppt-s-dim {
+      position: relative;
+      z-index: 1;
+      min-height: 100%;
+      min-height: 100cqh;
+      padding: clamp(10px, 1.5cqh, 20px) clamp(12px, 2cqw, 32px) clamp(12px, 1.8cqh, 22px);
+      background: transparent;
+      color: #f5f5f7;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+    }
+    .ppt-s-dim-inner {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      max-width: min(100%, 1680px);
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+    }
+    .ppt-s-dim header {
+      text-align: center;
+      flex-shrink: 0;
+      margin-bottom: clamp(14px, 2cqh, 28px);
+      width: 100%;
+      max-width: 100%;
+      padding: clamp(4px, 0.8cqh, 12px) clamp(4px, 1cqw, 12px) 0;
+      box-sizing: border-box;
+    }
+    /* 主标题：层级最高 · 大字重 + 双色区分 */
+    .ppt-s-dim header .dim-h1 {
+      margin: 0 0 clamp(10px, 1.2cqh, 18px);
+      font-size: clamp(32px, min(7cqh, 12cqw), 88px);
+      font-weight: 800;
+      line-height: 1.08;
+      letter-spacing: -0.03em;
+    }
+    .ppt-s-dim header .dim-h1 .dim-h1-a {
+      color: #ffffff;
+      text-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.45),
+        0 8px 48px rgba(99, 102, 241, 0.35),
+        0 0 80px rgba(147, 197, 253, 0.15);
+    }
+    .ppt-s-dim header .dim-h1 .dim-h1-sep {
+      color: rgba(255, 255, 255, 0.4);
+      font-weight: 700;
+      padding: 0 0.12em;
+    }
+    .ppt-s-dim header .dim-h1 .dim-h1-b {
+      background: linear-gradient(125deg, #93c5fd 0%, #a5b4fc 35%, #c4b5fd 70%, #e9d5ff 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      filter: drop-shadow(0 2px 16px rgba(99, 102, 241, 0.45));
+    }
+    /* 副标题：明显小于主标题、字重更轻、略疏朗 */
+    .ppt-s-dim header .dim-sub {
+      margin: 0 auto;
+      max-width: 38em;
+      font-size: clamp(16px, min(3.1cqh, 5.2cqw), 34px);
+      font-weight: 500;
+      line-height: 1.55;
+      letter-spacing: 0.08em;
+      color: rgba(226, 232, 240, 0.78);
+      text-shadow: 0 1px 12px rgba(0, 0, 0, 0.35);
+    }
+    .ppt-s-dim header .dim-sub::before {
+      content: "";
+      display: block;
+      width: min(120px, 18cqw);
+      height: 3px;
+      margin: 0 auto clamp(12px, 1.4cqh, 20px);
+      border-radius: 2px;
+      background: linear-gradient(90deg, transparent, rgba(147, 197, 253, 0.65), rgba(167, 139, 250, 0.5), transparent);
+      opacity: 0.9;
+    }
+    .ppt-s-dim .grid {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-auto-rows: auto;
+      gap: clamp(10px, 1.5cqw, 22px);
+      align-items: start;
+      justify-items: stretch;
+      justify-content: center;
+      box-sizing: border-box;
+    }
+    .ppt-s-dim .card {
+      position: relative;
+      border-radius: clamp(12px, 1.5cqh, 20px);
+      padding: clamp(10px, 1.4cqh, 18px) clamp(8px, min(1.2cqw, 2.5cqh), 12px);
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(20px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      justify-content: flex-start;
+      gap: clamp(5px, 0.75cqh, 10px);
+      width: 100%;
+      height: auto;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .ppt-s-dim .card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      padding: 1px;
+      background: linear-gradient(145deg, var(--accent), transparent 60%);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+      opacity: 0.5;
+    }
+    .ppt-s-dim .badge {
+      width: clamp(44px, min(11.5cqh, 16cqw), 112px);
+      height: clamp(44px, min(11.5cqh, 16cqw), 112px);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(22px, min(5.5cqh, 8.5cqw), 52px);
+      font-weight: 800;
+      flex-shrink: 0;
+      color: #fff;
+      background: var(--accent);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 0 36px rgba(255, 255, 255, 0.08);
+    }
+    .ppt-s-dim .name {
+      font-size: clamp(14px, min(2.45cqh, 4cqw), 25px);
+      font-weight: 700;
+      margin: 0;
+      line-height: 1.35;
+      width: 100%;
+      max-width: 100%;
+      flex-shrink: 0;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .ppt-s-dim .name span {
+      display: block;
+      font-size: 0.88em;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.52);
+      margin-top: 0.25em;
+      line-height: 1.35;
+    }
+    .ppt-s-dim .diagram {
+      width: 100%;
+      max-width: 100%;
+      flex: 0 0 auto;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: visible;
+    }
+    .ppt-s-dim .diagram svg {
+      width: 100%;
+      height: auto;
+      max-height: clamp(58px, 13.5cqh, 108px);
+      display: block;
+    }
+    .ppt-s-dim .line {
+      flex: 0 1 auto;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      padding: 0 2px;
+      box-sizing: border-box;
+    }
+    .ppt-s-dim .line p {
+      font-size: clamp(12px, min(2.15cqh, 3.4cqw), 21px);
+      line-height: 1.5;
+      color: rgba(245, 245, 247, 0.9);
+      margin: 0;
+      font-weight: 600;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      text-wrap: balance;
+    }
+    .ppt-s-dim .w { --accent: #6366f1; }
+    .ppt-s-dim .b { --accent: #10b981; }
+    .ppt-s-dim .t { --accent: #f59e0b; }
+    .ppt-s-dim .m { --accent: #ec4899; }
+    .ppt-s-dim .a { --accent: #38bdf8; }
+    .ppt-s-dim footer {
+      text-align: center;
+      flex-shrink: 0;
+      margin-top: clamp(10px, 1.4cqh, 18px);
+      width: 100%;
+      max-width: 100%;
+      padding: 0 clamp(8px, 2cqw, 16px);
+      box-sizing: border-box;
+      font-size: clamp(12px, min(1.65cqh, 2.7cqw), 18px);
+      font-weight: 600;
+      color: rgba(245, 245, 247, 0.42);
+      letter-spacing: 0.06em;
+      line-height: 1.45;
+      overflow-wrap: break-word;
+    }
+    @media (max-aspect-ratio: 1/1) {
+      .ppt-s-dim .grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-rows: auto auto;
+      }
+    }
+    /* 专项三榜：稳定 / 守则 / 进步（与五维页同容器样式） */
+    .ppt-s-dim--tri .grid.tri-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      max-width: min(100%, 1500px);
+      margin: 0 auto;
+    }
+    .ppt-s-dim--tri .diagram {
+      display: none;
+    }
+    .ppt-s-dim--tri .card {
+      min-height: 0;
+    }
+    .ppt-s-dim--tri .tri-stable { --accent: #a855f7; }
+    .ppt-s-dim--tri .tri-rules { --accent: #f59e0b; }
+    .ppt-s-dim--tri .tri-progress { --accent: #10b981; }
+    @media (max-aspect-ratio: 1/1) {
+      .ppt-s-dim--tri .grid.tri-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+      }
+    }
+
+    /* ========== 第 3 页：音符币 — 与首页同光晕、垂直居中、精简网格 ========== */
+    .coins-glow-screen {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(
+          circle at 50% 50%,
+          #000 0%,
+          #000 27%,
+          rgba(99, 102, 241, 0.17) 36%,
+          rgba(129, 140, 248, 0.12) 43%,
+          rgba(236, 72, 153, 0.07) 50%,
+          rgba(0, 0, 0, 0.72) 62%,
+          #000 80%
+        ),
+        #000;
+    }
+    .coins-glow-screen::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      opacity: 0.55;
+      pointer-events: none;
+    }
+    .ppt-s-coins {
+      position: relative;
+      z-index: 1;
+      min-height: 100%;
+      min-height: 100cqh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(12px, 2cqh, 28px) clamp(14px, 3cqw, 40px);
+      box-sizing: border-box;
+      color: #f5f5f7;
+      background: transparent;
+    }
+    .ppt-s-coins .glow-ring {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      z-index: 0;
+      width: min(132cqw, 98cqh);
+      aspect-ratio: 1;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      background: #000;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow:
+        0 0 28px rgba(99, 102, 241, 0.2),
+        0 0 72px rgba(99, 102, 241, 0.09);
+      pointer-events: none;
+    }
+    .ppt-s-coins .inner {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      max-width: min(98cqw, 1200px);
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: clamp(12px, 1.6cqh, 22px);
+    }
+    .ppt-s-coins .coins-eyebrow {
+      font-size: clamp(15px, 2.4cqh, 24px);
+      font-weight: 700;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: rgba(245, 245, 247, 0.52);
+      margin: 0 0 clamp(4px, 0.6cqh, 10px);
+    }
+    .ppt-s-coins .coins-eyebrow span {
+      background: linear-gradient(90deg, #a5b4fc, #f472b6, #93c5fd);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .ppt-s-coins header { width: 100%; }
+    .ppt-s-coins header h1 {
+      font-size: clamp(26px, 5.8cqh, 62px);
+      font-weight: 800;
+      margin: 0 0 clamp(10px, 1.2cqh, 18px);
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      text-shadow: 0 2px 40px rgba(0, 0, 0, 0.6);
+    }
+    .ppt-s-coins header h1 span {
+      background: linear-gradient(90deg, #fde68a, #fbbf24, #fcd34d);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .ppt-s-coins .flow {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35em 0.5em;
+      font-size: clamp(16px, 2.65cqh, 30px);
+      font-weight: 600;
+      color: rgba(245, 245, 247, 0.82);
+      line-height: 1.4;
+    }
+    .ppt-s-coins .flow .chip {
+      padding: 0.32em 0.7em;
+      border-radius: 100px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      font-weight: 700;
+      color: #eef;
+      font-size: 0.92em;
+    }
+    .ppt-s-coins .flow .sep { color: rgba(255, 255, 255, 0.28); font-weight: 500; }
+    .ppt-s-coins .flow strong { color: rgba(255, 255, 255, 0.95); }
+    .ppt-s-coins .table-wrap {
+      width: 100%;
+      border-radius: clamp(14px, 1.6cqh, 22px);
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(12px);
+      box-sizing: border-box;
+    }
+    .ppt-s-coins .coins-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: clamp(15px, 2.35cqh, 30px);
+      font-variant-numeric: tabular-nums;
+    }
+    .ppt-s-coins .coins-table th,
+    .ppt-s-coins .coins-table td {
+      padding: clamp(12px, 1.5cqh, 22px) clamp(8px, 1cqw, 16px);
+      text-align: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      vertical-align: middle;
+    }
+    .ppt-s-coins .coins-table th {
+      background: rgba(0, 0, 0, 0.5);
+      font-weight: 700;
+      font-size: 0.88em;
+      letter-spacing: 0.02em;
+      color: rgba(255, 255, 255, 0.92);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    }
+    .ppt-s-coins .coins-table .th-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.2em;
+      line-height: 1.15;
+    }
+    .ppt-s-coins .coins-table .th-emoji {
+      font-size: 1.15em;
+      line-height: 1;
+      opacity: 0.95;
+    }
+    .ppt-s-coins .coins-table .th-main {
+      font-size: 0.82em;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+    .ppt-s-coins .coins-table tbody tr:nth-child(odd) td {
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .ppt-s-coins .coins-table tbody tr:nth-child(even) td {
+      background: rgba(0, 0, 0, 0.12);
+    }
+    .ppt-s-coins .coins-table th:first-child,
+    .ppt-s-coins .coins-table td:first-child {
+      text-align: left;
+      padding-left: clamp(12px, 1.4cqw, 22px);
+    }
+    .ppt-s-coins .coins-table td + td,
+    .ppt-s-coins .coins-table th + th {
+      border-left: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .ppt-s-coins .coins-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+    .ppt-s-coins .coins-table .rank {
+      font-weight: 700;
+      font-size: 0.95em;
+      color: rgba(255, 255, 255, 0.96);
+    }
+    .ppt-s-coins .coins-table .coin {
+      font-weight: 800;
+      font-size: 1.12em;
+      color: #fde047;
+      text-shadow: 0 0 24px rgba(250, 204, 21, 0.2);
+    }
+    .ppt-s-coins .coins-table .dash {
+      color: rgba(255, 255, 255, 0.3);
+      font-size: 1.1em;
+      font-weight: 600;
+    }
+    .ppt-s-coins footer {
+      text-align: center;
+      margin-top: clamp(10px, 1.2cqh, 18px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(8px, 1cqh, 12px);
+      width: 100%;
+    }
+    .ppt-s-coins footer p {
+      margin: 0;
+    }
+    .ppt-s-coins .coins-footer-alert {
+      display: inline-block;
+      max-width: 100%;
+      padding: clamp(10px, 1.2cqh, 14px) clamp(14px, 2cqw, 22px);
+      border-radius: clamp(10px, 1.2cqh, 14px);
+      font-size: clamp(15px, 2.15cqh, 24px);
+      font-weight: 700;
+      line-height: 1.45;
+      letter-spacing: 0.02em;
+      color: #fef3c7;
+      background: linear-gradient(180deg, rgba(251, 191, 36, 0.18) 0%, rgba(180, 83, 9, 0.12) 100%);
+      border: 1px solid rgba(251, 191, 36, 0.45);
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35) inset, 0 8px 32px rgba(251, 191, 36, 0.12);
+      text-shadow: 0 1px 12px rgba(0, 0, 0, 0.45);
+    }
+    .ppt-s-coins .coins-footer-school {
+      font-size: clamp(11px, 1.35cqh, 15px);
+      font-weight: 500;
+      color: rgba(245, 245, 247, 0.38);
+      letter-spacing: 0.1em;
+    }
+    @media (max-width: 520px) {
+      .ppt-s-coins .coins-table {
+        font-size: clamp(12px, 3.6vw, 17px);
+      }
+    }
+
+    /* ========== 兑换券页：作用域 .vch-scope（与兑换券.html 一致） ========== */
+    .vch-scope {
+      --primary-color: #111b2e;
+      --gold-color: #c5a059;
+      --bg-color: #f4f1eb;
+      --bronze-grad: linear-gradient(135deg, #8c7362, #b89f89, #8c7362);
+      --silver-grad: linear-gradient(135deg, #8e949b, #cdd1d6, #8e949b);
+      --gold-grad: linear-gradient(135deg, #b8860b, #e8c371, #b8860b);
+      --diamond-grad: linear-gradient(135deg, #0f172a, #1e293b, #0f172a);
+      min-height: 100%;
+      min-height: 100cqh;
+      padding: clamp(8px, 1.2cqh, 16px) clamp(12px, 2.5cqw, 40px) clamp(12px, 2cqh, 24px);
+      font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background:
+        radial-gradient(ellipse 100% 80% at 50% -25%, rgba(197, 160, 89, 0.2), transparent 50%),
+        radial-gradient(ellipse 70% 50% at 100% 50%, rgba(99, 102, 241, 0.2), transparent 45%),
+        #060608;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+    }
+    .vch-scope .block-cap {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: clamp(10px, 1.5cqh, 20px);
+      padding: 0 clamp(4px, 1cqw, 12px);
+      width: 100%;
+      max-width: min(96cqw, 920px);
+    }
+    .vch-scope--voucher .block-cap {
+      justify-content: center;
+    }
+    .vch-scope .block-cap strong {
+      font-size: clamp(16px, 3cqh, 36px);
+      font-weight: 800;
+      color: rgba(255, 255, 255, 0.95);
+      letter-spacing: 0.03em;
+      text-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
+    }
+    .vch-scope .block-cap span {
+      font-size: clamp(14px, 2.4cqh, 28px);
+      font-weight: 700;
+      color: rgba(253, 224, 71, 0.85);
+      font-variant-numeric: tabular-nums;
+    }
+    .vch-scope .ticket-plate {
+      border-radius: clamp(14px, 1.8cqh, 24px);
+      padding: clamp(16px, 2.8cqh, 36px) clamp(14px, 2.5cqw, 32px);
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(20px);
+      width: 100%;
+      max-width: min(96cqw, 920px);
+    }
+    .vch-scope .cert-plate {
+      border-radius: clamp(14px, 1.8cqh, 24px);
+      padding: clamp(12px, 2cqh, 24px);
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      width: 100%;
+      max-width: min(96cqw, 880px);
+    }
+    .vch-scope .cert-scale-wrap {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: min(52cqh, 480px);
+      max-height: 58cqh;
+    }
+    .vch-scope .cert-scale-inner {
+      transform: scale(0.56);
+      transform-origin: top center;
+      margin-bottom: -260px;
+    }
+
+    /* 兑换券：上券下说明 */
+    .vch-scope--voucher {
+      justify-content: flex-start;
+    }
+    .vch-scope--voucher .vch-voucher-split {
+      width: 100%;
+      max-width: min(96cqw, 920px);
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: clamp(14px, 2.2cqh, 24px);
+      flex: 1;
+      min-height: 0;
+    }
+    .vch-scope--voucher .vch-ticket-wrap {
+      display: flex;
+      justify-content: center;
+      width: 100%;
+    }
+    .vch-scope--voucher .vch-ticket-compact {
+      width: 100%;
+      max-width: min(72cqw, 680px);
+      margin: 0 auto;
+      padding: clamp(12px, 2cqh, 28px) clamp(12px, 2cqw, 24px);
+    }
+    .vch-scope--voucher .vch-ticket-compact .ticket {
+      min-height: clamp(140px, 22cqh, 300px);
+    }
+    .vch-scope--voucher .ticket-main {
+      justify-content: flex-start;
+    }
+    .vch-scope--voucher .t-footer {
+      margin-top: auto;
+    }
+    .vch-scope--voucher .vch-coins-gap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(4px, 0.8cqh, 8px);
+      width: 100%;
+      padding: clamp(6px, 1.2cqh, 14px) 0;
+      flex-shrink: 0;
+    }
+    .vch-scope--voucher .vch-coins-label {
+      font-size: clamp(11px, 1.6cqh, 16px);
+      font-weight: 600;
+      letter-spacing: 0.35em;
+      color: rgba(245, 245, 247, 0.45);
+      text-transform: none;
+    }
+    .vch-scope--voucher .vch-coins-value {
+      font-size: clamp(18px, 3.2cqh, 34px);
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.06em;
+      color: rgba(253, 224, 71, 0.95);
+      text-shadow: 0 0 24px rgba(197, 160, 89, 0.35), 0 2px 12px rgba(0, 0, 0, 0.4);
+    }
+    .vch-scope--voucher .vch-desc-panel {
+      border-radius: clamp(12px, 1.6cqh, 20px);
+      padding: clamp(16px, 2.4cqh, 28px) clamp(18px, 3cqw, 32px);
+      background: linear-gradient(165deg, rgba(197, 160, 89, 0.12) 0%, rgba(15, 23, 42, 0.65) 100%);
+      border: 2px solid rgba(197, 160, 89, 0.45);
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+        0 16px 48px rgba(0, 0, 0, 0.45);
+    }
+    .vch-scope--voucher .vch-desc-main {
+      margin: 0;
+      font-size: clamp(15px, 2.6cqh, 26px);
+      font-weight: 700;
+      line-height: 1.65;
+      color: rgba(255, 248, 235, 0.96);
+      letter-spacing: 0.04em;
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+    }
+
+    /* 传奇荣誉：左证书右说明 */
+    .vch-scope--legend {
+      justify-content: flex-start;
+    }
+    .ppt-slide--legend .vch-scope--legend {
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: 100%;
+      overflow: hidden;
+      padding: clamp(4px, 0.9cqh, 10px) clamp(10px, 2cqw, 28px) clamp(4px, 0.8cqh, 12px);
+    }
+    .ppt-slide--legend .vch-scope--legend .block-cap {
+      flex-shrink: 0;
+      margin-bottom: clamp(4px, 0.8cqh, 10px);
+    }
+    .vch-scope--legend .vch-legend-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.14fr) minmax(0, 0.9fr);
+      gap: clamp(12px, 2.2cqw, 28px);
+      align-items: center;
+      width: 100%;
+      max-width: min(98cqw, 1280px);
+      flex: 1;
+      min-height: 0;
+    }
+    .ppt-slide--legend .vch-scope--legend .vch-legend-grid {
+      align-items: stretch;
+      overflow: hidden;
+      max-height: 100%;
+    }
+    @media (max-width: 900px) {
+      .vch-scope--legend .vch-legend-grid {
+        grid-template-columns: 1fr;
+      }
+      .ppt-slide--legend .vch-scope--legend .vch-legend-grid {
+        grid-template-columns: minmax(0, 50%) minmax(0, 50%);
+        gap: clamp(8px, 1.6cqw, 14px);
+      }
+    }
+    /* 证书列作 size 容器：同时受宽、高限制时，缩放取 min，避免只按宽度缩放导致上下被裁切 */
+    .vch-scope--legend .vch-legend-cert-col {
+      container-type: size;
+      container-name: legcertcol;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 0;
+      min-width: 0;
+    }
+    .vch-scope--legend .vch-cert-plate-legend {
+      overflow: visible;
+      max-width: 100%;
+      width: 100%;
+      padding: clamp(2px, 0.35cqh, 6px) clamp(3px, 0.5cqw, 8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 0;
+      max-height: 100%;
+      background: rgba(255, 255, 255, 0.03);
+      border-color: rgba(255, 255, 255, 0.08);
+      box-shadow: none;
+      backdrop-filter: none;
+    }
+    /*
+     * A4 证书 210×297：外框为能塞进「左栏」的最大内接矩形（纵横同时约束），
+     * scale = min(栏宽/210mm, 栏高/297mm)，保证完整入框、尽量大且不裁切。
+     */
+    .vch-scope--legend .vch-cert-scale-box {
+      position: relative;
+      width: min(100cqw, calc(100cqh * 210 / 297));
+      height: min(100cqh, calc(100cqw * 297 / 210));
+      max-width: 100%;
+      flex-shrink: 1;
+      margin: 0 auto;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+    .vch-scope--legend .vch-cert-scale-box .cert-page {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 210mm;
+      height: 297mm;
+      transform: scale(min(100cqw / 210mm, 100cqh / 297mm));
+      transform-origin: top left;
+      box-shadow:
+        0 22px 56px rgba(0, 0, 0, 0.65),
+        0 0 120px rgba(197, 160, 89, 0.22),
+        inset 0 0 0 1px rgba(197, 160, 89, 0.12);
+    }
+    .vch-scope--legend .vch-legend-text-col {
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      align-items: stretch;
+      overflow: hidden;
+    }
+    .vch-scope--legend .vch-legend-copy {
+      border-radius: clamp(10px, 1.4cqh, 18px);
+      padding: clamp(14px, 2.2cqh, 26px) clamp(16px, 2.6cqw, 32px);
+      background: linear-gradient(160deg, rgba(197, 160, 89, 0.14) 0%, rgba(15, 23, 42, 0.72) 100%);
+      border: 2px solid rgba(197, 160, 89, 0.5);
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.07) inset,
+        0 20px 56px rgba(0, 0, 0, 0.5);
+      overflow: auto;
+      min-height: 0;
+    }
+    .ppt-slide--legend .vch-scope--legend .vch-legend-copy {
+      overflow: hidden;
+      flex: 1;
+      height: 100%;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: clamp(12px, 2cqh, 22px);
+    }
+    .vch-scope--legend .vch-legend-lead {
+      margin: 0;
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .vch-scope--legend .vch-legend-lead-inner {
+      display: block;
+      text-align: center;
+      max-width: 100%;
+      font-size: clamp(13px, 2.35cqh, 22px);
+      font-weight: 700;
+      line-height: 1.85;
+      color: rgba(255, 250, 240, 0.96);
+      letter-spacing: 0.03em;
+    }
+    .vch-scope--legend .vch-legend-lead strong {
+      color: #f8e6b3;
+      font-weight: 800;
+    }
+    .vch-scope--legend .vch-legend-highlight {
+      margin: 0;
+      flex-shrink: 0;
+      padding: clamp(12px, 1.75cqh, 16px) clamp(12px, 2cqw, 18px);
+      font-size: clamp(12px, 2cqh, 18px);
+      font-weight: 700;
+      text-align: center;
+      letter-spacing: 0.06em;
+      color: #e8c371;
+      border: 1px solid rgba(197, 160, 89, 0.45);
+      background: rgba(0, 0, 0, 0.2);
+      line-height: 1.55;
+    }
+    .vch-scope--legend .vch-legend-fine {
+      margin: 0;
+      flex-shrink: 0;
+      font-size: clamp(12px, 1.95cqh, 17px);
+      font-weight: 600;
+      color: rgba(253, 224, 71, 0.9);
+      letter-spacing: 0.05em;
+      text-align: center;
+      line-height: 1.55;
+      padding-top: clamp(4px, 0.6cqh, 8px);
+    }
+
+    .vch-scope .ticket {
+      background: #ffffff;
+      display: flex;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid #dcdcdc !important;
+      box-sizing: border-box;
+      min-height: clamp(200px, 36cqh, 380px);
+      max-width: 100%;
+      margin: 0 auto;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
+    }
+    .vch-scope .ticket::before {
+      content: '';
+      position: absolute;
+      top: 4px; left: 4px; right: 4px; bottom: 4px;
+      border: 1px solid rgba(197, 160, 89, 0.3);
+      pointer-events: none;
+      z-index: 2;
+    }
+    .vch-scope .watermark {
+      position: absolute;
+      font-size: clamp(48px, 12cqh, 100px);
+      color: rgba(197, 160, 89, 0.05);
+      font-family: serif;
+      right: 8%;
+      top: 50%;
+      transform: translateY(-50%) rotate(-15deg);
+      pointer-events: none;
+      user-select: none;
+    }
+    .vch-scope .ticket-main {
+      flex: 1;
+      padding: clamp(12px, 2cqh, 22px) clamp(14px, 2cqw, 24px);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      z-index: 1;
+      box-sizing: border-box;
+    }
+    .vch-scope .ticket-stub {
+      width: clamp(58px, 8cqw, 88px);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: clamp(12px, 2cqh, 20px) 0;
+      color: #ffffff;
+      border-left: 2px dashed rgba(255,255,255,0.8);
+      position: relative;
+      z-index: 1;
+      box-sizing: border-box;
+      --bc-color: #ffffff;
+    }
+    .vch-scope .ticket-stub::before, .vch-scope .ticket-stub::after {
+      content: '';
+      position: absolute;
+      left: -6px;
+      width: 10px;
+      height: 10px;
+      background-color: var(--bg-color);
+      border-radius: 50%;
+      border: 1px solid #dcdcdc;
+    }
+    .vch-scope .ticket-stub::before { top: -5px; border-bottom-color: transparent; border-left-color: transparent; transform: rotate(45deg); }
+    .vch-scope .ticket-stub::after { bottom: -5px; border-top-color: transparent; border-left-color: transparent; transform: rotate(-45deg); }
+    .vch-scope .t-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .vch-scope .t-tier {
+      display: inline-block;
+      font-size: clamp(10px, 1.6cqh, 14px);
+      padding: 3px 8px;
+      color: #fff;
+      font-weight: bold;
+      letter-spacing: 1px;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+    .vch-scope .t-coins {
+      font-size: clamp(14px, 2.4cqh, 24px);
+      font-weight: bold;
+      font-family: Georgia, serif;
+      color: var(--gold-color);
+    }
+    .vch-scope .t-title {
+      font-size: clamp(18px, 3.6cqh, 36px);
+      color: var(--primary-color);
+      margin: 0 0 6px 0;
+      font-family: Georgia, serif;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+      line-height: 1.15;
+    }
+    .vch-scope .t-desc {
+      font-size: clamp(11px, 1.85cqh, 18px);
+      color: #444;
+      line-height: 1.4;
+      margin: 0;
+      flex-grow: 1;
+      padding-right: clamp(48px, 8cqw, 72px);
+    }
+    .vch-scope .official-seal {
+      position: absolute;
+      right: clamp(8px, 1.5cqw, 16px);
+      bottom: clamp(32px, 6cqh, 52px);
+      width: clamp(44px, 7cqh, 64px);
+      height: clamp(44px, 7cqh, 64px);
+      border: 1.5px solid rgba(197, 160, 89, 0.6);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(7px, 1.1cqh, 10px);
+      color: rgba(197, 160, 89, 0.8);
+      text-align: center;
+      transform: rotate(-15deg);
+      font-weight: bold;
+      line-height: 1.2;
+    }
+    .vch-scope .official-seal::after {
+      content: 'YMSQ';
+      position: absolute;
+      font-size: 11px;
+      color: rgba(197, 160, 89, 0.25);
+    }
+    .vch-scope .t-footer {
+      margin-top: 6px;
+      border-top: 1px solid #eee;
+      padding-top: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      font-size: clamp(8px, 1.25cqh, 12px);
+      color: #888;
+    }
+    .vch-scope .t-sign { border-bottom: 1px solid #888; width: clamp(40px, 6cqw, 56px); display: inline-block; }
+    .vch-scope .micro-text {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      font-size: 3px;
+      color: rgba(0,0,0,0.2);
+      white-space: nowrap;
+      overflow: hidden;
+      letter-spacing: 1px;
+      font-family: monospace;
+    }
+    .vch-scope .stub-text {
+      writing-mode: vertical-rl;
+      text-orientation: upright;
+      white-space: nowrap;
+      flex-shrink: 0;
+      font-size: clamp(12px, 2cqh, 18px);
+      font-weight: bold;
+      letter-spacing: 3px;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+      margin: 6px 0;
+    }
+    .vch-scope .stub-no {
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      white-space: nowrap;
+      flex-shrink: 0;
+      font-size: clamp(9px, 1.4cqh, 12px);
+      font-family: 'Courier New', monospace;
+      color: rgba(255,255,255,0.9);
+      margin-bottom: 2px;
+    }
+    .vch-scope .barcode {
+      width: clamp(12px, 1.8cqw, 18px);
+      height: clamp(56px, 12cqh, 88px);
+      opacity: 0.85;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .vch-scope .theme-bronze .ticket-stub { background: var(--bronze-grad); }
+    .vch-scope .theme-bronze .t-tier { background: var(--bronze-grad); }
+    .vch-scope .theme-silver .ticket-stub { background: var(--silver-grad); }
+    .vch-scope .theme-silver .t-tier { background: var(--silver-grad); }
+    .vch-scope .theme-gold .ticket-stub { background: var(--gold-grad); }
+    .vch-scope .theme-gold .t-tier { background: var(--gold-grad); }
+    .vch-scope .theme-diamond { background: var(--diamond-grad); color: #fff; border-color: var(--gold-color); }
+    .vch-scope .theme-diamond .t-title, .vch-scope .theme-diamond .t-footer { color: #e2e8f0; }
+    .vch-scope .theme-diamond .ticket-stub {
+      background: var(--gold-grad);
+      color: var(--primary-color);
+      --bc-color: var(--primary-color);
+    }
+    .vch-scope .theme-diamond .t-tier { background: var(--gold-grad); color: var(--primary-color); }
+    .vch-scope .theme-diamond .stub-no { color: var(--primary-color); font-weight: bold; }
+    .vch-scope .theme-diamond .ticket::before { border: 1px solid rgba(197, 160, 89, 0.5); }
+    .vch-scope .theme-diamond .micro-text { color: rgba(255,255,255,0.1); }
+    .vch-scope .theme-diamond .official-seal { border-color: var(--gold-color); color: var(--gold-color); }
+    .vch-scope .theme-diamond .official-seal::after { color: rgba(197, 160, 89, 0.3); }
+
+    .vch-scope .cert-page {
+      background: linear-gradient(160deg, #0a0f1e 0%, #0f172a 40%, #1a0a00 100%);
+      width: 210mm;
+      height: 297mm;
+      padding: 0;
+      margin: 0;
+      box-sizing: border-box;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #e2e8f0;
+    }
+    .vch-scope .cert-border-outer {
+      position: absolute;
+      top: 8mm; left: 8mm; right: 8mm; bottom: 8mm;
+      border: 2px solid rgba(197,160,89,0.6);
+      pointer-events: none;
+    }
+    .vch-scope .cert-border-inner {
+      position: absolute;
+      top: 11mm; left: 11mm; right: 11mm; bottom: 11mm;
+      border: 1px solid rgba(197,160,89,0.3);
+      pointer-events: none;
+    }
+    .vch-scope .cert-corner {
+      position: absolute;
+      width: 18mm; height: 18mm;
+      border-color: #c5a059;
+      border-style: solid;
+      opacity: 0.8;
+    }
+    .vch-scope .cert-corner.tl { top: 14mm; left: 14mm; border-width: 2px 0 0 2px; }
+    .vch-scope .cert-corner.tr { top: 14mm; right: 14mm; border-width: 2px 2px 0 0; }
+    .vch-scope .cert-corner.bl { bottom: 14mm; left: 14mm; border-width: 0 0 2px 2px; }
+    .vch-scope .cert-corner.br { bottom: 14mm; right: 14mm; border-width: 0 2px 2px 0; }
+    .vch-scope .cert-watermark {
+      position: absolute;
+      font-size: 180px;
+      color: rgba(197,160,89,0.04);
+      font-family: serif;
+      top: 50%; left: 50%;
+      transform: translate(-50%,-50%) rotate(-20deg);
+      pointer-events: none;
+      user-select: none;
+      white-space: nowrap;
+    }
+    .vch-scope .cert-body {
+      position: relative;
+      z-index: 2;
+      text-align: center;
+      padding: 0 20mm;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .vch-scope .cert-badge { font-size: 48px; margin-bottom: 6mm; display: block; filter: drop-shadow(0 0 12px rgba(197,160,89,0.5)); }
+    .vch-scope .cert-label { font-size: 10px; letter-spacing: 4px; color: #c5a059; text-transform: uppercase; margin-bottom: 3mm; }
+    .vch-scope .cert-school { font-size: 13px; color: #94a3b8; letter-spacing: 2px; margin-bottom: 8mm; }
+    .vch-scope .cert-divider {
+      width: 60mm;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #c5a059, transparent);
+      margin: 0 auto 8mm auto;
+    }
+    .vch-scope .cert-title {
+      font-size: 32px;
+      font-family: Georgia, serif;
+      font-weight: bold;
+      color: #e8c371;
+      letter-spacing: 3px;
+      margin-bottom: 3mm;
+      text-shadow: 0 0 20px rgba(197,160,89,0.4);
+    }
+    .vch-scope .cert-subtitle { font-size: 13px; color: #c5a059; letter-spacing: 2px; margin-bottom: 10mm; }
+    .vch-scope .cert-divider2 {
+      width: 40mm;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(197,160,89,0.5), transparent);
+      margin: 0 auto 10mm auto;
+    }
+    .vch-scope .cert-page--visual .cert-body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding-bottom: 28mm;
+    }
+    .vch-scope .cert-visual-fill {
+      font-size: 22px;
+      letter-spacing: 0.5em;
+      color: rgba(197, 160, 89, 0.35);
+      margin-top: 6mm;
+      user-select: none;
+    }
+    .vch-scope .cert-desc {
+      font-size: 12px;
+      color: #94a3b8;
+      line-height: 2;
+      max-width: 130mm;
+      margin: 0 auto 10mm auto;
+      text-align: justify;
+    }
+    .vch-scope .cert-desc strong { color: #e2e8f0; }
+    .vch-scope .cert-highlight {
+      display: inline-block;
+      border: 1px solid rgba(197,160,89,0.5);
+      padding: 3mm 8mm;
+      font-size: 11px;
+      color: #c5a059;
+      letter-spacing: 2px;
+      margin-bottom: 12mm;
+    }
+    .vch-scope .cert-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      width: 100%;
+      padding: 0 20mm;
+      box-sizing: border-box;
+      position: absolute;
+      bottom: 20mm;
+    }
+    .vch-scope .cert-seal {
+      width: 22mm; height: 22mm;
+      border: 1.5px solid rgba(197,160,89,0.6);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 8px; color: rgba(197,160,89,0.8);
+      text-align: center; line-height: 1.3;
+      font-weight: bold; letter-spacing: 1px;
+      transform: rotate(-15deg);
+    }
+    .vch-scope .cert-sign-block { text-align: center; }
+    .vch-scope .cert-sign-line { width: 30mm; height: 1px; background: rgba(197,160,89,0.4); margin-bottom: 2mm; }
+    .vch-scope .cert-sign-label { font-size: 9px; color: #64748b; letter-spacing: 1px; }
+    .vch-scope .cert-no {
+      position: absolute;
+      bottom: 14mm; right: 20mm;
+      font-size: 9px; color: rgba(197,160,89,0.4);
+      font-family: monospace; letter-spacing: 1px;
+    }
+    .vch-scope .cert-stars { position: absolute; font-size: 9px; color: rgba(197,160,89,0.2); letter-spacing: 3px; }
+    .vch-scope .cert-stars.top { top: 20mm; left: 50%; transform: translateX(-50%); }
+    .vch-scope .cert-stars.bot { bottom: 20mm; left: 50%; transform: translateX(-50%); }
+  </style>
+</head>
+<body>
+  <div class="ppt-app">
+    <div class="ppt-main">
+      <div class="ppt-viewport" id="pptViewport">
+        <!-- 0 -->
+        <section class="ppt-slide ppt-slide--intro is-active" aria-hidden="false">
+          <div class="intro-glow-screen" aria-hidden="true"></div>
+          <div class="ppt-s-intro">
+            <div class="glow-ring" aria-hidden="true"></div>
+            <div class="content">
+              <p class="eyebrow"><span>Practice</span> Leaderboard</p>
+              <h1>练琴排行榜<span class="ver">2.0 版，正式启动！</span></h1>
+              <p class="tagline">更聪明的算法 · 一眼能懂的规则 · 更带劲的冲榜体验。<br />你练的每一分钟，都算数。</p>
+              <div class="cta-row">
+                <span class="pill accent">实时更新</span>
+                <span class="pill">五维综合评分</span>
+                <span class="pill">音符币奖励</span>
+              </div>
+            </div>
+            <p class="footer">青岛耶胡迪梅纽因学校 · 练琴跟踪系统</p>
+          </div>
+        </section>
+        <!-- 登记还卡 · 实时升位演示 -->
+        <section class="ppt-slide ppt-slide--checkin" id="pptSlideCheckin" aria-hidden="true">
+          <div class="checkin-glow" aria-hidden="true"></div>
+          <div class="ppt-s-checkin" id="pptCheckinRoot">
+            <header class="checkin-head">
+              <p class="checkin-eyebrow">动态演示</p>
+              <h1 class="checkin-title">练琴登记 · 按时还卡</h1>
+              <p class="checkin-sub">完成登记与还卡后，系统即时计分——你在榜上的位置可能<strong style="color:rgba(253,224,71,0.9)">立刻向上跳动</strong>。</p>
+            </header>
+            <div class="checkin-flow">
+              <div class="checkin-step" data-step="1">
+                <span class="checkin-step-ico" aria-hidden="true">📝</span>
+                <span>练琴登记</span>
+                <em class="checkin-step-tag">到琴房先登记</em>
+              </div>
+              <div class="checkin-connector" aria-hidden="true"></div>
+              <div class="checkin-step" data-step="2">
+                <span class="checkin-step-ico" aria-hidden="true">✓</span>
+                <span>按时还卡</span>
+                <em class="checkin-step-tag">离开前别忘了</em>
+              </div>
+            </div>
+            <div class="checkin-lb-wrap">
+              <div class="checkin-lb-caption">排行榜名次变化（示意）</div>
+              <div class="checkin-lb" id="checkinLeaderboard" role="list" aria-live="polite"></div>
+            </div>
+            <p class="checkin-cta">
+              <strong>练琴登记</strong>、<strong>按时还卡</strong>，是参与排行榜<strong>最重要、最基本</strong>的方式——请每位同学务必做到。
+            </p>
+          </div>
+        </section>
+        <!-- 1 -->
+        <section class="ppt-slide ppt-slide--dim" aria-hidden="true">
+          <div class="dim-glow-screen" aria-hidden="true"></div>
+          <div class="ppt-s-dim">
+            <div class="glow-ring" aria-hidden="true"></div>
+            <div class="ppt-s-dim-inner">
+            <header>
+              <h1 class="dim-h1"><span class="dim-h1-a">综合榜</span><span class="dim-h1-sep">·</span><span class="dim-h1-b">五大维度</span></h1>
+              <p class="dim-sub">每一项，都在回答一个简单问题</p>
+            </header>
+            <div class="grid">
+              <article class="card w">
+                <div class="badge">W</div>
+                <h2 class="name">本周进度<span>权重通常最高</span></h2>
+                <div class="diagram">
+                <svg viewBox="0 0 200 72" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+                  <rect x="8" y="40" width="184" height="12" rx="6" fill="rgba(99,102,241,0.2)" />
+                  <rect x="8" y="40" width="120" height="12" rx="6" fill="url(#pptG1)" />
+                  <text x="100" y="26" text-anchor="middle" fill="rgba(255,255,255,0.58)" font-size="13" font-family="system-ui,sans-serif" font-weight="600">已练 ÷ 本周应练</text>
+                  <defs><linearGradient id="pptG1" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#818cf8"/><stop offset="1" stop-color="#6366f1"/></linearGradient></defs>
+                </svg>
+                </div>
+                <div class="line"><p>这周<strong>该练的</strong>，你<strong>完成了多少</strong>？</p></div>
+              </article>
+              <article class="card b">
+                <div class="badge">B</div>
+                <h2 class="name">进步分<span>和过去的自己比</span></h2>
+                <div class="diagram">
+                <svg viewBox="0 0 200 72" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+                  <path d="M20 52 L60 38 L100 44 L140 22 L180 28" stroke="rgba(16,185,129,0.35)" stroke-width="3" fill="none" stroke-linecap="round"/>
+                  <circle cx="140" cy="22" r="5" fill="#10b981"/>
+                  <text x="100" y="13" text-anchor="middle" fill="rgba(255,255,255,0.58)" font-size="13" font-family="system-ui,sans-serif" font-weight="600">相邻两周，谁练得更久</text>
+                </svg>
+                </div>
+                <div class="line"><p>「<strong>最近一周</strong>」有没有比「<strong>再前一周</strong>」练得更多？</p></div>
+              </article>
+              <article class="card t">
+                <div class="badge">T</div>
+                <h2 class="name">趋势分<span>看一段时间的走势</span></h2>
+                <div class="diagram">
+                <svg viewBox="0 0 200 72" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+                  <path d="M24 48 Q52 20 80 36 T136 24 T176 18" stroke="url(#pptG2)" stroke-width="3" fill="none" stroke-linecap="round"/>
+                  <text x="100" y="66" text-anchor="middle" fill="rgba(255,255,255,0.58)" font-size="12" font-family="system-ui,sans-serif" font-weight="600">近段 vs 前段 · 涨还是跌</text>
+                  <defs><linearGradient id="pptG2" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#fbbf24"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs>
+                </svg>
+                </div>
+                <div class="line"><p>把<strong>最近几周</strong>和<strong>再往前几周</strong>比，整体是<strong>往上走还是往下走</strong>？</p></div>
+              </article>
+              <article class="card m">
+                <div class="badge">M</div>
+                <h2 class="name">动量分<span>稳定达标</span></h2>
+                <div class="diagram">
+                <svg viewBox="0 0 200 72" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+                  <g font-family="system-ui,sans-serif" font-size="24" font-weight="700">
+                    <text x="32" y="40" fill="#ec4899" opacity="0.9">✓</text>
+                    <text x="72" y="40" fill="#ec4899" opacity="0.9">✓</text>
+                    <text x="112" y="40" fill="#ec4899" opacity="0.35">○</text>
+                    <text x="152" y="40" fill="#ec4899" opacity="0.9">✓</text>
+                  </g>
+                  <text x="100" y="64" text-anchor="middle" fill="rgba(255,255,255,0.58)" font-size="12" font-family="system-ui,sans-serif" font-weight="600">达标周数 · 周目标</text>
+                </svg>
+                </div>
+                <div class="line"><p>最近几周里，你有多少周<strong>稳稳达到了自己的周练琴目标</strong>？</p></div>
+              </article>
+              <article class="card a">
+                <div class="badge">A</div>
+                <h2 class="name">底盘分<span>长期底子</span></h2>
+                <div class="diagram">
+                <svg viewBox="0 0 200 72" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+                  <rect x="24" y="20" width="152" height="36" rx="8" fill="rgba(56,189,248,0.12)" stroke="rgba(56,189,248,0.35)" stroke-width="1"/>
+                  <text x="100" y="42" text-anchor="middle" fill="rgba(255,255,255,0.72)" font-size="13" font-family="system-ui,sans-serif" font-weight="600">长期平均 · 同专业</text>
+                </svg>
+                </div>
+                <div class="line"><p>和<strong>同专业同学</strong>比，你的<strong>长期练琴底子</strong>处在什么水平？</p></div>
+              </article>
+            </div>
+            <footer>五项加权合成综合分 · 青岛耶胡迪梅纽因学校</footer>
+            </div>
+          </div>
+        </section>
+        <!-- 专项三榜：稳定 · 守则 · 进步 -->
+        <section class="ppt-slide ppt-slide--dim" aria-hidden="true">
+          <div class="dim-glow-screen" aria-hidden="true"></div>
+          <div class="ppt-s-dim ppt-s-dim--tri">
+            <div class="glow-ring" aria-hidden="true"></div>
+            <div class="ppt-s-dim-inner">
+            <header>
+              <h1 class="dim-h1"><span class="dim-h1-a">专项榜</span><span class="dim-h1-sep">·</span><span class="dim-h1-b">稳定 · 守则 · 进步</span></h1>
+              <p class="dim-sub">综合榜看总分；下面三张榜各比一件事，一句话就能懂</p>
+            </header>
+            <div class="grid tri-grid">
+              <article class="card tri-stable">
+                <div class="badge" aria-hidden="true">🎯</div>
+                <h2 class="name">稳定榜<span>练得稳</span></h2>
+                <div class="diagram" aria-hidden="true"></div>
+                <div class="line"><p>比谁练琴<strong>习惯更稳</strong>：越规律、越不忽高忽低，名次越靠前。</p></div>
+              </article>
+              <article class="card tri-rules">
+                <div class="badge" aria-hidden="true">🏅</div>
+                <h2 class="name">守则榜<span>守规矩</span></h2>
+                <div class="diagram" aria-hidden="true"></div>
+                <div class="line"><p>比谁练琴<strong>最守规矩</strong>：不规范、异常的记录越少，名次越靠前。</p></div>
+              </article>
+              <article class="card tri-progress">
+                <div class="badge" aria-hidden="true">📈</div>
+                <h2 class="name">进步榜<span>进步大</span></h2>
+                <div class="diagram" aria-hidden="true"></div>
+                <div class="line"><p>比谁这周<strong>总分涨得多</strong>：涨得多就靠前，不看「百分比虚高」。</p></div>
+              </article>
+            </div>
+            <footer>仅工作日统计 · 青岛耶胡迪梅纽因学校</footer>
+            </div>
+          </div>
+        </section>
+        <!-- 音符币 -->
+        <section class="ppt-slide ppt-slide--coins" aria-hidden="true">
+          <div class="coins-glow-screen" aria-hidden="true"></div>
+          <div class="ppt-s-coins">
+            <div class="glow-ring" aria-hidden="true"></div>
+            <div class="inner">
+              <header>
+                <p class="coins-eyebrow"><span>Reward</span> 规则</p>
+                <h1><span>音符币</span>怎么发？发多少？</h1>
+                <div class="flow">
+                  <span class="chip">周一～周五</span>
+                  <span>按榜结算</span>
+                  <span class="sep">→</span>
+                  <span class="chip">周五 21:30</span>
+                  <span>发币到账 · 可换特权</span>
+                </div>
+              </header>
+              <div class="table-wrap">
+                <table class="coins-table" aria-label="各榜名次与音符币">
+                  <thead>
+                    <tr>
+                      <th>名次</th>
+                      <th><span class="th-stack"><span class="th-emoji">🏆</span><span class="th-main">综合</span></span></th>
+                      <th><span class="th-stack"><span class="th-emoji">🎯</span><span class="th-main">稳定</span></span></th>
+                      <th><span class="th-stack"><span class="th-emoji">🏅</span><span class="th-main">守则</span></span></th>
+                      <th><span class="th-stack"><span class="th-emoji">📈</span><span class="th-main">进步</span></span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="rank">🥇 第 1 名</td>
+                      <td><span class="coin">100</span> 币</td>
+                      <td><span class="coin">50</span> 币</td>
+                      <td><span class="coin">45</span> 币</td>
+                      <td><span class="coin">40</span> 币</td>
+                    </tr>
+                    <tr>
+                      <td class="rank">🥈 第 2–3 名</td>
+                      <td><span class="coin">80</span> 币</td>
+                      <td><span class="coin">35</span> 币</td>
+                      <td><span class="coin">30</span> 币</td>
+                      <td><span class="coin">25</span> 币</td>
+                    </tr>
+                    <tr>
+                      <td class="rank">🥉 第 4–6 名</td>
+                      <td><span class="coin">60</span> 币</td>
+                      <td><span class="coin">20</span> 币</td>
+                      <td><span class="coin">18</span> 币</td>
+                      <td><span class="coin">15</span> 币</td>
+                    </tr>
+                    <tr>
+                      <td class="rank">🏅 第 7–10 名</td>
+                      <td><span class="coin">40</span> 币</td>
+                      <td class="dash">—</td>
+                      <td class="dash">—</td>
+                      <td class="dash">—</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <footer>
+                <p class="coins-footer-alert">监控拍到练琴违规会扣币 · 余额可累计</p>
+                <p class="coins-footer-school">青岛耶胡迪梅纽因学校</p>
+              </footer>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+    <div class="ppt-toolbar">
+      <button type="button" id="pptPrev" aria-label="上一页">上一页</button>
+      <span class="ppt-counter" id="pptCounter" aria-live="polite">1 / 14</span>
+      <button type="button" id="pptNext" aria-label="下一页">下一页</button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const ticketData = [
+        { tier: "BRONZE / 青铜", coins: "100 音符币", title: "专属琴房特权", desc: "凭此券可获得三天专属琴房使用权，彰显专属排面（每个月仅限一次）！", theme: "theme-bronze", mark: "𝄞", prefix: "B-100A", stubText: "凭券核销", cap: "青铜 · 专属琴房特权" },
+        { tier: "BRONZE / 青铜", coins: "120 音符币", title: "施坦威体验日", desc: "凭此券可在周六、周日独享一天施坦威教室练习特权（每周仅限一次，不可叠加兑换）。", theme: "theme-bronze", mark: "𝄞", prefix: "B-120A", stubText: "凭券核销", cap: "青铜 · 施坦威体验日" },
+        { tier: "SILVER / 白银", coins: "150 音符币", title: "旁听神仙课", desc: "凭此券特批进入教室，旁听任何一节其他老师的课程（如音乐素养课、专业课、室内乐课等），需提前 1 天与老师预约。", theme: "theme-silver", mark: "𝄢", prefix: "S-150A", stubText: "凭券核销", cap: "白银 · 旁听神仙课" },
+        { tier: "SILVER / 白银", coins: "150 音符币", title: "作业豁免券", desc: "凭此券可合法免除一次常规作业。具体科目需提前与任课老师协商（每个月仅限一次）。", theme: "theme-silver", mark: "𝄢", prefix: "S-150B", stubText: "凭券核销", cap: "白银 · 作业豁免券" },
+        { tier: "GOLD / 黄金", coins: "200 音符币", title: "课表 DIY 日", desc: "凭此券获得一天“选课自由”，自主决定是否出席当天的非专业课和非考试类课程（每个月仅可以使用一次）。", theme: "theme-gold", mark: "𝄡", prefix: "G-200A", stubText: "凭券核销", cap: "黄金 · 课表 DIY 日" },
+        { tier: "GOLD / 黄金", coins: "280 音符币", title: "期末加分特权", desc: "凭此券在期末专业课考试成绩基础上额外 +0.5 分，直接计入最终成绩。坚持练琴的你，让期末成绩再进一步！（每人仅可兑换一次，兑换后不可退回）", theme: "theme-gold", mark: "𝄡", prefix: "G-280A", stubText: "凭券核销", cap: "黄金 · 期末加分特权" },
+        { tier: "DIAMOND / 钻石", coins: "300 音符币", title: "大师级专属 MV", desc: "老师动用专业录音设备，在学校排练厅用九尺雅马哈三角钢琴，为你专业录制一首专属演奏视频（每学期仅限一次）。朋友圈炫技必备，永久留存！", theme: "theme-diamond", mark: "𝅗𝅥", prefix: "D-300A", stubText: "终极特权", cap: "钻石 · 大师级专属 MV" },
+        { tier: "DIAMOND / 钻石", coins: "350 音符币", title: "额外专业课", desc: "超级大奖！凭此券和自己的专业老师多上一节专业课，名师一对一加餐指导（每个月仅限一次，每学期最多两次）。", theme: "theme-diamond", mark: "𝅗𝅥", prefix: "D-350A", stubText: "终极特权", cap: "钻石 · 额外专业课" },
+        { fullPage: true, coins: "本学期排行榜累计音符币最多", title: "「梅纽因之星」荣耀专题", prefix: "LEGEND-400", cap: "传奇荣誉 · 学期终极认定（非兑换券）" }
+      ];
+
+      function generateUniqueBarcode(globalIndex) {
+        let html = "";
+        let seed = globalIndex * 104729;
+        const rand = () => {
+          seed = (seed * 279470273) % 4294967291;
+          return seed / 4294967291;
+        };
+        for (let j = 0; j < 60; j++) {
+          const randomVal = rand();
+          const h = randomVal > 0.85 ? 3 : randomVal > 0.4 ? 2 : 1;
+          if (j % 2 === 0) {
+            html += `<i style="height:${h}px;width:100%;background-color:var(--bc-color);display:block;flex-shrink:0;"></i>`;
+          } else {
+            html += `<i style="height:${h}px;width:100%;display:block;flex-shrink:0;"></i>`;
+          }
+        }
+        return html;
+      }
+
+      function ticketHtml(t, globalIndex) {
+        return `
+          <div class="ticket ${t.theme}">
+            <div class="watermark">${t.mark}</div>
+            <div class="ticket-main">
+              <div class="t-header">
+                <span class="t-tier">${t.tier}</span>
+                <span class="t-coins">${t.coins}</span>
+              </div>
+              <h2 class="t-title">${t.title}</h2>
+              <div class="official-seal">VALID<br>YMSQ</div>
+              <div class="t-footer">
+                <span>授权人: 青岛耶胡迪梅纽因学校教务部</span>
+                <span>核销签字: <span class="t-sign"></span></span>
+              </div>
+              <div class="micro-text">YMSQ-AUTHORIZED-TICKET-YMSQ-AUTHORIZED-TICKET-YMSQ-AUTHORIZED-TICKET-YMSQ-AUTHORIZED</div>
+            </div>
+            <div class="ticket-stub">
+              <div class="barcode">${generateUniqueBarcode(globalIndex)}</div>
+              <div class="stub-text">${t.stubText}</div>
+              <div class="stub-no">No. ${t.prefix}-01</div>
+            </div>
+          </div>`;
+      }
+
+      function certHtmlVisual(t) {
+        return `
+          <div class="cert-page cert-page--visual">
+            <div class="cert-border-outer"></div>
+            <div class="cert-border-inner"></div>
+            <div class="cert-corner tl"></div>
+            <div class="cert-corner tr"></div>
+            <div class="cert-corner bl"></div>
+            <div class="cert-corner br"></div>
+            <div class="cert-watermark">✦</div>
+            <div class="cert-stars top">✦ &nbsp; ✦ &nbsp; ✦ &nbsp; ✦ &nbsp; ✦</div>
+            <div class="cert-body">
+              <span class="cert-badge">🌟</span>
+              <div class="cert-label">YMSQ LEGEND AWARD</div>
+              <div class="cert-school">青岛耶胡迪梅纽因学校 · 教务部荣誉出品</div>
+              <div class="cert-divider"></div>
+              <div class="cert-title">${t.title}</div>
+              <div class="cert-subtitle">学期终极荣誉 · 学校自动颁发</div>
+              <div class="cert-divider2"></div>
+              <div class="cert-visual-fill" aria-hidden="true">✦ &nbsp; ✦ &nbsp; ✦</div>
+            </div>
+            <div class="cert-footer">
+              <div class="cert-seal">VALID<br>YMSQ<br>认证</div>
+              <div class="cert-sign-block">
+                <div class="cert-sign-line"></div>
+                <div class="cert-sign-label">授权人签字</div>
+              </div>
+              <div class="cert-sign-block">
+                <div class="cert-sign-line"></div>
+                <div class="cert-sign-label">持有人签字</div>
+              </div>
+            </div>
+            <div class="cert-no">No. ${t.prefix} &nbsp;|&nbsp; 核销后作废</div>
+            <div class="cert-stars bot">✦ &nbsp; ✦ &nbsp; ✦ &nbsp; ✦ &nbsp; ✦</div>
+          </div>`;
+      }
+
+      function legendAwardCopyHtml() {
+        return `
+          <p class="vch-legend-lead">
+            <span class="vch-legend-lead-inner">
+              本荣誉由学校教务部授予<br />
+              <strong>学期练琴表现最优秀</strong><br />
+              学生。<br />
+              <br />
+              获奖同学将以<br />
+              <strong>优秀学生代表</strong><br />
+              身份，由专业团队录制<br />
+              <strong>独家官方专题报道</strong><br />
+              ，记录练琴故事与成长历程，并作为学校典范进行宣传。
+            </span>
+          </p>
+          <p class="vch-legend-highlight">✦ &nbsp; 全校唯一 · 学期末由学校审核颁发给本学期最努力的练琴者 &nbsp; ✦</p>
+          <p class="vch-legend-fine">本学期排行榜音符币累计第一名即具备获奖资格</p>`;
+      }
+
+      const viewport = document.getElementById("pptViewport");
+      let g = 1;
+      ticketData.forEach((t) => {
+        const sec = document.createElement("section");
+        sec.className = "ppt-slide";
+        sec.setAttribute("aria-hidden", "true");
+        if (t.fullPage) {
+          sec.classList.add("ppt-slide--legend");
+          sec.innerHTML = `
+            <div class="vch-scope vch-scope--legend">
+              <div class="block-cap">
+                <strong>${t.cap}</strong>
+                <span>${t.coins}</span>
+              </div>
+              <div class="vch-legend-grid">
+                <div class="vch-legend-cert-col">
+                  <div class="cert-plate vch-cert-plate-legend">
+                    <div class="vch-cert-scale-box">${certHtmlVisual(t)}</div>
+                  </div>
+                </div>
+                <div class="vch-legend-text-col">
+                  <div class="vch-legend-copy">${legendAwardCopyHtml()}</div>
+                </div>
+              </div>
+            </div>`;
+        } else {
+          sec.innerHTML = `
+            <div class="vch-scope vch-scope--voucher">
+              <div class="block-cap">
+                <strong>${t.cap}</strong>
+              </div>
+              <div class="vch-voucher-split">
+                <div class="vch-ticket-wrap">
+                  <div class="ticket-plate vch-ticket-compact">${ticketHtml(t, g)}</div>
+                </div>
+                <div class="vch-coins-gap">
+                  <span class="vch-coins-label">所需音符币</span>
+                  <span class="vch-coins-value">${t.coins}</span>
+                </div>
+                <div class="vch-desc-panel">
+                  <p class="vch-desc-main">${t.desc}</p>
+                </div>
+              </div>
+            </div>`;
+          g++;
+        }
+        viewport.appendChild(sec);
+      });
+
+      const slides = () => Array.from(viewport.querySelectorAll(".ppt-slide"));
+      const counter = document.getElementById("pptCounter");
+      const btnPrev = document.getElementById("pptPrev");
+      const btnNext = document.getElementById("pptNext");
+      let idx = 0;
+
+      const checkinSlide = document.getElementById("pptSlideCheckin");
+      const checkinRoot = document.getElementById("pptCheckinRoot");
+      const checkinLb = document.getElementById("checkinLeaderboard");
+
+      const CHECKIN_BASE_ROWS = [
+        { rank: 1, name: "陈同学", sub: "小提琴 · 综合榜", score: "95.8" },
+        { rank: 2, name: "刘同学", sub: "钢琴 · 综合榜", score: "94.1" },
+        { rank: 3, name: "周同学", sub: "钢琴 · 综合榜", score: "92.3" },
+        { rank: 4, name: "你（示范）", sub: "先登记 · 再按时还卡", score: "91.0", you: true },
+        { rank: 5, name: "赵同学", sub: "小提琴 · 综合榜", score: "90.2" },
+      ];
+
+      function checkinRowsHtml(rows) {
+        return rows
+          .map(
+            (r) => `
+          <div class="checkin-lb-row ${r.you ? "checkin-lb-row--you" : ""}" role="listitem">
+            <span class="checkin-lb-rank">${r.rank}</span>
+            <div class="checkin-lb-name">
+              <span class="checkin-lb-name-main">${r.name}</span>
+              <span class="checkin-lb-name-sub">${r.sub}</span>
+            </div>
+            <span class="checkin-lb-score">${r.score}</span>
+          </div>`
+          )
+          .join("");
+      }
+
+      let checkinTimers = [];
+      let checkinLoopId = null;
+
+      function clearCheckinTimers() {
+        checkinTimers.forEach((id) => clearTimeout(id));
+        checkinTimers = [];
+        if (checkinLoopId !== null) {
+          clearTimeout(checkinLoopId);
+          checkinLoopId = null;
+        }
+      }
+
+      function applyBumpedRows() {
+        const rows = CHECKIN_BASE_ROWS.map((r) => ({ ...r }));
+        const third = rows[2];
+        const fourth = rows[3];
+        rows[2] = { ...fourth, rank: 3 };
+        rows[3] = { ...third, rank: 4 };
+        return rows;
+      }
+
+      function runCheckinCycle() {
+        if (!checkinLb || !checkinRoot) return;
+        clearCheckinTimers();
+        checkinLb.classList.remove("checkin-lb--bump", "checkin-lb-pulse");
+        checkinRoot.classList.remove("checkin-root--flash1", "checkin-root--flash2");
+        checkinLb.innerHTML = checkinRowsHtml(CHECKIN_BASE_ROWS);
+        void checkinLb.offsetWidth;
+
+        checkinTimers.push(
+          setTimeout(() => {
+            checkinRoot.classList.add("checkin-root--flash1");
+          }, 550)
+        );
+        checkinTimers.push(
+          setTimeout(() => {
+            checkinRoot.classList.add("checkin-root--flash2");
+          }, 1550)
+        );
+        checkinTimers.push(
+          setTimeout(() => {
+            checkinLb.classList.add("checkin-lb--bump");
+          }, 2650)
+        );
+        checkinTimers.push(
+          setTimeout(() => {
+            checkinLb.classList.remove("checkin-lb--bump");
+            checkinLb.innerHTML = checkinRowsHtml(applyBumpedRows());
+            checkinLb.classList.add("checkin-lb-pulse");
+          }, 2650 + 920)
+        );
+        checkinTimers.push(
+          setTimeout(() => {
+            checkinLb.classList.remove("checkin-lb-pulse");
+          }, 2650 + 920 + 2200)
+        );
+
+        checkinLoopId = setTimeout(() => {
+          const list = slides();
+          if (list[idx] === checkinSlide && checkinSlide.classList.contains("is-active")) {
+            runCheckinCycle();
+          }
+        }, 9000);
+      }
+
+      function startCheckinDemo() {
+        if (!checkinSlide || !checkinLb) return;
+        clearCheckinTimers();
+        runCheckinCycle();
+      }
+
+      function stopCheckinDemo() {
+        clearCheckinTimers();
+        if (checkinLb) {
+          checkinLb.classList.remove("checkin-lb--bump", "checkin-lb-pulse");
+          checkinLb.innerHTML = checkinRowsHtml(CHECKIN_BASE_ROWS);
+        }
+        if (checkinRoot) checkinRoot.classList.remove("checkin-root--flash1", "checkin-root--flash2");
+      }
+
+      function render() {
+        const list = slides();
+        list.forEach((el, i) => {
+          const on = i === idx;
+          el.classList.toggle("is-active", on);
+          el.setAttribute("aria-hidden", on ? "false" : "true");
+          if (on) el.scrollTop = 0;
+        });
+        counter.textContent = `${idx + 1} / ${list.length}`;
+        btnPrev.disabled = idx <= 0;
+        btnNext.disabled = idx >= list.length - 1;
+        if (checkinSlide) {
+          if (list[idx] === checkinSlide) startCheckinDemo();
+          else stopCheckinDemo();
+        }
+      }
+
+      btnPrev.addEventListener("click", () => {
+        if (idx > 0) {
+          idx--;
+          render();
+        }
+      });
+      btnNext.addEventListener("click", () => {
+        if (idx < slides().length - 1) {
+          idx++;
+          render();
+        }
+      });
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") {
+          e.preventDefault();
+          btnNext.click();
+        } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
+          e.preventDefault();
+          btnPrev.click();
+        } else if (e.key === "Home") {
+          idx = 0;
+          render();
+        } else if (e.key === "End") {
+          idx = slides().length - 1;
+          render();
+        }
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>音符币 · 怎么发、发多少</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      min-height: 100%;
+      background: #000;
+      color: #f5f5f7;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-font-smoothing: antialiased;
+    }
+    .stage {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(24px, 5vmin, 48px) clamp(16px, 4vmin, 40px);
+      position: relative;
+      background:
+        radial-gradient(
+          circle at 50% 50%,
+          #000 0%,
+          #000 27%,
+          rgba(99, 102, 241, 0.17) 36%,
+          rgba(129, 140, 248, 0.12) 43%,
+          rgba(236, 72, 153, 0.07) 50%,
+          rgba(0, 0, 0, 0.72) 62%,
+          #000 80%
+        ),
+        #000;
+    }
+    .stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      opacity: 0.55;
+    }
+    .glow-ring {
+      position: absolute;
+      left: 50%;
+      top: 45%;
+      width: min(100vmin, 880px);
+      height: min(100vmin, 880px);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      background: #000;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow:
+        0 0 28px rgba(99, 102, 241, 0.2),
+        0 0 72px rgba(99, 102, 241, 0.09);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .inner {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: min(98vw, 1200px);
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(0.85rem, 2.2vmin, 1.35rem);
+    }
+    .coins-eyebrow {
+      font-size: clamp(0.8rem, 2vmin, 1rem);
+      font-weight: 700;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: rgba(245, 245, 247, 0.52);
+    }
+    .coins-eyebrow span {
+      background: linear-gradient(90deg, #a5b4fc, #f472b6, #93c5fd);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    header h1 {
+      font-size: clamp(1.5rem, 5vmin, 2.5rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      text-shadow: 0 2px 32px rgba(0, 0, 0, 0.55);
+    }
+    header h1 span {
+      background: linear-gradient(90deg, #fde68a, #fbbf24, #fcd34d);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .flow {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35em 0.5em;
+      font-size: clamp(0.95rem, 2.35vmin, 1.2rem);
+      font-weight: 600;
+      color: rgba(245, 245, 247, 0.82);
+    }
+    .flow .chip {
+      padding: 0.35em 0.75em;
+      border-radius: 100px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      font-weight: 700;
+      color: #eef;
+      font-size: 0.92em;
+    }
+    .flow .sep { color: rgba(255, 255, 255, 0.28); font-weight: 500; }
+
+    .table-wrap {
+      width: 100%;
+      border-radius: clamp(14px, 1.6vmin, 22px);
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(12px);
+    }
+    .coins-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: clamp(0.95rem, 2.2vmin, 1.35rem);
+      font-variant-numeric: tabular-nums;
+    }
+    .coins-table th,
+    .coins-table td {
+      padding: clamp(0.65rem, 1.8vmin, 1.1rem) clamp(0.4rem, 1.2vmin, 0.85rem);
+      text-align: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .coins-table th {
+      background: rgba(0, 0, 0, 0.5);
+      font-weight: 700;
+      font-size: 0.88em;
+      color: rgba(255, 255, 255, 0.92);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    }
+    .th-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.2em;
+      line-height: 1.15;
+    }
+    .th-emoji { font-size: 1.15em; line-height: 1; }
+    .th-main { font-size: 0.82em; font-weight: 700; letter-spacing: 0.04em; }
+    .coins-table tbody tr:nth-child(odd) td { background: rgba(255, 255, 255, 0.04); }
+    .coins-table tbody tr:nth-child(even) td { background: rgba(0, 0, 0, 0.12); }
+    .coins-table th:first-child,
+    .coins-table td:first-child {
+      text-align: left;
+      padding-left: clamp(0.65rem, 2vmin, 1.1rem);
+    }
+    .coins-table td + td,
+    .coins-table th + th { border-left: 1px solid rgba(255, 255, 255, 0.06); }
+    .coins-table tbody tr:last-child td { border-bottom: none; }
+    .rank { font-weight: 700; font-size: 0.95em; color: rgba(255, 255, 255, 0.96); }
+    .coin {
+      font-weight: 800;
+      font-size: 1.12em;
+      color: #fde047;
+      text-shadow: 0 0 20px rgba(250, 204, 21, 0.2);
+    }
+    .dash { color: rgba(255, 255, 255, 0.3); font-size: 1.1em; font-weight: 600; }
+
+    footer {
+      text-align: center;
+      margin-top: clamp(0.5rem, 2vmin, 1rem);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(0.4rem, 1.2vmin, 0.65rem);
+      width: 100%;
+    }
+    footer p {
+      margin: 0;
+    }
+    .coins-footer-alert {
+      display: inline-block;
+      max-width: 100%;
+      padding: clamp(0.55rem, 1.5vmin, 0.85rem) clamp(0.85rem, 2vmin, 1.25rem);
+      border-radius: 12px;
+      font-size: clamp(0.9rem, 2.15vmin, 1.15rem);
+      font-weight: 700;
+      line-height: 1.45;
+      letter-spacing: 0.02em;
+      color: #fef3c7;
+      background: linear-gradient(180deg, rgba(251, 191, 36, 0.18) 0%, rgba(180, 83, 9, 0.12) 100%);
+      border: 1px solid rgba(251, 191, 36, 0.45);
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35) inset, 0 8px 32px rgba(251, 191, 36, 0.12);
+      text-shadow: 0 1px 12px rgba(0, 0, 0, 0.45);
+    }
+    .coins-footer-school {
+      font-size: clamp(0.68rem, 1.5vmin, 0.82rem);
+      font-weight: 500;
+      color: rgba(245, 245, 247, 0.38);
+      letter-spacing: 0.1em;
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="glow-ring" aria-hidden="true"></div>
+    <div class="inner">
+      <header>
+        <p class="coins-eyebrow"><span>Reward</span> 规则</p>
+        <h1><span>音符币</span>怎么发？发多少？</h1>
+        <div class="flow">
+          <span class="chip">周一～周五</span>
+          <span>按榜结算</span>
+          <span class="sep">→</span>
+          <span class="chip">周五 21:30</span>
+          <span>发币到账 · 可换特权</span>
+        </div>
+      </header>
+
+      <div class="table-wrap">
+        <table class="coins-table" aria-label="各榜名次与音符币">
+          <thead>
+            <tr>
+              <th>名次</th>
+              <th><span class="th-stack"><span class="th-emoji">🏆</span><span class="th-main">综合</span></span></th>
+              <th><span class="th-stack"><span class="th-emoji">🎯</span><span class="th-main">稳定</span></span></th>
+              <th><span class="th-stack"><span class="th-emoji">🏅</span><span class="th-main">守则</span></span></th>
+              <th><span class="th-stack"><span class="th-emoji">📈</span><span class="th-main">进步</span></span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="rank">🥇 第 1 名</td>
+              <td><span class="coin">100</span> 币</td>
+              <td><span class="coin">50</span> 币</td>
+              <td><span class="coin">45</span> 币</td>
+              <td><span class="coin">40</span> 币</td>
+            </tr>
+            <tr>
+              <td class="rank">🥈 第 2–3 名</td>
+              <td><span class="coin">80</span> 币</td>
+              <td><span class="coin">35</span> 币</td>
+              <td><span class="coin">30</span> 币</td>
+              <td><span class="coin">25</span> 币</td>
+            </tr>
+            <tr>
+              <td class="rank">🥉 第 4–6 名</td>
+              <td><span class="coin">60</span> 币</td>
+              <td><span class="coin">20</span> 币</td>
+              <td><span class="coin">18</span> 币</td>
+              <td><span class="coin">15</span> 币</td>
+            </tr>
+            <tr>
+              <td class="rank">🏅 第 7–10 名</td>
+              <td><span class="coin">40</span> 币</td>
+              <td class="dash">—</td>
+              <td class="dash">—</td>
+              <td class="dash">—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <footer>
+        <p class="coins-footer-alert">监控拍到练琴违规会扣币 · 余额可累计</p>
+        <p class="coins-footer-school">青岛耶胡迪梅纽因学校</p>
+      </footer>
+    </div>
+  </div>
+</body>
+</html>

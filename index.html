@@ -1089,6 +1089,15 @@
 	.pls-form label{display:flex;flex-direction:column;font-size:12px;gap:4px;font-weight:600;color:var(--text-dim);} 
 	.pls-form input[type=text]{background:#11161d;border:1px solid var(--outline);color:var(--text);padding:8px 10px;border-radius:8px;min-width:160px;}
 	.pls-form input[type=text]:focus{outline:none;border-color:var(--accent);box-shadow:var(--focus);} 
+	.pls-form input[type=datetime-local]{background:#11161d;border:1px solid var(--outline);color:var(--text);padding:8px 10px;border-radius:8px;min-width:185px;font-size:12px;}
+	.pls-form input[type=datetime-local]:focus{outline:none;border-color:var(--accent);box-shadow:var(--focus);}
+	.pls-mode-row{display:flex;flex-wrap:wrap;gap:14px 20px;align-items:center;width:100%;margin-bottom:2px;}
+	.pls-mode-row label{display:inline-flex;flex-direction:row;align-items:center;gap:6px;font-weight:600;cursor:pointer;color:var(--text);}
+	.pls-mode-row input[type=radio]{accent-color:var(--accent);width:15px;height:15px;}
+	.pls-fields-student,.pls-fields-range{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;width:100%;}
+	.pls-fields-range{display:none;}
+	.pls-backdrop.pls-mode-range .pls-fields-student{display:none;}
+	.pls-backdrop.pls-mode-range .pls-fields-range{display:flex;}
 	.pls-form select{background:#11161d;border:1px solid var(--outline);color:var(--text);padding:8px 10px;border-radius:8px;}
 	.pls-form button{background:var(--accent);border:1px solid var(--accent);color:#fff;font-weight:600;padding:8px 16px;border-radius:8px;cursor:pointer;letter-spacing:.5px;}
 	.pls-form button:hover{background:var(--accent-hover);} 
@@ -1110,6 +1119,15 @@
 	.pls-load-more:hover{background:#2e3d4f;border-color:#3d4e61;}
 	.pls-export{background:#2f4f78;border:1px solid #3d5f8f;color:#fff;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;}
 	.pls-export:hover{background:#376192;}
+	.pls-row-student{cursor:pointer;transition:background .15s;}
+	.pls-row-student:hover{background:rgba(99,102,241,.12);}
+	.pls-detail-panel{margin-top:10px;padding:12px 14px;border:1px solid var(--outline);border-radius:12px;background:var(--surface-alt);flex-shrink:0;max-height:min(38vh,320px);overflow:auto;}
+	.pls-detail-panel h4{margin:0 0 10px;font-size:13px;font-weight:600;color:var(--text);}
+	.pls-detail-panel .pls-detail-loading{color:var(--text-dim);font-size:12px;}
+	.pls-detail-table{width:100%;border-collapse:collapse;font-size:12px;}
+	.pls-detail-table th,.pls-detail-table td{padding:6px 8px;border-bottom:1px solid #2b3642;text-align:left;}
+	.pls-detail-table th{background:#1d2530;color:#d0d9e2;font-weight:600;}
+	.pls-detail-note{margin-top:8px;font-size:11px;color:var(--text-dim);line-height:1.45;}
 	@media (max-width:760px){.pls-modal{width:100%;height:100%;border-radius:0;}.pls-table tbody td,.pls-table thead th{white-space:normal;}}
 	</style>
 	<script>
@@ -1139,17 +1157,116 @@
 			return data || [];
 		}
 
+		function parseDatetimeLocalInput(val){
+			if(!val || typeof val !== 'string') return null;
+			const d = new Date(val);
+			if(Number.isNaN(d.getTime())) return null;
+			return d;
+		}
+
+		/** 某学生在时段内 assign/clear 原始行（按 created_at 过滤） */
+		async function queryStudentAssignClearInRange({ name, startISO, endISO, limit=2000, signal }){
+			if(!supabaseClient){ toast('Supabase 尚未就绪'); throw new Error('supabase not ready'); }
+			let q = supabaseClient.from('practice_logs')
+				.select('*')
+				.eq('student_name', name)
+				.in('action', ['assign', 'clear'])
+				.gte('created_at', startISO)
+				.lte('created_at', endISO)
+				.order('created_at', { ascending: true });
+			if(signal && typeof q.abortSignal === 'function'){ q = q.abortSignal(signal); }
+			q = q.limit(Math.min(5000, Math.max(50, limit)));
+			const { data, error } = await q;
+			if(error){ console.warn('[PracticeLogSearch] student assign/clear range error', error); throw error; }
+			return data || [];
+		}
+
+		/** 按琴房 FIFO：assign 与后续第一条 clear 配对，时间均取 created_at（无则回退 timestamp） */
+		function pairAssignClearSessions(rows){
+			const list = (rows || []).filter(r => r.action === 'assign' || r.action === 'clear')
+				.map(r => {
+					const t = r.created_at || r.timestamp;
+					const ms = t ? new Date(t).getTime() : NaN;
+					return { r, t, ms };
+				})
+				.filter(x => !Number.isNaN(x.ms))
+				.sort((a, b) => a.ms - b.ms);
+			const pending = new Map();
+			const sessions = [];
+			const orphanClears = [];
+			for(const { r, t } of list){
+				const room = String(r.room_name || '').trim() || '（未填琴房）';
+				if(r.action === 'assign'){
+					if(!pending.has(room)) pending.set(room, []);
+					pending.get(room).push({ t, r });
+				}else if(r.action === 'clear'){
+					const q = pending.get(room);
+					if(q && q.length){
+						const a = q.shift();
+						const tClear = r.created_at || r.timestamp;
+						const durSec = (new Date(tClear) - new Date(a.t)) / 1000;
+						sessions.push({
+							room,
+							assignAt: a.t,
+							clearAt: tClear,
+							durationSec: durSec
+						});
+					}else{
+						orphanClears.push({ room, clearAt: t });
+					}
+				}
+			}
+			const openAssigns = [];
+			pending.forEach((q, room) => {
+				for(const a of q) openAssigns.push({ room, assignAt: a.t });
+			});
+			return { sessions, openAssigns, orphanClears };
+		}
+
+		/** 时段内学生练琴次数：与明细面板相同，仅 assign/clear、created_at 落在时段内；FIFO 配对后「完成一对=1」，时段内已登记未还卡再各计 1 */
+		async function queryStudentsInRange({ startISO, endISO, limit=8000, signal }){
+			if(!supabaseClient){ toast('Supabase 尚未就绪'); throw new Error('supabase not ready'); }
+			let q = supabaseClient.from('practice_logs')
+				.select('student_name,action,created_at,timestamp,room_name')
+				.in('action', ['assign', 'clear'])
+				.gte('created_at', startISO)
+				.lte('created_at', endISO)
+				.not('student_name', 'is', null)
+				.order('created_at', { ascending: true });
+			if(signal && typeof q.abortSignal === 'function'){ q = q.abortSignal(signal); }
+			q = q.limit(limit);
+			const { data, error } = await q;
+			if(error){ console.warn('[PracticeLogSearch] range query error', error); throw error; }
+			const byStudent = new Map();
+			for(const r of (data || [])){
+				const n = String(r.student_name || '').trim();
+				if(!n) continue;
+				if(!byStudent.has(n)) byStudent.set(n, []);
+				byStudent.get(n).push(r);
+			}
+			const map = new Map();
+			for(const [name, rows] of byStudent){
+				const { sessions, openAssigns } = pairAssignClearSessions(rows);
+				const cnt = sessions.length + openAssigns.length;
+				if(cnt > 0) map.set(name, cnt);
+			}
+			const pairs = Array.from(map.entries());
+			pairs.sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0], 'zh-CN'));
+			return { pairs, truncated: (data || []).length >= limit };
+		}
+
 		function fmtDate(ts){ if(!ts) return '-'; const d=new Date(ts); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0')+" "+String(d.getHours()).padStart(2,'0')+":"+String(d.getMinutes()).padStart(2,'0')+":"+String(d.getSeconds()).padStart(2,'0'); }
 		function fmtDur(sec){ if(!sec && sec!==0) return '-'; const m=Math.floor(sec/60), s=sec%60; if(m>=60){ const h=Math.floor(m/60), mm=m%60; return `${h}h${mm}m`; } return m?`${m}m${s? s+'s':''}`:`${s}s`; }
 		function escHtml(s){
 			if(s==null) return '';
 			return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 		}
-		function renderStatusRow(tbody, text){
+		function renderStatusRow(tbody, text, colSpan){
+			const cs = colSpan || 4;
 			tbody.innerHTML = '';
 			const tr = document.createElement('tr');
 			const td = document.createElement('td');
-			td.colSpan = 7;
+			td.colSpan = cs;
 			td.className = 'pls-empty';
 			td.textContent = text;
 			tr.appendChild(td);
@@ -1164,17 +1281,11 @@
 			else if(actionLabel==='end') actionLabel='结束';
 			const actionClass = (r.action==='assign' || r.action==='start') ? 'pls-act-start' : 'pls-act-end';
 			const duration = r.practice_duration!=null ? fmtDur(r.practice_duration) : '-';
-			const sessionSegment = (r.session_start && r.session_end)
-				? `${new Date(r.session_start).getHours().toString().padStart(2,'0')}:${new Date(r.session_start).getMinutes().toString().padStart(2,'0')}~${new Date(r.session_end).getHours().toString().padStart(2,'0')}:${new Date(r.session_end).getMinutes().toString().padStart(2,'0')}`
-				: '-';
 			const cols = [
 				fmtDate(r.timestamp||r.created_at),
 				{ badge: true, text: actionLabel, cls: `pls-badge ${actionClass}` },
 				r.room_name || '-',
-				sessionSegment,
-				{ duration: true, text: duration },
-				r.session_start ? fmtDate(r.session_start) : '-',
-				r.session_end ? fmtDate(r.session_end) : '-'
+				{ duration: true, text: duration }
 			];
 			for(const c of cols){
 				const td = document.createElement('td');
@@ -1221,6 +1332,81 @@
 			});
 		}
 
+		function plsTheadStudentHtml(){
+			return `<tr>
+				<th style="width:150px;">时间</th>
+				<th style="width:70px;">动作</th>
+				<th style="width:100px;">房间</th>
+				<th style="width:80px;">单次时长</th>
+			</tr>`;
+		}
+		function plsTheadRangeHtml(){
+			return `<tr>
+				<th style="width:48px;">#</th>
+				<th>学生姓名</th>
+				<th style="width:140px;" title="登记+还卡配对为 1 次；时段内已登记、未在时段内还卡各计 1 次">该时段练琴次数</th>
+			</tr>`;
+		}
+		function appendStudentSummaryRows(tbody, pairs){
+			tbody.innerHTML = '';
+			if(!pairs || !pairs.length){
+				renderStatusRow(tbody, '该时段内没有找到可计次的登记/还卡记录', 3);
+				return Promise.resolve();
+			}
+			const frag = document.createDocumentFragment();
+			pairs.forEach(([name, cnt], i) => {
+				const tr = document.createElement('tr');
+				tr.className = 'pls-row-student';
+				tr.dataset.studentName = name;
+				tr.title = '点击查看该生在此时段内登记/还卡时间';
+				const td0 = document.createElement('td');
+				td0.textContent = String(i + 1);
+				const td1 = document.createElement('td');
+				td1.textContent = name;
+				const td2 = document.createElement('td');
+				td2.textContent = String(cnt);
+				td2.style.fontWeight = '700';
+				td2.style.color = '#5eead4';
+				tr.appendChild(td0);
+				tr.appendChild(td1);
+				tr.appendChild(td2);
+				frag.appendChild(tr);
+			});
+			tbody.appendChild(frag);
+			return Promise.resolve();
+		}
+
+		function renderStudentSessionDetail(panel, studentName, startISO, endISO, pairResult){
+			const { sessions, openAssigns, orphanClears } = pairResult;
+			let html = `<h4>${escHtml(studentName)} · 时段内登记 / 还卡（按 created_at）</h4>`;
+			html += `<p class="pls-detail-note">查询区间：${escHtml(fmtDate(startISO))} ～ ${escHtml(fmtDate(endISO))} · 同一琴房内按时间先后将「登记」与「还卡」配对。</p>`;
+			if(sessions.length){
+				html += '<table class="pls-detail-table"><thead><tr><th>琴房</th><th>登记时间</th><th>还卡时间</th><th>时长</th></tr></thead><tbody>';
+				for(const s of sessions){
+					const dur = fmtDur(Math.round(Math.max(0, s.durationSec)));
+					html += `<tr><td>${escHtml(s.room)}</td><td>${escHtml(fmtDate(s.assignAt))}</td><td>${escHtml(fmtDate(s.clearAt))}</td><td>${escHtml(dur)}</td></tr>`;
+				}
+				html += '</tbody></table>';
+			}else{
+				html += '<p class="pls-detail-loading">该时段内没有可配对的登记+还卡记录（可能仅有其它类型日志）。</p>';
+			}
+			if(openAssigns.length){
+				html += '<p class="pls-detail-note"><b>时段内已登记、未在时段内还卡：</b></p><table class="pls-detail-table"><thead><tr><th>琴房</th><th>登记时间</th><th>还卡</th></tr></thead><tbody>';
+				for(const o of openAssigns){
+					html += `<tr><td>${escHtml(o.room)}</td><td>${escHtml(fmtDate(o.assignAt))}</td><td>—</td></tr>`;
+				}
+				html += '</tbody></table>';
+			}
+			if(orphanClears.length){
+				html += '<p class="pls-detail-note">下列还卡多为<strong>对应的登记时间落在查询时段之外</strong>（故未进入本次按时段拉取的配对数据）。</p><table class="pls-detail-table"><thead><tr><th>琴房</th><th>还卡时间</th></tr></thead><tbody>';
+				for(const o of orphanClears){
+					html += `<tr><td>${escHtml(o.room)}</td><td>${escHtml(fmtDate(o.clearAt))}</td></tr>`;
+				}
+				html += '</tbody></table>';
+			}
+			panel.innerHTML = html;
+		}
+
 		function buildModal(){
 			const backdrop=document.createElement('div'); backdrop.className='pls-backdrop'; backdrop.id='practiceLogSearchBackdrop';
 			backdrop.innerHTML=`<div class="pls-modal" role="dialog" aria-modal="true">
@@ -1230,36 +1416,51 @@
 				</div>
 				<div class="pls-body">
 					<form class="pls-form" id="plsForm">
-						<label>学生姓名<input required name="student" type="text" placeholder="如: 张三" autocomplete="off" /></label>
-						<label>时间范围
-							<select name="days">
-								<option value="7">近 7 天</option>
-								<option value="30" selected>近 30 天</option>
-								<option value="90">近 90 天</option>
-								<option value="180">近 180 天</option>
-								<option value="365">近 365 天</option>
-							</select>
-						</label>
-						<label>每页条数
-							<select name="limit">
-								<option value="50">50</option>
-								<option value="100" selected>100</option>
-								<option value="200">200</option>
-							</select>
-						</label>
+						<div class="pls-mode-row">
+							<label><input type="radio" name="plsMode" value="student" checked /> 按学生查明细</label>
+							<label><input type="radio" name="plsMode" value="range" /> 按时段查练琴学生</label>
+						</div>
+						<div class="pls-fields-student" id="plsFieldsStudent">
+							<label>学生姓名<input required name="student" type="text" placeholder="如: 张三" autocomplete="off" /></label>
+							<label>时间范围
+								<select name="days">
+									<option value="7">近 7 天</option>
+									<option value="30" selected>近 30 天</option>
+									<option value="90">近 90 天</option>
+									<option value="180">近 180 天</option>
+									<option value="365">近 365 天</option>
+								</select>
+							</label>
+							<label>每页条数
+								<select name="limit">
+									<option value="50">50</option>
+									<option value="100" selected>100</option>
+									<option value="200">200</option>
+								</select>
+							</label>
+						</div>
+						<div class="pls-fields-range" id="plsFieldsRange">
+							<label>开始时间<input name="rangeStart" type="datetime-local" /></label>
+							<label>结束时间<input name="rangeEnd" type="datetime-local" /></label>
+							<label>最多拉取行数（用于汇总）
+								<select name="rangeLimit">
+									<option value="2000">2000</option>
+									<option value="5000" selected>5000</option>
+									<option value="8000">8000</option>
+								</select>
+							</label>
+						</div>
 						<button type="submit">查询</button>
 					</form>
 					<div class="pls-meta" id="plsMeta" style="display:none;"></div>
 					<div class="pls-table-wrap" id="plsTableWrap" style="display:none;">
-						<table class="pls-table"><thead><tr>
+						<p class="pls-detail-note" id="plsRangeClickHint" style="display:none;margin:0 0 8px;">提示：列表「练琴次数」与下方明细相同规则（登记+还卡为 1 次）。点击学生一行可查看各场次起止时间。</p>
+						<table class="pls-table" id="plsTable"><thead id="plsThead"><tr>
 							<th style="width:150px;">时间</th>
 							<th style="width:70px;">动作</th>
 							<th style="width:100px;">房间</th>
-							<th style="width:100px;">时段</th>
 							<th style="width:80px;">单次时长</th>
-							<th style="width:110px;">会话起</th>
-							<th style="width:110px;">会话止</th>
-						</tr></thead><tbody id="plsTbody"><tr><td colspan="7" class="pls-empty">请输入条件查询</td></tr></tbody></table>
+						</tr></thead><tbody id="plsTbody"><tr><td colspan="4" class="pls-empty">请选择查询方式并查询</td></tr></tbody></table>
 						<div class="pls-actions" id="plsActions" style="display:none;">
 							<div class="left"><span id="plsCount"></span><span id="plsMoreHint"></span></div>
 							<div class="right" style="display:flex;gap:8px;">
@@ -1268,6 +1469,7 @@
 							</div>
 						</div>
 					</div>
+					<div id="plsDetailPanel" class="pls-detail-panel" style="display:none;" aria-live="polite"></div>
 				</div>
 			</div>`;
 			document.body.appendChild(backdrop);
@@ -1287,39 +1489,169 @@
 			const actions = backdrop.querySelector('#plsActions');
 			const countEl = backdrop.querySelector('#plsCount');
 			const moreHintEl = backdrop.querySelector('#plsMoreHint');
+			const thead = backdrop.querySelector('#plsThead');
+			const detailPanel = backdrop.querySelector('#plsDetailPanel');
+			const rangeClickHint = backdrop.querySelector('#plsRangeClickHint');
 			let allData = []; let latestMinTs=null; let paging=false; let currentQuery=null;
 			let activeAbortController = null;
+			let detailAbort = null;
+
+			function getPlsMode(){ return form.querySelector('input[name=plsMode]:checked')?.value || 'student'; }
+
+			function syncModeUI(){
+				const m = getPlsMode();
+				backdrop.classList.toggle('pls-mode-range', m === 'range');
+				const inp = form.querySelector('input[name=student]');
+				if(inp){
+					if(m === 'range') inp.removeAttribute('required');
+					else inp.setAttribute('required', 'required');
+				}
+				if(m === 'range'){
+					thead.innerHTML = plsTheadRangeHtml();
+					btnMore.style.display = 'none';
+				}else{
+					thead.innerHTML = plsTheadStudentHtml();
+				}
+			}
+			form.querySelectorAll('input[name=plsMode]').forEach(r => r.addEventListener('change', () => {
+				syncModeUI();
+				currentQuery = null;
+				allData = [];
+				meta.style.display = 'none';
+				wrap.style.display = 'none';
+				actions.style.display = 'none';
+				if(detailAbort){ try{ detailAbort.abort(); }catch(_){} detailAbort = null; }
+				if(detailPanel){ detailPanel.style.display = 'none'; detailPanel.innerHTML = ''; }
+				if(rangeClickHint) rangeClickHint.style.display = 'none';
+				const cs = getPlsMode() === 'range' ? 3 : 4;
+				renderStatusRow(tbody, getPlsMode() === 'range' ? '选择开始/结束时间后点击查询' : '请输入学生姓名后查询', cs);
+			}));
+			syncModeUI();
 
 			function updateMeta(){
 				if(!currentQuery){ meta.style.display='none'; return; }
 				meta.style.display='flex';
-				meta.innerHTML=`学生：<b>${escHtml(currentQuery.name)}</b> · 时间范围：近 ${currentQuery.days} 天 · 已加载 <b>${allData.length}</b> 条`;
-				countEl.textContent=`共 ${allData.length} 条`;
-			}
-
-			async function doQuery(evt){ evt&&evt.preventDefault(); const fd=new FormData(form); const name=(fd.get('student')||'').trim(); if(!name){ toast('请输入学生姓名'); return; }
-				if(activeAbortController){ activeAbortController.abort(); }
-				activeAbortController = new AbortController();
-				currentQuery={ name, days: Number(fd.get('days')||30), limit: Number(fd.get('limit')||100) };
-				renderStatusRow(tbody, '查询中...');
-				actions.style.display='none'; btnMore.disabled=true; btnExport.disabled=true; allData=[]; latestMinTs=null; paging=false;
-				try{
-					const rows = await queryPracticeLogs({ name: currentQuery.name, days: currentQuery.days, limit: currentQuery.limit, signal: activeAbortController.signal });
-					allData.push(...rows);
-					if(rows.length){ latestMinTs = rows[rows.length-1].timestamp || rows[rows.length-1].created_at; }
-					await appendRowsChunked(tbody, rows, false);
-					wrap.style.display='block';
-					actions.style.display='flex';
-					btnMore.style.display = rows.length < currentQuery.limit ? 'none':'inline-block';
-					moreHintEl.textContent = btnMore.style.display==='none'? '已到底':'可加载更多';
-					updateMeta(); btnMore.disabled=false; btnExport.disabled=false;
-				}catch(e){
-					if(e?.name === 'AbortError') return;
-					renderStatusRow(tbody, '查询失败：' + (e.message||e));
+				if(currentQuery.mode === 'range'){
+					const trunc = currentQuery.truncated ? ' <span style="color:#fbbf24;font-weight:600;">（已达拉取上限，结果可能不完整）</span>' : '';
+					meta.innerHTML = `时段：<b>${escHtml(fmtDate(currentQuery.startISO))}</b> ～ <b>${escHtml(fmtDate(currentQuery.endISO))}</b> · 共 <b>${allData.length}</b> 名学生 · 次数按「登记+还卡」配对计（与点击明细规则一致）` + trunc;
+					countEl.textContent = `共 ${allData.length} 人`;
+				}else{
+					meta.innerHTML=`学生：<b>${escHtml(currentQuery.name)}</b> · 时间范围：近 ${currentQuery.days} 天 · 已加载 <b>${allData.length}</b> 条`;
+					countEl.textContent=`共 ${allData.length} 条`;
 				}
 			}
 
-			async function loadMore(){ if(!currentQuery || paging || !latestMinTs) return; paging=true; btnMore.disabled=true; btnMore.textContent='加载中...';
+			async function doQuery(evt){
+				evt && evt.preventDefault();
+				const fd = new FormData(form);
+				const mode = getPlsMode();
+				if(mode === 'range'){
+					const rs = (fd.get('rangeStart') || '').trim();
+					const re = (fd.get('rangeEnd') || '').trim();
+					if(!rs || !re){ toast('请填写开始与结束时间'); return; }
+					const dStart = parseDatetimeLocalInput(rs);
+					const dEnd = parseDatetimeLocalInput(re);
+					if(!dStart || !dEnd){ toast('时间格式无效'); return; }
+					if(dEnd < dStart){ toast('结束时间不能早于开始时间'); return; }
+					const spanMs = dEnd.getTime() - dStart.getTime();
+					if(spanMs > 366 * 24 * 60 * 60 * 1000){ toast('查询区间请勿超过 366 天'); return; }
+					const startISO = dStart.toISOString();
+					const endISO = dEnd.toISOString();
+					const rangeLimit = Math.min(8000, Math.max(200, Number(fd.get('rangeLimit') || 5000)));
+					if(activeAbortController) activeAbortController.abort();
+					activeAbortController = new AbortController();
+					thead.innerHTML = plsTheadRangeHtml();
+					currentQuery = { mode: 'range', startISO, endISO, rangeLimit, truncated: false };
+					if(detailAbort){ try{ detailAbort.abort(); }catch(_){} detailAbort = null; }
+					if(detailPanel){ detailPanel.style.display = 'none'; detailPanel.innerHTML = ''; }
+					if(rangeClickHint) rangeClickHint.style.display = 'none';
+					renderStatusRow(tbody, '查询中...', 3);
+					actions.style.display = 'none';
+					btnMore.disabled = true;
+					btnExport.disabled = true;
+					allData = [];
+					latestMinTs = null;
+					paging = false;
+					moreHintEl.textContent = '';
+					try{
+						const { pairs, truncated } = await queryStudentsInRange({ startISO, endISO, limit: rangeLimit, signal: activeAbortController.signal });
+						currentQuery.truncated = !!truncated;
+						allData = pairs.map(([name, c]) => ({ student_name: name, range_count: c }));
+						await appendStudentSummaryRows(tbody, pairs);
+						wrap.style.display = 'block';
+						if(rangeClickHint) rangeClickHint.style.display = pairs.length ? 'block' : 'none';
+						actions.style.display = 'flex';
+						btnMore.style.display = 'none';
+						moreHintEl.textContent = truncated ? '提示：已命中「最多拉取行数」上限，若学生很多请缩小时段或增大上限' : '';
+						updateMeta();
+						btnExport.disabled = !allData.length;
+					}catch(e){
+						if(e?.name === 'AbortError') return;
+						renderStatusRow(tbody, '查询失败：' + (e.message || e), 3);
+					}
+					return;
+				}
+				thead.innerHTML = plsTheadStudentHtml();
+				const name = (fd.get('student') || '').trim();
+				if(!name){ toast('请输入学生姓名'); return; }
+				if(activeAbortController){ activeAbortController.abort(); }
+				activeAbortController = new AbortController();
+				currentQuery = { mode: 'student', name, days: Number(fd.get('days') || 30), limit: Number(fd.get('limit') || 100) };
+				if(detailAbort){ try{ detailAbort.abort(); }catch(_){} detailAbort = null; }
+				if(detailPanel){ detailPanel.style.display = 'none'; detailPanel.innerHTML = ''; }
+				if(rangeClickHint) rangeClickHint.style.display = 'none';
+				renderStatusRow(tbody, '查询中...', 4);
+				actions.style.display = 'none';
+				btnMore.disabled = true;
+				btnExport.disabled = true;
+				allData = [];
+				latestMinTs = null;
+				paging = false;
+				moreHintEl.textContent = '';
+				try{
+					const rows = await queryPracticeLogs({ name: currentQuery.name, days: currentQuery.days, limit: currentQuery.limit, signal: activeAbortController.signal });
+					allData.push(...rows);
+					if(rows.length){ latestMinTs = rows[rows.length - 1].timestamp || rows[rows.length - 1].created_at; }
+					await appendRowsChunked(tbody, rows, false);
+					wrap.style.display = 'block';
+					actions.style.display = 'flex';
+					btnMore.style.display = rows.length < currentQuery.limit ? 'none' : 'inline-block';
+					moreHintEl.textContent = btnMore.style.display === 'none' ? '已到底' : '可加载更多';
+					updateMeta();
+					btnMore.disabled = false;
+					btnExport.disabled = false;
+				}catch(e){
+					if(e?.name === 'AbortError') return;
+					renderStatusRow(tbody, '查询失败：' + (e.message || e), 4);
+				}
+			}
+
+			tbody.addEventListener('click', async (ev) => {
+				if(!currentQuery || currentQuery.mode !== 'range' || !detailPanel) return;
+				const tr = ev.target.closest('tr.pls-row-student');
+				if(!tr || !tr.dataset.studentName) return;
+				const studentName = tr.dataset.studentName;
+				if(detailAbort){ try{ detailAbort.abort(); }catch(_){} }
+				detailAbort = new AbortController();
+				detailPanel.style.display = 'block';
+				detailPanel.innerHTML = `<div class="pls-detail-loading">正在加载「${escHtml(studentName)}」的登记/还卡记录…</div>`;
+				try{
+					const rows = await queryStudentAssignClearInRange({
+						name: studentName,
+						startISO: currentQuery.startISO,
+						endISO: currentQuery.endISO,
+						limit: 2000,
+						signal: detailAbort.signal
+					});
+					const paired = pairAssignClearSessions(rows);
+					renderStudentSessionDetail(detailPanel, studentName, currentQuery.startISO, currentQuery.endISO, paired);
+				}catch(e){
+					if(e?.name === 'AbortError') return;
+					detailPanel.innerHTML = `<div class="pls-detail-loading" style="color:#f87171;">加载失败：${escHtml(e.message || String(e))}</div>`;
+				}
+			});
+
+			async function loadMore(){ if(!currentQuery || currentQuery.mode === 'range' || paging || !latestMinTs) return; paging=true; btnMore.disabled=true; btnMore.textContent='加载中...';
 				try{ const rows=await queryPracticeLogs({ name: currentQuery.name, days: currentQuery.days, limit: currentQuery.limit, nextFrom: latestMinTs });
 					if(rows.length){
 						latestMinTs = rows[rows.length-1].timestamp || rows[rows.length-1].created_at;
@@ -1338,9 +1670,25 @@
 
 			function exportCsv(){
 				if(!allData.length){ toast('没有数据'); return; }
-				// 表头
-				const header = ['时间','动作','房间','时段','单次时长(分钟)','会话起','会话止'];
 				function esc(v){ if(v==null) return ''; v=String(v).replace(/"/g,'""'); return '"'+v+'"'; }
+				if(currentQuery && currentQuery.mode === 'range'){
+					const header = ['学生姓名','该时段练琴次数'];
+					const lines = [header.map(esc).join(',')];
+					for(const r of allData){
+						lines.push([esc(r.student_name), esc(String(r.range_count))].join(','));
+					}
+					const s = (currentQuery.startISO || '').slice(0, 10).replace(/-/g, '');
+					const e = (currentQuery.endISO || '').slice(0, 10).replace(/-/g, '');
+					const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+					const a = document.createElement('a');
+					a.href = URL.createObjectURL(blob);
+					a.download = `practice_students_${s}_${e}.csv`;
+					a.click();
+					setTimeout(() => URL.revokeObjectURL(a.href), 500);
+					return;
+				}
+				// 表头（按学生明细）
+				const header = ['时间','动作','房间','单次时长(分钟)'];
 				function formatTs(ts){ if(!ts) return ''; const d=new Date(ts); const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
 				function actionLabel(a){ if(a==='assign') return '登记琴房'; if(a==='clear') return '退还琴房'; if(a==='start') return '开始'; if(a==='end') return '结束'; return a||''; }
 				const lines=[header.map(esc).join(',')];
@@ -1348,12 +1696,9 @@
 					const time = formatTs(r.timestamp||r.created_at);
 					const act = actionLabel(r.action);
 					const room = r.room_name||'';
-					const sessionSeg = (r.session_start && r.session_end)? `${new Date(r.session_start).getHours().toString().padStart(2,'0')}:${new Date(r.session_start).getMinutes().toString().padStart(2,'0')}~${new Date(r.session_end).getHours().toString().padStart(2,'0')}:${new Date(r.session_end).getMinutes().toString().padStart(2,'0')}` : '';
 					let durMin = '';
 					if(r.practice_duration!=null){ const m = r.practice_duration / 60; durMin = (Math.round(m*10)/10).toString(); if(durMin.endsWith('.0')) durMin = durMin.slice(0,-2); }
-					const start = r.session_start? formatTs(r.session_start):'';
-					const end = r.session_end? formatTs(r.session_end):'';
-					lines.push([time,act,room,sessionSeg,durMin,start,end].map(esc).join(','));
+					lines.push([time,act,room,durMin].map(esc).join(','));
 				}
 				const blob=new Blob(['\uFEFF'+lines.join('\n')],{type:'text/csv;charset=utf-8;'});
 				const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`practice_logs_${currentQuery.name}.csv`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),500);
@@ -1365,9 +1710,24 @@
 			btnClose.addEventListener('click', ()=> close(false));
 			backdrop.addEventListener('click', e=>{ if(e.target===backdrop) close(false); });
 			document.addEventListener('keydown', escHandler, true);
-			setTimeout(()=>{ form.querySelector('input[name=student]').focus(); }, 50);
+			setTimeout(()=>{
+				const toLocalDT = (d) => {
+					const z = (n) => String(n).padStart(2, '0');
+					return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`;
+				};
+				const rs = form.querySelector('input[name=rangeStart]');
+				const re = form.querySelector('input[name=rangeEnd]');
+				if(rs && re && !rs.value && !re.value){
+					const now = new Date();
+					const sod = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+					rs.value = toLocalDT(sod);
+					re.value = toLocalDT(now);
+				}
+				if(getPlsMode() === 'student') form.querySelector('input[name=student]')?.focus();
+			}, 50);
 			function escHandler(e){ if(e.key==='Escape'){ e.preventDefault(); close(false); } }
 			function close(){
+				if(detailAbort){ try{ detailAbort.abort(); }catch(_){} detailAbort = null; }
 				if(activeAbortController){ activeAbortController.abort(); activeAbortController = null; }
 				document.removeEventListener('keydown', escHandler, true);
 				backdrop.remove();

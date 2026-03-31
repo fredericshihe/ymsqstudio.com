@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>五大维度 · 一句话看懂</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      min-height: 100%;
+      background: #000;
+      color: #f5f5f7;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
+      overflow: auto;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap {
+      position: relative;
+      min-height: 100%;
+      padding: 5vmin 6vmin 6vmin;
+      box-sizing: border-box;
+      background:
+        radial-gradient(
+          circle at 50% 50%,
+          #000 0%,
+          #000 27%,
+          rgba(99, 102, 241, 0.17) 36%,
+          rgba(129, 140, 248, 0.12) 43%,
+          rgba(236, 72, 153, 0.07) 50%,
+          rgba(0, 0, 0, 0.72) 62%,
+          #000 80%
+        ),
+        #000;
+    }
+    .wrap::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      opacity: 0.55;
+      z-index: 0;
+    }
+    .glow-ring {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: min(100vmin, 880px);
+      height: min(100vmin, 880px);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      background: #000;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow:
+        0 0 28px rgba(99, 102, 241, 0.2),
+        0 0 72px rgba(99, 102, 241, 0.09);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .wrap-inner {
+      position: relative;
+      z-index: 1;
+    }
+    header {
+      text-align: center;
+      margin-bottom: clamp(1.5rem, 4vmin, 2.5rem);
+    }
+    header h1 {
+      font-size: clamp(1.65rem, 4.85vmin, 2.45rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.4rem;
+    }
+    header p {
+      font-size: clamp(1rem, 2.45vmin, 1.2rem);
+      color: rgba(245, 245, 247, 0.5);
+      font-weight: 500;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: clamp(0.75rem, 2vmin, 1.25rem);
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+        max-width: 420px;
+      }
+    }
+    .card {
+      position: relative;
+      border-radius: 20px;
+      padding: clamp(1.25rem, 3vmin, 1.75rem);
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(16px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      min-height: 280px;
+      transition: transform 0.25s ease, border-color 0.25s ease;
+    }
+    @media (min-width: 901px) {
+      .card:hover {
+        transform: translateY(-4px);
+        border-color: rgba(255, 255, 255, 0.14);
+      }
+    }
+    .card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 20px;
+      padding: 1px;
+      background: linear-gradient(145deg, var(--accent), transparent 60%);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+      opacity: 0.5;
+    }
+    .badge {
+      width: clamp(3.5rem, 10vmin, 4.5rem);
+      height: clamp(3.5rem, 10vmin, 4.5rem);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(1.85rem, 4.85vmin, 2.45rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+      color: #fff;
+      background: var(--accent);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    }
+    .name {
+      font-size: clamp(1.15rem, 2.65vmin, 1.28rem);
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: rgba(255, 255, 255, 0.95);
+    }
+    .name span {
+      display: block;
+      font-size: 0.72em;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.45);
+      margin-top: 0.2rem;
+    }
+    .line {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      margin-top: 0.75rem;
+    }
+    .line p {
+      font-size: clamp(0.98rem, 2.25vmin, 1.12rem);
+      line-height: 1.55;
+      color: rgba(245, 245, 247, 0.72);
+      font-weight: 500;
+    }
+    .diagram {
+      width: 100%;
+      max-width: 200px;
+      height: 72px;
+      margin-top: 0.5rem;
+      opacity: 0.9;
+    }
+    .w { --accent: #6366f1; }
+    .b { --accent: #10b981; }
+    .t { --accent: #f59e0b; }
+    .m { --accent: #ec4899; }
+    .a { --accent: #38bdf8; }
+    footer {
+      text-align: center;
+      margin-top: clamp(2rem, 5vmin, 3rem);
+      font-size: clamp(0.88rem, 2vmin, 1rem);
+      color: rgba(245, 245, 247, 0.35);
+      letter-spacing: 0.06em;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="glow-ring" aria-hidden="true"></div>
+    <div class="wrap-inner">
+    <header>
+      <h1>综合榜 · 五大维度</h1>
+      <p>每一项，都在回答一个简单问题</p>
+    </header>
+
+    <div class="grid">
+      <article class="card w">
+        <div class="badge" aria-hidden="true">W</div>
+        <h2 class="name">本周进度<span>权重通常最高</span></h2>
+        <svg class="diagram" viewBox="0 0 200 72" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="8" y="40" width="184" height="12" rx="6" fill="rgba(99,102,241,0.2)" />
+          <rect x="8" y="40" width="120" height="12" rx="6" fill="url(#g1)" />
+          <text x="100" y="28" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="13" font-family="system-ui,sans-serif">已练 ÷ 本周应练</text>
+          <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#818cf8"/><stop offset="1" stop-color="#6366f1"/></linearGradient></defs>
+        </svg>
+        <div class="line"><p>这周<strong>该练的</strong>，你<strong>完成了多少</strong>？</p></div>
+      </article>
+
+      <article class="card b">
+        <div class="badge">B</div>
+        <h2 class="name">进步分<span>和过去的自己比</span></h2>
+        <svg class="diagram" viewBox="0 0 200 72" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M20 52 L60 38 L100 44 L140 22 L180 28" stroke="rgba(16,185,129,0.35)" stroke-width="3" fill="none" stroke-linecap="round"/>
+          <circle cx="140" cy="22" r="5" fill="#10b981"/>
+          <text x="100" y="14" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="13" font-family="system-ui,sans-serif">相邻两周，谁练得更久</text>
+        </svg>
+        <div class="line"><p>「<strong>最近一周</strong>」有没有比「<strong>再前一周</strong>」练得更多？</p></div>
+      </article>
+
+      <article class="card t">
+        <div class="badge">T</div>
+        <h2 class="name">趋势分<span>看一段时间的走势</span></h2>
+        <svg class="diagram" viewBox="0 0 200 72" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M24 48 Q52 20 80 36 T136 24 T176 18" stroke="url(#g2)" stroke-width="3" fill="none" stroke-linecap="round"/>
+          <text x="100" y="64" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="13" font-family="system-ui,sans-serif">近段 vs 前段 · 平均在涨还是跌</text>
+          <defs><linearGradient id="g2" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#fbbf24"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs>
+        </svg>
+        <div class="line"><p>把<strong>最近几周</strong>和<strong>再往前几周</strong>比，整体是<strong>往上走还是往下走</strong>？</p></div>
+      </article>
+
+      <article class="card m">
+        <div class="badge">M</div>
+        <h2 class="name">动量分<span>稳定达标</span></h2>
+        <svg class="diagram" viewBox="0 0 200 72" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <g font-family="system-ui,sans-serif" font-size="22" font-weight="700">
+            <text x="28" y="42" fill="#ec4899" opacity="0.9">✓</text>
+            <text x="68" y="42" fill="#ec4899" opacity="0.9">✓</text>
+            <text x="108" y="42" fill="#ec4899" opacity="0.35">○</text>
+            <text x="148" y="42" fill="#ec4899" opacity="0.9">✓</text>
+          </g>
+          <text x="100" y="64" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="13" font-family="system-ui,sans-serif">最近几周 · 有几周达到周目标</text>
+        </svg>
+        <div class="line"><p>最近几周里，你有多少周<strong>稳稳达到了自己的周练琴目标</strong>？</p></div>
+      </article>
+
+      <article class="card a">
+        <div class="badge">A</div>
+        <h2 class="name">底盘分<span>长期底子</span></h2>
+        <svg class="diagram" viewBox="0 0 200 72" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="24" y="20" width="152" height="36" rx="8" fill="rgba(56,189,248,0.12)" stroke="rgba(56,189,248,0.35)" stroke-width="1"/>
+          <text x="100" y="42" text-anchor="middle" fill="rgba(255,255,255,0.65)" font-size="14" font-family="system-ui,sans-serif">长期平均 · 同专业对比</text>
+        </svg>
+        <div class="line"><p>和<strong>同专业同学</strong>比，你的<strong>长期练琴底子</strong>处在什么水平？</p></div>
+      </article>
+    </div>
+
+    <footer>五项加权合成综合分 · 青岛耶胡迪梅纽因学校</footer>
+    </div>
+  </div>
+</body>
+</html>
