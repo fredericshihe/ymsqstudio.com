@@ -1,9 +1,34 @@
 # piano-room-system
 
 > 琴房练琴数据、排行榜、音符币、AI 分析统一说明文档  
-> 最后更新：2026-03-26  
+> 最后更新：2026-03-31  
 > 本文档是当前**唯一整理版说明文档 / 单一阅读入口**。  
 > `baseline_monitoring_backup.md` 保留为**完整备份与历史审计档案**，`系统架构文档.md` 保留为扩展说明参考。
+
+---
+
+## 变更备份索引（2026-03-30）
+
+下列为截至本日已纳入仓库的主要改动摘要（便于审计与回滚对照；细节以各文件 diff 为准）。
+
+| 范围 | 文件 / 提交 | 说明 |
+|------|-------------|------|
+| 管理端 · 练琴记录查询 | `index.html` | **按时段查练琴学生**：列表中的「练琴次数」不再按原始日志条数累计；仅拉取 `action ∈ (assign, clear)` 且 **`created_at` 落在所选时段** 的行，按学生分组后使用与同琴房 FIFO、与点击行明细一致的 `pairAssignClearSessions`。**完成「登记+还卡」配对计 1 次**；时段内已登记、未在时段内还卡各计 1 次。表头 / 元信息 / CSV 列名同步为「该时段练琴次数」并注明与明细规则一致。 |
+| 管理端 · 明细说明 | `index.html` | **孤立还卡**区块文案：下列还卡多为 **对应的登记时间落在查询时段之外**（本次仅按时段拉取登记/还卡，FIFO 无法在窗口内找到配对登记）。 |
+| 评分 · 异常率惩罚（可选部署） | `fix85_outlier_penalty_25pct.sql` | **FIX-85**：`outlier_penalty` 分段调整——约 **25%** 异常率起明显惩罚（约 **0.85** 系数），**25%~60%** 区间更陡，**>60%** 继续指数下压；对 `compute_student_score`、`compute_student_score_as_of` 内对应 `CASE` 块做文本级补丁替换。部署后视需要执行 `backfill_score_history()`。 |
+| 宣讲 / 演示 | `leaderboard_launch_slide_1.html`、`leaderboard_launch_slide_2.html`、`leaderboard_launch_slide_3.html`、`leaderboard_launch_slide_three_boards.html`、`leaderboard_launch_slide_vouchers.html`、`leaderboard_presentation.html` | 排行榜上线或活动用静态幻灯片/演示页（不涉及数据库）。 |
+| 档案与配套页 | `baseline_monitoring_backup.md`、`兑换券.html`、`排行榜指南.html` | 与本轮一并提交的监控备份档案与前端说明页更新（以各文件内容为准）。 |
+| 版本控制 | Git `main` | 合并提交示例：`4694725`（练琴记录计次与文案 + 上述文件）；远程 `origin` 见仓库设置。 |
+
+---
+
+## 变更备份索引（2026-03-31）
+
+| 范围 | 文件 | 说明 |
+|------|------|------|
+| 管理端 · 排行榜 PDF 导出 | `practiceanalyse.html` | 新增「**导出榜单 PDF**」：导出**综合榜前 10** 与**三类分榜前 6**，并在同一页 A4 中展示；每行标注「应加音符币」金额（与 `setup_coin_rewards.sql` 规则一致）。版式调整为：综合榜横向占满上方，三分榜下方三列并排对齐；去除分榜指标列与冗余说明文案；标题居中放大并标注榜单周期（周一～周五）。 |
+| 管理端 · 导出数据口径 | `practiceanalyse.html` | 导出数据来源改为 `weekly_leaderboard_history` 中**最新 `backup_date`**的快照（即“最近完结一周”）；并补充无快照/无读权限的排查提示（参考 `leaderboard_backup.sql` 与 README 备份链路）。 |
+| 奖励物料 | `兑换券_八券一页.html` | 新增独立页面：将 `兑换券.html` 中**除最后一张全页证书券**外的 **8 张兑换券**在同一张 A4 上展示，便于打印/投屏。 |
 
 ---
 
@@ -64,7 +89,11 @@
    - 移除梅纽因之星相关对象
    - 保留学期累计排行 + 新学期重置
 
-8. 执行：
+8. （可选）`fix85_outlier_penalty_25pct.sql`（FIX-85）
+   - 异常率惩罚：**约 25% 起明显惩罚**，中段更陡；补丁写入 `compute_student_score` / `compute_student_score_as_of`
+   - 摘要见上文 **「变更备份索引（2026-03-30）」**
+
+9. 执行：
 
 ```sql
 SELECT public.backfill_score_history();
@@ -79,7 +108,8 @@ SELECT public.backfill_score_history();
 5. 运行 `setup_weekly_score_cron.sql`
 6. 运行 `fix80_trigger_chain_stable.sql`
 7. （可选）运行 `simplify_semester_ranking.sql`
-8. 运行 `SELECT public.backfill_score_history();`
+8. （可选）运行 `fix85_outlier_penalty_25pct.sql`
+9. 运行 `SELECT public.backfill_score_history();`
 
 > 说明：`fix74`、`fix75` 已被后续入口覆盖，常规部署不需要再单独执行。
 

@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>高级特权兑换券 · 八券同页（不含梅纽因之星）</title>
+  <style>
+    /* 复用：兑换券.html 的主样式（精简到八券同页所需部分） */
+    :root {
+      --primary-color: #111b2e;
+      --gold-color: #c5a059;
+      --bg-color: #f4f1eb;
+      --bronze-grad: linear-gradient(135deg, #8c7362, #b89f89, #8c7362);
+      --silver-grad: linear-gradient(135deg, #8e949b, #cdd1d6, #8e949b);
+      --gold-grad: linear-gradient(135deg, #b8860b, #e8c371, #b8860b);
+      --diamond-grad: linear-gradient(135deg, #0f172a, #1e293b, #0f172a);
+    }
+
+    body {
+      font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background-color: #d0d0d0;
+      margin: 0;
+      padding: 20px;
+      display: block;
+      text-align: center;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .a4-page {
+      background-color: var(--bg-color);
+      width: 210mm;
+      height: 297mm;
+      padding: 10mm;
+      margin: 0 auto 20px auto;
+      box-sizing: border-box;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      text-align: left;
+    }
+
+    .ticket-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: repeat(4, 1fr);
+      gap: 0;
+      flex-grow: 1;
+      height: 100%;
+    }
+
+    .ticket {
+      background: #ffffff;
+      display: flex;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid #dcdcdc;
+      box-sizing: border-box;
+    }
+
+    .ticket:nth-child(odd) { border-right: none; }
+    .ticket:nth-child(-n+6) { border-bottom: none; }
+
+    .ticket::before {
+      content: '';
+      position: absolute;
+      top: 4px; left: 4px; right: 4px; bottom: 4px;
+      border: 1px solid rgba(197, 160, 89, 0.3);
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .watermark {
+      position: absolute;
+      font-size: 100px;
+      color: rgba(197, 160, 89, 0.05);
+      font-family: serif;
+      right: 50px;
+      top: 50%;
+      transform: translateY(-50%) rotate(-15deg);
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .ticket-main {
+      flex: 1;
+      padding: 12px 15px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      z-index: 1;
+      box-sizing: border-box;
+    }
+
+    .ticket-stub {
+      width: 65px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 15px 0;
+      color: #ffffff;
+      border-left: 2px dashed rgba(255,255,255,0.8);
+      position: relative;
+      z-index: 1;
+      box-sizing: border-box;
+      --bc-color: #ffffff;
+    }
+
+    .ticket-stub::before, .ticket-stub::after {
+      content: '';
+      position: absolute;
+      left: -6px;
+      width: 10px;
+      height: 10px;
+      background-color: var(--bg-color);
+      border-radius: 50%;
+      border: 1px solid #dcdcdc;
+    }
+    .ticket-stub::before { top: -5px; border-bottom-color: transparent; border-left-color: transparent; transform: rotate(45deg); }
+    .ticket-stub::after { bottom: -5px; border-top-color: transparent; border-left-color: transparent; transform: rotate(-45deg); }
+
+    .t-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .t-tier {
+      display: inline-block;
+      font-size: 10px;
+      padding: 2px 8px;
+      color: #fff;
+      font-weight: bold;
+      letter-spacing: 1px;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+    .t-coins {
+      font-size: 14px;
+      font-weight: bold;
+      font-family: 'Georgia', serif;
+      color: var(--gold-color);
+    }
+    .t-title {
+      font-size: 17px;
+      color: var(--primary-color);
+      margin: 0 0 4px 0;
+      font-family: 'Georgia', serif;
+      font-weight: bold;
+      letter-spacing: 1px;
+    }
+    .t-desc {
+      font-size: 10px;
+      color: #555;
+      line-height: 1.4;
+      margin: 0;
+      flex-grow: 1;
+      padding-right: 50px;
+    }
+
+    .official-seal {
+      position: absolute;
+      right: 15px;
+      bottom: 42px;
+      width: 50px;
+      height: 50px;
+      border: 1.5px solid rgba(197, 160, 89, 0.6);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 8px;
+      color: rgba(197, 160, 89, 0.8);
+      text-align: center;
+      transform: rotate(-15deg);
+      font-weight: bold;
+      letter-spacing: 1px;
+      line-height: 1.2;
+    }
+    .official-seal::after {
+      content: 'YMSQ';
+      position: absolute;
+      font-size: 12px;
+      color: rgba(197, 160, 89, 0.25);
+    }
+
+    .t-footer {
+      margin-top: 6px;
+      border-top: 1px solid #eee;
+      padding-top: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      font-size: 9px;
+      color: #888;
+    }
+    .t-sign {
+      border-bottom: 1px solid #888;
+      width: 45px;
+      display: inline-block;
+    }
+
+    .micro-text {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      font-size: 4px;
+      color: rgba(0,0,0,0.2);
+      white-space: nowrap;
+      overflow: hidden;
+      letter-spacing: 1px;
+      font-family: monospace;
+    }
+
+    .stub-text {
+      writing-mode: vertical-rl;
+      text-orientation: upright;
+      white-space: nowrap;
+      flex-shrink: 0;
+      font-size: 13px;
+      font-weight: bold;
+      letter-spacing: 3px;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+      margin: 8px 0;
+    }
+
+    .stub-no {
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      white-space: nowrap;
+      flex-shrink: 0;
+      font-size: 9px;
+      font-family: 'Courier New', Courier, monospace;
+      color: rgba(255,255,255,0.9);
+      letter-spacing: 0.5px;
+      margin-bottom: 2px;
+    }
+
+    .barcode {
+      width: 14px;
+      height: 65px;
+      opacity: 0.85;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .theme-bronze .ticket-stub { background: var(--bronze-grad); }
+    .theme-bronze .t-tier { background: var(--bronze-grad); }
+    .theme-silver .ticket-stub { background: var(--silver-grad); }
+    .theme-silver .t-tier { background: var(--silver-grad); }
+    .theme-gold .ticket-stub { background: var(--gold-grad); }
+    .theme-gold .t-tier { background: var(--gold-grad); }
+    .theme-diamond { background: var(--diamond-grad); color: #fff; border-color: var(--gold-color); }
+    .theme-diamond .t-title, .theme-diamond .t-desc, .theme-diamond .t-footer { color: #e2e8f0; }
+    .theme-diamond .ticket-stub {
+      background: var(--gold-grad);
+      color: var(--primary-color);
+      --bc-color: var(--primary-color);
+    }
+    .theme-diamond .t-tier { background: var(--gold-grad); color: var(--primary-color); }
+    .theme-diamond .stub-no { color: var(--primary-color); font-weight: bold; }
+    .theme-diamond .ticket::before { border: 1px solid rgba(197, 160, 89, 0.5); }
+    .theme-diamond .micro-text { color: rgba(255,255,255,0.1); }
+    .theme-diamond .official-seal { border-color: var(--gold-color); color: var(--gold-color); }
+    .theme-diamond .official-seal::after { color: rgba(197, 160, 89, 0.3); }
+
+    @page { size: A4 portrait; margin: 0; }
+    @media print {
+      html, body { width: 100%; margin: 0 !important; padding: 0 !important; background: none; display: block !important; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      .t-tier, .stub-text { text-shadow: none !important; }
+      .a4-page { width: 210mm; height: 297mm; margin: 0 !important; padding: 8mm !important; box-shadow: none !important; border: none !important; page-break-after: auto !important; break-after: auto !important; }
+      .ticket { page-break-inside: avoid !important; break-inside: avoid !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="a4-page">
+    <div class="ticket-grid" id="ticketGrid"></div>
+  </div>
+
+  <script>
+    // 只取前 8 张券（排除最后一个全页证书券）
+    const ticketData = [
+      { tier: "BRONZE / 青铜", coins: "100 音符币", title: "专属琴房特权", desc: "凭此券可获得三天专属琴房使用权，彰显专属排面（每个月仅限一次）！", theme: "theme-bronze", mark: "𝄞", prefix: "B-100A", stubText: "凭券核销" },
+      { tier: "BRONZE / 青铜", coins: "120 音符币", title: "施坦威体验日", desc: "凭此券可在周六、周日独享一天施坦威教室练习特权（每周仅限一次，不可叠加兑换）。", theme: "theme-bronze", mark: "𝄞", prefix: "B-120A", stubText: "凭券核销" },
+      { tier: "SILVER / 白银", coins: "150 音符币", title: "旁听神仙课", desc: "凭此券特批进入教室，旁听任何一节其他老师的课程（如音乐素养课、专业课、室内乐课等），需提前 1 天与老师预约。", theme: "theme-silver", mark: "𝄢", prefix: "S-150A", stubText: "凭券核销" },
+      { tier: "SILVER / 白银", coins: "150 音符币", title: "作业豁免券", desc: "凭此券可合法免除一次常规作业。具体科目需提前与任课老师协商（每个月仅限一次）。", theme: "theme-silver", mark: "𝄢", prefix: "S-150B", stubText: "凭券核销" },
+      { tier: "GOLD / 黄金", coins: "200 音符币", title: "课表 DIY 日", desc: "凭此券获得一天“选课自由”，自主决定是否出席当天的非专业课和非考试类课程（每个月仅可以使用一次）。", theme: "theme-gold", mark: "𝄡", prefix: "G-200A", stubText: "凭券核销" },
+      { tier: "GOLD / 黄金", coins: "280 音符币", title: "期末加分特权", desc: "凭此券在期末专业课考试成绩基础上额外 +0.5 分，直接计入最终成绩。坚持练琴的你，让期末成绩再进一步！（每人仅可兑换一次，兑换后不可退回）", theme: "theme-gold", mark: "𝄡", prefix: "G-280A", stubText: "凭券核销" },
+      { tier: "DIAMOND / 钻石", coins: "300 音符币", title: "大师级专属 MV", desc: "老师动用专业录音设备，在学校排练厅用九尺雅马哈三角钢琴，为你专业录制一首专属演奏视频（每学期仅限一次）。朋友圈炫技必备，永久留存！", theme: "theme-diamond", mark: "𝅗𝅥", prefix: "D-300A", stubText: "终极特权" },
+      { tier: "DIAMOND / 钻石", coins: "350 音符币", title: "额外专业课", desc: "超级大奖！凭此券和自己的专业老师多上一节专业课，名师一对一加餐指导（每个月仅限一次，每学期最多两次）。", theme: "theme-diamond", mark: "𝅗𝅥", prefix: "D-350A", stubText: "终极特权" }
+    ];
+
+    function generateUniqueBarcode(globalIndex) {
+      let html = '';
+      let seed = globalIndex * 104729;
+      const rand = () => {
+        seed = (seed * 279470273) % 4294967291;
+        return seed / 4294967291;
+      };
+      const totalStripes = 60;
+      for (let j = 0; j < totalStripes; j++) {
+        const randomVal = rand();
+        const h = randomVal > 0.85 ? 3 : (randomVal > 0.4 ? 2 : 1);
+        if (j % 2 === 0) {
+          html += `<i style="height:${h}px; width:100%; background-color: var(--bc-color); display:block; flex-shrink:0;"></i>`;
+        } else {
+          html += `<i style="height:${h}px; width:100%; display:block; flex-shrink:0;"></i>`;
+        }
+      }
+      return html;
+    }
+
+    const grid = document.getElementById('ticketGrid');
+    let globalCounter = 1;
+    for (let i = 0; i < ticketData.length; i++) {
+      const t = ticketData[i];
+      const no = `${t.prefix}-01`;
+      const el = document.createElement('div');
+      el.className = `ticket ${t.theme}`;
+      el.innerHTML = `
+        <div class="watermark">${t.mark}</div>
+        <div class="ticket-main">
+          <div class="t-header">
+            <span class="t-tier">${t.tier}</span>
+            <span class="t-coins">${t.coins}</span>
+          </div>
+          <h2 class="t-title">${t.title}</h2>
+          <p class="t-desc">${t.desc}</p>
+          <div class="official-seal">VALID<br>YMSQ</div>
+          <div class="t-footer">
+            <span>授权人: 青岛耶胡迪梅纽因学校教务部</span>
+            <span>核销签字: <span class="t-sign"></span></span>
+          </div>
+          <div class="micro-text">YMSQ-AUTHORIZED-TICKET-YMSQ-AUTHORIZED-TICKET-YMSQ-AUTHORIZED-TICKET-YMSQ-AUTHORIZED</div>
+        </div>
+        <div class="ticket-stub">
+          <div class="barcode">${generateUniqueBarcode(globalCounter)}</div>
+          <div class="stub-text">${t.stubText}</div>
+          <div class="stub-no">No. ${no}</div>
+        </div>
+      `;
+      grid.appendChild(el);
+      globalCounter++;
+    }
+  </script>
+</body>
+</html>
+

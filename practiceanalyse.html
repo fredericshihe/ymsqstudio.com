@@ -56,6 +56,111 @@ body{font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;backgro
 .btn svg,.btn-ic{width:15px;height:15px;flex-shrink:0}
 .btn:disabled{opacity:.4;pointer-events:none}
 
+/* ── Leaderboard PDF print ─────────────────────── */
+#lbPrintRoot{display:none}
+@media print{
+  /* Hide app UI */
+  body{background:#fff!important;color:#111!important}
+  .wrap,#dp-bg,.dp,#lbModalMask,#lbModal,#diag-bg,.toasts{display:none!important}
+  #lbPrintRoot{display:block!important}
+
+  /* 关键：避免因为固定 297mm 容器高度 + 内边距 + page margin 导致自动分页 */
+  @page{size:A4 portrait;margin:10mm}
+  .lbp .pg{
+    width:auto !important;
+    min-height:auto !important;
+    margin:0 !important;
+    padding:0 !important;
+    background:none !important;
+  }
+}
+
+/* Print layout (screen preview hidden by default) */
+.lbp{
+  font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;
+  color:#0b1220;
+}
+.lbp .pg{
+  width:210mm;
+  min-height:297mm;
+  padding:12mm 12mm 10mm;
+  box-sizing:border-box;
+  margin:0 auto;
+  background:
+    radial-gradient(1200px 420px at 20% -10%, rgba(59,130,246,.09), transparent 55%),
+    radial-gradient(900px 360px at 105% 0%, rgba(168,85,247,.08), transparent 45%),
+    #fff;
+}
+.lbp .hdr{
+  display:flex;align-items:center;justify-content:center;
+  padding-bottom:7mm;border-bottom:1px solid rgba(15,23,42,.12);margin-bottom:6mm;
+  text-align:center;
+}
+.lbp .h1{font-size:26px;font-weight:950;letter-spacing:.04em;color:#0f172a}
+.lbp .subttl{font-size:13px;color:#334155;margin-top:3mm;font-weight:700;letter-spacing:.02em}
+.lbp .weekttl{font-size:11px;color:#475569;margin-top:2mm;font-weight:700;letter-spacing:.02em}
+.lbp .meta{display:none}
+.lbp .grid{display:grid;grid-template-columns:1fr;gap:7mm}
+.lbp .cards{display:block}
+.lbp .cards.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:5.2mm}
+.lbp .card{
+  border:1px solid rgba(15,23,42,.12);
+  border-radius:14px;
+  padding:10px 12px;
+  background:rgba(255,255,255,.92);
+  box-shadow:0 10px 22px rgba(15,23,42,.06);
+}
+.lbp .ct{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px}
+.lbp .ct h2{font-size:12px;font-weight:900;color:#0f172a;margin:0;letter-spacing:.02em}
+.lbp .ct .sub{font-size:10px;color:#334155}
+.lbp table{width:100%;border-collapse:collapse}
+.lbp th,.lbp td{font-size:10px;padding:6px 6px;border-bottom:1px solid rgba(15,23,42,.08)}
+.lbp th{
+  color:#0f172a;text-align:left;font-weight:900;
+  background:linear-gradient(180deg, rgba(248,250,252,.95), rgba(241,245,249,.95));
+  border-top:1px solid rgba(15,23,42,.14)
+}
+.lbp tbody tr:nth-child(odd) td{background:rgba(248,250,252,.55)}
+.lbp tbody tr:nth-child(even) td{background:transparent}
+.lbp td{color:#0f172a}
+.lbp td:nth-child(2){font-weight:800;color:#0b1220} /* 姓名列更深更清晰 */
+.lbp td.r{color:#0f172a}
+.lbp td.r{text-align:right}
+.lbp td.c{text-align:center}
+.lbp .tag{
+  display:inline-block;border:1px solid #e2e8f0;border-radius:999px;
+  padding:1px 6px;font-size:9px;color:#0f172a;background:rgba(226,232,240,.55);margin-left:6px;
+}
+.lbp .coin{
+  display:inline-flex;align-items:center;justify-content:flex-end;
+  min-width:44px;
+  font-weight:900;
+  color:#0b1220;
+  background:linear-gradient(135deg, rgba(245,158,11,.22), rgba(251,191,36,.14));
+  border:1px solid rgba(245,158,11,.35);
+  border-radius:999px;
+  padding:1px 8px;
+}
+
+/* Three-board row: slightly smaller inside to fit A4 comfortably */
+.lbp .row3 .ct h2{font-size:11.5px}
+.lbp .row3 th,.lbp .row3 td{font-size:9.6px;padding:5px 5px}
+.lbp .row3 .tag{font-size:8.6px}
+.lbp .row3 .coin{min-width:40px;padding:1px 7px}
+.lbp .row3 .card{padding:9px 10px;border-radius:13px}
+.lbp .row3 table{table-layout:fixed}
+.lbp .row3 th:nth-child(1),.lbp .row3 td:nth-child(1){width:34px}
+.lbp .row3 th:nth-child(3),.lbp .row3 td:nth-child(3){width:52px}
+.lbp .row3 td:nth-child(2){
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.lbp .foot{
+  margin-top:6mm;padding-top:4mm;border-top:1px solid #e5e7eb;
+  font-size:9px;color:#334155;display:flex;justify-content:space-between;gap:10px
+}
+
 /* ── Toast ───────────────────────────────── */
 .toasts{position:fixed;right:22px;bottom:22px;z-index:2000;
   display:flex;flex-direction:column;gap:9px;pointer-events:none}
@@ -155,6 +260,7 @@ body{font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;backgro
 .hd-logo{font-size:2.05rem;line-height:1}
 .hd-info h1{font-size:1.72rem;font-weight:900;letter-spacing:.015em;line-height:1.18;
   background:linear-gradient(135deg,#f8fbff 0%,#dbeafe 38%,#8db5ff 100%);
+  background-clip:text;
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;
   text-shadow:0 8px 30px rgba(79,142,247,.12)}
 .hd-info p{font-size:.82rem;color:var(--t3);margin-top:6px}
@@ -517,6 +623,16 @@ tbody td.b{color:var(--t1);font-weight:700}
         </svg>
         刷新数据
       </button>
+      <button class="btn" id="lbPdfBtn" onclick="exportLeaderboardsPdf()" disabled title="导出当前周：综合榜 + 进步/稳定/守则榜（单页 A4）">
+        <svg class="btn-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M6 2h9l3 3v17a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/>
+          <path d="M14 2v4h4"/>
+          <path d="M8 13h8"/>
+          <path d="M8 17h8"/>
+          <path d="M8 9h3"/>
+        </svg>
+        导出榜单 PDF
+      </button>
     </div>
   </div>
 
@@ -706,6 +822,9 @@ tbody td.b{color:var(--t1);font-weight:700}
   </div>
 </div>
 
+<!-- 单页 PDF 打印根节点（仅打印时显示） -->
+<div id="lbPrintRoot" aria-hidden="true"></div>
+
 <script>
 'use strict';
 // ── Config ────────────────────────────────────────
@@ -880,6 +999,24 @@ async function refreshSelectedStudentDetail(){
 const fetchLeaderboards=()=>rpc('get_weekly_leaderboards')
   .then(rows=>{ window._lbLastError=null; return rows; })
   .catch(err=>{ window._lbLastError=err; console.warn('[lb] RPC 失败:', err?.message||err); return []; });
+
+// 导出用：永远取“最近完结一周”的榜单快照（weekly_leaderboard_history 最新 backup_date）
+async function fetchLatestCompletedLeaderboards(){
+  try{
+    const latest = await api('weekly_leaderboard_history?select=backup_date&order=backup_date.desc&limit=1')
+      .then(r=>Array.isArray(r)?(r[0]||null):null);
+    const bd = latest?.backup_date;
+    if(!bd) return { rows: [], backup_date: null, week_monday: null };
+
+    const rows = await api(`weekly_leaderboard_history?backup_date=eq.${bd}&select=backup_date,week_monday,board,rank_no,student_name,student_major,student_grade,display_score,alpha,trend_score,mean_duration,record_count,recent10_outlier_rate,recent10_mean_dur,recent10_count&order=board.asc,rank_no.asc&limit=2000`)
+      .catch(()=>[]);
+    const wm = Array.isArray(rows) && rows.length ? rows[0].week_monday : null;
+    return { rows: rows || [], backup_date: bd, week_monday: wm };
+  }catch(e){
+    console.warn('[lbpdf] fetchLatestCompletedLeaderboards failed:', e?.message || e);
+    return { rows: [], backup_date: null, week_monday: null };
+  }
+}
 
 // 【核心】直接查 practice_sessions，找出本周内有练琴记录的学生集合，同时统计每人次数
 // 仅统计工作日，和排行榜/README 口径保持一致
@@ -1409,6 +1546,7 @@ function toggleSessTable(){
 async function loadAll(){
   if(!cfg){loadCfg()} // cfg 始终有内置值，无需弹窗
   const btn=$('refBtn');btn.disabled=true;
+  const pdfBtn=$('lbPdfBtn'); if(pdfBtn) pdfBtn.disabled=true;
   btn.innerHTML='<div class="spin" style="width:13px;height:13px;border-width:2px"></div> 加载中…';
   try{
     const[health,students,weekScores,{activeSet:activeThisWeek,countMap:weekCountMap},lbRows]=await Promise.all([
@@ -1424,6 +1562,10 @@ async function loadAll(){
     const lbMap={};
     (lbRows||[]).forEach(r=>{(lbMap[r.board]||(lbMap[r.board]=[])).push(r);});
     renderCatBoards(lbMap);
+    // 缓存用于 PDF 导出（避免直接依赖弹窗状态）
+    window._lbRows=lbRows||[];
+    window._lbMap=lbMap;
+    if(pdfBtn) pdfBtn.disabled = !(lbRows && lbRows.length);
     buildFilters(students);
     applyF();
     const n=new Date();
@@ -1433,6 +1575,215 @@ async function loadAll(){
   }catch(e){setConn(false);toast(`加载失败：${e.message}`,'err',5000);console.error(e)}
   btn.disabled=false;
   btn.innerHTML='<svg class="btn-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> 刷新数据';
+}
+
+function fmtCNDateTime(d){
+  const pad=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function parseDateOnlyToUTC(dateStr){
+  if(!dateStr) return null;
+  const m = String(dateStr).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(!m) return null;
+  const y = Number(m[1]), mo = Number(m[2]) - 1, d = Number(m[3]);
+  return new Date(Date.UTC(y, mo, d, 0, 0, 0));
+}
+
+function addDaysDateOnly(dateStr, days){
+  const dt = parseDateOnlyToUTC(dateStr);
+  if(!dt) return null;
+  dt.setUTCDate(dt.getUTCDate() + Number(days || 0));
+  const y = dt.getUTCFullYear();
+  const m = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(dt.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function boardShortNote(board){
+  if(board==='综合榜') return '综合分绝对分（0-100）';
+  if(board==='进步榜') return '涨分（本周 vs 上周）';
+  if(board==='稳定榜') return '近10条均时 + α';
+  if(board==='守则榜') return '近10条异常率（越低越好）';
+  return '';
+}
+
+function coinReward(board, rankNo){
+  const r = Number(rankNo);
+  if(!Number.isFinite(r) || r<=0) return 0;
+  if(board==='综合榜'){
+    if(r===1) return 100;
+    if(r>=2 && r<=3) return 80;
+    if(r>=4 && r<=6) return 60;
+    if(r>=7 && r<=10) return 40;
+    return 0;
+  }
+  if(board==='稳定榜'){
+    if(r===1) return 50;
+    if(r>=2 && r<=3) return 35;
+    if(r>=4 && r<=6) return 20;
+    return 0;
+  }
+  if(board==='守则榜'){
+    if(r===1) return 45;
+    if(r>=2 && r<=3) return 30;
+    if(r>=4 && r<=6) return 18;
+    return 0;
+  }
+  if(board==='进步榜'){
+    if(r===1) return 40;
+    if(r>=2 && r<=3) return 25;
+    if(r>=4 && r<=6) return 15;
+    return 0;
+  }
+  return 0;
+}
+
+function toMajorShort(m){
+  if(!m) return '';
+  return String(m).replace('教研室','').replace('钢琴','钢').replace('小提琴','小提').replace('大提琴','大提').replace('吉他','吉');
+}
+
+function buildPrintTableRows(board, rows){
+  const safeRows = Array.isArray(rows) ? rows : [];
+  if(board==='综合榜'){
+    return safeRows.map(r=>{
+      const score = r.display_score!=null ? Number(r.display_score).toFixed(1) : (r.composite_score!=null?Number(r.composite_score).toFixed(1):'—');
+      const coins = coinReward(board, r.rank_no);
+      return `<tr>
+        <td class="c">#${esc(r.rank_no ?? '—')}</td>
+        <td>${esc(r.student_name ?? '—')} <span class="tag">${esc(toMajorShort(r.student_major||''))}</span></td>
+        <td class="r">${esc(score)}</td>
+        <td class="r"><span class="coin">+${coins}</span></td>
+      </tr>`;
+    }).join('');
+  }
+  if(board==='进步榜'){
+    return safeRows.map(r=>{
+      const coins = coinReward(board, r.rank_no);
+      return `<tr>
+        <td class="c">#${esc(r.rank_no ?? '—')}</td>
+        <td>${esc(r.student_name ?? '—')} <span class="tag">${esc(toMajorShort(r.student_major||''))}</span></td>
+        <td class="r"><span class="coin">+${coins}</span></td>
+      </tr>`;
+    }).join('');
+  }
+  if(board==='稳定榜'){
+    return safeRows.map(r=>{
+      const coins = coinReward(board, r.rank_no);
+      return `<tr>
+        <td class="c">#${esc(r.rank_no ?? '—')}</td>
+        <td>${esc(r.student_name ?? '—')} <span class="tag">${esc(toMajorShort(r.student_major||''))}</span></td>
+        <td class="r"><span class="coin">+${coins}</span></td>
+      </tr>`;
+    }).join('');
+  }
+  if(board==='守则榜'){
+    return safeRows.map(r=>{
+      const coins = coinReward(board, r.rank_no);
+      return `<tr>
+        <td class="c">#${esc(r.rank_no ?? '—')}</td>
+        <td>${esc(r.student_name ?? '—')} <span class="tag">${esc(toMajorShort(r.student_major||''))}</span></td>
+        <td class="r"><span class="coin">+${coins}</span></td>
+      </tr>`;
+    }).join('');
+  }
+  return '';
+}
+
+function exportLeaderboardsPdf(){
+  const btn=$('lbPdfBtn');
+  if(btn) btn.disabled=true;
+  (async ()=>{
+    try{
+    // 关键：导出永远使用“最近完结一周”的快照，而不是实时榜
+    const snap = await fetchLatestCompletedLeaderboards();
+    const lbRows = snap.rows || [];
+    if(!lbRows.length){
+      toast(
+        '暂无可导出的历史榜单快照。排查：1) 是否已在数据库执行 `leaderboard_backup.sql`（创建表+函数+pg_cron）；2) 在 SQL Editor 手动跑 `SELECT public.backup_weekly_leaderboards();` 后再试；3) 若开启 RLS，需允许前端读取：`GRANT SELECT ON public.weekly_leaderboard_history TO anon, authenticated;` 并建 SELECT policy（USING (true)）。',
+        'err',
+        9000
+      );
+      return;
+    }
+    const map = {};
+    lbRows.forEach(r=>{ (map[r.board]||(map[r.board]=[])).push(r); });
+
+    // 单页约束：固定展示前 N（与首页默认展示口径一致）
+    const limits = { '综合榜': 10, '进步榜': 6, '稳定榜': 6, '守则榜': 6 };
+    const boards = ['综合榜','进步榜','稳定榜','守则榜'];
+
+    const now = new Date();
+    const weekMon = snap.week_monday || null;
+    const root = $('lbPrintRoot');
+    const title = `排行榜（综合榜 + 分榜）`;
+    const meta1 = `生成时间：${fmtCNDateTime(now)}`;
+    const meta2 = '';
+    const meta3 = '';
+
+    const leftBoard = '综合榜';
+    const leftRows = (map[leftBoard]||[]).slice(0, limits[leftBoard]).sort((a,b)=>(a.rank_no??9999)-(b.rank_no??9999));
+
+    const rightCards = ['进步榜','稳定榜','守则榜'].map(b=>{
+      const rows=(map[b]||[]).slice(0, limits[b]).sort((a,b2)=>(a.rank_no??9999)-(b2.rank_no??9999));
+      return `<div class="card">
+        <div class="ct">
+          <h2>${esc(b)}</h2>
+          <div class="sub"></div>
+        </div>
+        <table>
+          <thead><tr><th style="width:34px">名次</th><th>姓名</th><th style="width:52px;text-align:right">币</th></tr></thead>
+          <tbody>${buildPrintTableRows(b, rows)}</tbody>
+        </table>
+      </div>`;
+    }).join('');
+
+    root.innerHTML = `
+      <div class="lbp">
+        <div class="pg">
+          <div class="hdr">
+            <div>
+              <div class="h1">${esc('排行榜（综合榜 + 分榜）')}</div>
+              <div class="subttl">${esc('青岛耶胡迪梅纽因学校 · 练琴智能监控系统')}</div>
+              <div class="weekttl">${esc((()=>{ const wm = weekMon || ''; const end = wm ? (addDaysDateOnly(wm, 4) || '') : ''; return (wm && end) ? (`榜单周期：${wm} ～ ${end}`) : ''; })())}</div>
+            </div>
+          </div>
+          <div class="grid">
+            <div class="card">
+              <div class="ct">
+                <h2>${esc(leftBoard)}</h2>
+                <div class="sub">前 ${leftRows.length} · ${esc(boardShortNote(leftBoard))}</div>
+              </div>
+              <table>
+                <thead><tr><th style="width:44px">名次</th><th>姓名</th><th style="width:90px;text-align:right">综合分</th><th style="width:66px;text-align:right">音符币</th></tr></thead>
+                <tbody>${buildPrintTableRows(leftBoard, leftRows)}</tbody>
+              </table>
+            </div>
+            <div class="cards row3">${rightCards}</div>
+          </div>
+          <div class="foot">
+            <div>数据来源：` + 'get_weekly_leaderboards()' + `（按当前线上规则）</div>
+            <div></div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const oldTitle=document.title;
+    const wmSafe = weekMon || getWeekMonday();
+    document.title = `榜单_${wmSafe}_${now.getHours()}${String(now.getMinutes()).padStart(2,'0')}`;
+    setTimeout(()=>{
+      window.print();
+      setTimeout(()=>{ document.title = oldTitle; if(btn) btn.disabled=false; }, 250);
+    }, 50);
+    }catch(e){
+    console.error('[lbpdf] export failed', e);
+    toast('导出失败：'+(e.message||e),'err',5000);
+    }finally{
+    if(btn) btn.disabled=false;
+    }
+  })();
 }
 
 // ── KPIs ──────────────────────────────────────────
@@ -1606,7 +1957,9 @@ async function refreshLeaderboards(){
     syncStudentsWithLeaderboard(S.students,weekScores,activeThisWeek,lbRows);
     const lbMap={};
     (lbRows||[]).forEach(r=>{(lbMap[r.board]||(lbMap[r.board]=[])).push(r);});
+    window._lbRows=lbRows||[];
     window._lbMap=lbMap; // 同步缓存
+    const pdfBtn=$('lbPdfBtn'); if(pdfBtn) pdfBtn.disabled = !(lbRows && lbRows.length);
     renderCatBoards(lbMap);
     if(S.students.length){
       applyF(); // 主表排序/筛选与详情页名次一起刷新，避免与分类榜不同步
