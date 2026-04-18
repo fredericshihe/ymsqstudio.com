@@ -1040,7 +1040,8 @@ const fetchCurrentWeekScores=()=>api(
 const S={students:[],filtered:[],health:null,
   sortCol:'composite_score',sortDir:'desc',page:1,pageSize:20,
   selected:null,charts:{},
-  currentStudent:null};
+  currentStudent:null,
+  aiState:null};
 
 // ── AI Analysis ────────────────────────────────
 // AI 分析统一由后端 batch-ai-analysis Edge Function 生成，前端只负责读缓存和触发
@@ -1388,6 +1389,14 @@ function setAIUI(state,text,meta){
   const elMeta=document.getElementById('dp-ai-meta');
   const elBtn=document.getElementById('dp-ai-btn');
   const elCard=document.getElementById('ai-card-wrap');
+  if(S.currentStudent?.student_name){
+    S.aiState={
+      studentName:S.currentStudent.student_name,
+      state,
+      text:text||'',
+      meta:meta||''
+    };
+  }
   if(!elTxt)return;
   elTxt.classList.remove('loading','errored');
   if(elCard) elCard.classList.remove('scanning');
@@ -2097,6 +2106,7 @@ function goP(p){S.page=p;renderTable();document.querySelector('.tbl-wrap').scrol
 // ── Detail Panel ──────────────────────────────────
 function closeDp(){
   S.selected=null;
+  S.currentStudent=null;
   $('dp').classList.remove('show');
   const bg=$('dp-bg');if(bg)bg.classList.remove('show');
   document.body.style.overflow='';
@@ -2129,6 +2139,7 @@ async function pickStudent(name){
 
 function renderDP(s,hist,sessions=[],weekSessions=[],wRefServer=null){
   const dp=$('dp');
+  const savedAI = S.aiState?.studentName===s.student_name ? S.aiState : null;
   const bestScore = calcPersonalBestFromHistory(hist, s);
   // has_week_snapshot=true 表示本周无练琴（由 loadAll 根据 practice_sessions 判断）
   const noPracticeWeek = !!s.has_week_snapshot;
@@ -2435,6 +2446,10 @@ W计算日均基准：${meanRefW > 0 ? meanRefW.toFixed(1) : '—'} 分钟/天�
 
     </div>
   </div>`;
+
+  if(savedAI){
+    setAIUI(savedAI.state,savedAI.text,savedAI.meta);
+  }
 
   setTimeout(()=>{
     renderHistCh(hist);
