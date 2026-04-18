@@ -204,8 +204,8 @@ async function callAI(systemPrompt: string, userPrompt: string): Promise<{ text:
     body: JSON.stringify({
       system_prompt: systemPrompt,
       user_prompt: userPrompt,
-      temperature: 0.82,
-      max_tokens: 600,
+      temperature: 0.70,
+      max_tokens: 320,
     }),
   });
   if (!res.ok) {
@@ -583,106 +583,204 @@ function buildPrompt(student: any, hist: any[], sessions: Session[]): string {
       })()
     : "无记录";
 
+  // 输出给 AI 的内容尽量短，但必须把五个维度的“原因+改法”喂清楚
+  const topHelpTxt = topHelpers.length ? topHelpers.slice(0, 2).join("；") : "暂无明显加分项";
+  const topHurtTxt = topHurters.length ? topHurters.slice(0, 2).join("；") : "暂无明显拖分项";
+  const actionTxt  = actions.slice(0, 3).join("；");
+
+  const strongestTxt = strongestDims.map(d => d.name).join("、") || "—";
+  const weakestTxt   = weakestDims.map(d => d.name).join("、") || "—";
+
+  const weaknessRankMap = new Map(
+    [...dimRows]
+      .sort((x, y) => y.missing - x.missing)
+      .map((d, idx) => [d.key, idx + 1] as const)
+  );
+  const priorityLabel = (key: string) => {
+    const rank = weaknessRankMap.get(key) ?? 5;
+    if (rank <= 2) return "高";
+    if (rank === 3) return "中";
+    return "低";
+  };
+
+  const weekGapMin = Math.max(weeklyTarget - thisWeekValidMin, 0);
+  const weekCatchupMin = Math.max(Math.round(weekGapMin / 3), 20);
+
+  const dimensionFocusRows = [
+    {
+      key: "W",
+      name: "本周练琴量",
+      status: isMondayNoData
+        ? "本周刚开始"
+        : wRatio < 0
+          ? "暂不评价"
+          : wRatio < 0.55
+            ? "偏低"
+            : wRatio < 0.85
+              ? "略低"
+              : "正常或偏强",
+      reason: isMondayNoData
+        ? "今天是周一，本周还没开始，这项不要当成拖分原因。"
+        : noPracticeNow
+          ? "本周还没有工作日练琴记录，这项会直接偏低。"
+          : weeklyTarget <= 0
+            ? "历史日均样本不足，只能粗看这周总量。"
+            : wRatio < 0.85
+              ? `本周只完成个人周目标约 ${Math.round(wRatio * 100)}%（${fmtMin(thisWeekValidMin)} / ${fmtMin(weeklyTarget)}）。`
+              : `本周已完成个人周目标约 ${Math.round(wRatio * 100)}%，当前不是主要拖分项。`,
+      action: isMondayNoData
+        ? (weeklyTarget > 0
+            ? `本周先按平时节奏推进，目标至少 ${fmtMin(weeklyTarget)}。`
+            : "本周先保持正常练琴节奏。")
+        : noPracticeNow
+          ? (weeklyTarget > 0
+              ? `接下来工作日尽快补到 ${fmtMin(weeklyTarget)} 左右。`
+              : "先补上 2 到 3 次完整练琴，把本周记录建立起来。")
+          : weeklyTarget > 0 && wRatio < 0.85
+            ? `剩余工作日优先补足约 ${fmtMin(weekGapMin)}，每天加练约 ${fmtMin(weekCatchupMin)}。`
+            : "保持当前周量，同时避免异常记录吃掉有效时长。",
+    },
+    {
+      key: "B",
+      name: "短期进步",
+      status: isCold ? "样本不足" : bScore < 0.45 ? "偏低" : bScore < 0.62 ? "一般" : "较好",
+      reason: isCold
+        ? "练琴记录还少，最近两周和前一周的对比暂时不稳定。"
+        : bScore < 0.45
+          ? "上周总时长比上上周少，最近一周没有形成明显进步。"
+          : bScore < 0.62
+            ? "上周和上上周差不多，进步幅度还不够清楚。"
+            : "上周比上上周更好，这项当前不是主要短板。",
+      action: isCold
+        ? "先连续两周稳定练琴，再看这项变化。"
+        : bScore < 0.62
+          ? "下周比本周多安排 1 到 2 次完整练琴，周总时长至少多 90 到 120 分钟。"
+          : "下周维持当前节奏，别让周总时长回落。",
+    },
+    {
+      key: "T",
+      name: "近期趋势",
+      status: isCold ? "样本不足" : tScore < 0.45 ? "偏低" : tScore < 0.62 ? "一般" : "较好",
+      reason: isCold
+        ? "可比较的历史周数还不够，这项暂时看不准。"
+        : tScore < 0.45
+          ? "最近两周整体少于更早两周，练琴趋势在走弱。"
+          : tScore < 0.62
+            ? "最近两周和之前接近，趋势还没有明显抬头。"
+            : "最近两周整体高于之前，这项当前不是主要拖分项。",
+      action: isCold
+        ? "先把每周练琴保持住，等连续几周后再看趋势。"
+        : tScore < 0.62
+          ? "未来 2 周每周总时长至少比前 2 周提高约 15%，哪怕每天多 20 到 30 分钟也有效。"
+          : "继续把近两周的节奏延续下去，别只好一周。",
+    },
+    {
+      key: "M",
+      name: "稳定达标",
+      status: isCold ? "样本不足" : mScore < 0.45 ? "偏低" : mScore < 0.62 ? "一般" : "较好",
+      reason: isCold
+        ? "数据还少，暂时不能稳定判断你是不是周周达标。"
+        : mScore < 0.45
+          ? "近几周忽高忽低，没有稳定完成个人周目标。"
+          : mScore < 0.62
+            ? "有些周能完成目标，有些周掉下来，规律性还不够。"
+            : "最近几周达标比较稳定，这项当前不是主要拖分项。",
+      action: isCold
+        ? "先固定每周练琴节奏，让样本稳定下来。"
+        : mScore < 0.62
+          ? "连续 2 周做到工作日至少 4 天练琴、每次不少于 45 分钟。"
+          : "继续守住固定练琴日，避免突然断档。",
+    },
+    {
+      key: "A",
+      name: "长期积累",
+      status: isCold ? "样本不足" : aScore < 0.30 ? "偏低" : aScore < 0.50 ? "一般" : "较好",
+      reason: isCold
+        ? "有效记录还少，长期积累暂时看不准。"
+        : aScore < 0.30
+          ? "和同专业同学相比，累计练琴量还偏少，底子还没拉起来。"
+          : aScore < 0.50
+            ? "长期积累在中间位置，但还不够稳固。"
+            : "长期积累已经不差，这项当前不是主要拖分项。",
+      action: isCold
+        ? "先把记录累起来，别急着看长期项。"
+        : aScore < 0.50
+          ? "用 4 周做一个周期，尽量每周都完成个人周目标的 100%，把总量慢慢垫高。"
+          : "保持周周不断档，让长期积累继续往上长。",
+    },
+  ];
+
+  const dimensionFocusTxt = dimensionFocusRows
+    .map((row) =>
+      `${row.name}｜优先级${priorityLabel(row.key)}｜状态${row.status}｜原因：${row.reason}｜改法：${row.action}`
+    )
+    .join("\n");
+
+  // 异常明细（最多列出 4 条，避免超长）
+  const longDetails = longSess.length
+    ? longSessDetails.split("\n").slice(0, 4).join("\n")
+    : "";
+
   return `
-【这篇分析的读者是学生本人，请直接对"你"说话】
-姓名：${student.student_name}（${student.student_major || "专业未知"} ${student.student_grade || ""}）
+学生：${student.student_name}（${student.student_major || "专业未知"} ${student.student_grade || ""}）
 今天：${today}
 
-━━━ 当前分数概况 ━━━
-综合分：${composite > 0 ? composite + " / 100" : "本周无练琴，未参与排名"}
-分数水平：${scoreLevel}
-历史最高：${student.personal_best ?? "—"} 分
-${coldText}
+综合分：${composite > 0 ? composite + "/100" : "本周无练琴"}
+结论：${scoreLevel}
+数据：${isCold ? `偏少（${recCnt}条）` : `充足（${recCnt}条）`}
 
-━━━ 本周练琴情况（${weekMondayStr} 起这周）━━━
-${isMondayNoData
-  ? "今天是本周一，本周还没开始练琴——这是完全正常的，请基于历史数据来分析，不要提本周状态。"
-  : noPracticeNow
-    ? "本周目前没有练琴记录。"
-    : thisWeekSummary
-}
+本周（${weekMondayStr}起）：${isMondayNoData ? "周一正常空窗（不要评价本周）" : (noPracticeNow ? "暂无练琴记录" : thisWeekSummary)}
 最近一次练琴：${lastSessDate}
 
-━━━ 分数主要原因（AI分析时请围绕这些展开，告诉学生"为什么"）━━━
-让分数高的因素：${topHelpers.length > 0 ? topHelpers.join("、") : "暂时没有特别突出的加分项"}
-拖低分数的因素：${topHurters.length > 0 ? topHurters.join("、") : "没有明显的拖分项，分数真实反映当前水平"}
+主要加分：${topHelpTxt}
+主要拖分：${topHurtTxt}
+最强项：${strongestTxt}
+最短板：${weakestTxt}
 
-━━━ 维度贡献拆解（按当前权重，帮助解释得分来源）━━━
-最强贡献维度：${strongestDims.map(d => `${d.name}≈${(d.contribution * 100).toFixed(1)}分贡献`).join("、")}
-当前主要短板：${weakestDims.map(d => `${d.name}缺口≈${(d.missing * 100).toFixed(1)}分`).join("、")}
+五维拆解（请逐项回应，不要漏项）：
+${dimensionFocusTxt}
 
-━━━ 各方面情况的白话说明 ━━━
-本周练琴量：${wText}（本周/周目标比=${wRatio >= 0 ? (wRatio * 100).toFixed(0) + "%" : "无数据"}）
-最近进步情况：${bText}（B分=${bScore.toFixed(3)}）
-练琴趋势：${tText}（T分=${tScore.toFixed(3)}）
-练琴规律性：${mText}（M分=${mScore.toFixed(3)}）
-同专业积累：${aText}（A分=${aScore.toFixed(3)}）
+异常摘要：${outlierSection}
+${longDetails ? `异常明细（引用具体日期/时长）：\n${longDetails}` : ""}
 
-━━━ 异常练琴情况（如果有，要帮学生说清楚为什么是异常）━━━
-${outlierSection}${longTimeNote}
-
-━━━ 针对性改进动作（按优先级）━━━
-${actions.map((a, i) => `  ${i + 1}. ${a}`).join("\n")}
-
-━━━ 最近${sessions.length}次完整练琴记录（从新到旧，北京时间）━━━
-  ${sessRows}
-
-━━━ 各星期练琴频次（最近${sessions.length}次）━━━
-${wdSummary}
-不足30分钟的练琴：${shortCnt}次（占${shortPct}%）
-平均每次练琴时长：${fmtMin(meanDur)}
-
-━━━ 最近${recent.length}周快照（从旧到新）━━━
-${histRows}
-有练琴的周：${activeWeeks}周 / 未练琴的周：${absentWeeks}周
-
-━━━ 节假日参考（判断停练是否在假期内）━━━
-${CN_HOLIDAYS.map((h) => `  ${h.name}：${h.range}`).join("\n")}
+补充建议候选：${actionTxt}
 `.trim();
 }
 
 // ─── System Prompt ───────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `你是一位亲切、诚实的练琴学习助理，专门帮助音乐学院的学生了解自己的练琴情况和分数来源。
+const SYSTEM_PROMPT = `你是一位亲切、诚实的练琴学习助理，帮助学生一眼看懂自己五个方面为什么高或低、接下来该怎么改。
 
 【核心任务】
-根据数据，用学生能听懂的语言，把以下三件事说清楚：
-① 这个分数为什么是这个数字——哪些具体因素让分数高了，哪些让分数低了
-② 最近练琴中做得好的地方（无论分数高低，必须找到一个真实的亮点）
-③ 最需要改进的一件事（如果有的话），以及怎么做
-④ 必须覆盖维度解释：至少讲清楚 W + 两个短板维度（B/T/M/A 中最弱者），不能只围绕异常记录
+严格根据提供的“五维拆解”逐项输出，尤其要把偏低项目的原因和改法说准、说短，不要只挑 1 到 2 项来讲。
 
 【语言风格】
-- 直接对学生说话，用"你"，不要用"该同学""该生"
-- 语气真诚、鼓励、具体，有好的地方就夸，有问题的地方直接说，不绕弯子
-- 用生活化语言，把技术数据翻译成人话：
-    "异常记录多"→ "有几次系统发现你可能练完没有及时还卡"
-    "W分高"      → "这周你练琴的时间比平时多很多"
-    "趋势下滑"   → "最近两周比之前练得少了"
-- 用真实数字：说"这周练了约X分钟"而不是笼统说"练琴量高"
-- 如果某项因数据不足暂无法评估，坦诚告诉学生"这项现在还看不出来，等练琴次数多了就知道了"
-- 禁止出现任何统计术语：α、β、σ、outlier、baseline、score、momentum、accum、维度、可信度
-- 禁止使用Markdown格式（不能有 *、#、**、- 开头的列表），输出纯文字段落
-- 字数控制在220～420字，分3～4个自然段
+- 直接对学生说话，用"你"
+- 用真实数字（分钟/次数/比例）说话，不要空话
+- 不要出现任何统计术语：α、β、σ、outlier、baseline、score、momentum、accum、维度、可信度
+- 不要编造数据；没有数据就直接说“暂时看不准”
+- 不要使用Markdown格式（不能有 *、#、**、- 开头的列表）
 
-【分析结构（流畅成段，不要分点列表）】
-第1段：先说当前总体水平，并用数字解释“得分最高的1个维度 + 拖分最明显的1个维度”
-第2段：补充另外2个关键维度（通常是 W + 两个短板维度中的剩余项），讲清“为什么会高/低”
-第3段：指出一个真实亮点和一个核心问题（可引用具体日期/次数）
-第4段：给出2条可执行建议，必须有频次/时长/周目标，不要空话
+【输出格式】
+严格输出 6 行纯文本，保留换行，不要写成一整段：
+总评：一句话说清当前总分最核心的拖分点 + 一个真实亮点。
+本周练琴量：现状；原因；改法。
+短期进步：现状；原因；改法。
+近期趋势：现状；原因；改法。
+稳定达标：现状；原因；改法。
+长期积累：现状；原因；改法。
 
-【周一特殊规则】
-若数据注明"今天是本周一，本周还没开始练琴"，完全跳过对本周的评价，直接基于上周和历史数据分析。
+【写作要求】
+- 每一行尽量短，优先写“偏低/一般/较好”等结论，再写原因和改法
+- 如果某项当前不是主要拖分项，也要交代一句“不是主要问题，继续保持什么”
+- 重点更详细地写优先级高、状态偏低的项
+- 总字数控制在 220～360 字
 
-【假期规则】
-停练时间若与节假日重合，一句话带过，不展开，立即转入更有价值的分析点。
+【周一规则】
+若提示“今天是本周一，本周还没开始练琴”，不要评价本周，只基于历史数据说。
 
-【异常练琴说明规则（重要）】
-- 超长未还卡（too_long，超过3小时）：告诉学生系统检测到这次练琴记录的时间特别长，很可能是练完后没及时还卡，这类记录会影响分数，下次记得还卡
-- 饭点时间占用（meal_break）：告诉学生系统发现你在午饭时间（约12:10前后）或晚饭时间（约18:10前后）仍在使用琴房，请按时归还让其他同学也能用
-- 有具体日期和时长时必须引用出来，例如"3月5日周三 14:00-17:05 练了3小时5分钟，时间太长了，很可能是忘了还卡"；绝对禁止笼统说"多次超过两小时"
-- 如果有多条异常，每条都要具体说，不要合并处理
-- 只有当异常率明显偏高（如 >20%）时，异常问题才可作为主因；否则应把重点放在维度得分与练琴结构本身`;
+【异常说明】
+如果给了“异常明细（引用具体日期/时长）”，只在相关那一行点出最关键的 1 条即可，不要单独展开成长列表。`;
 
 // ─── 主处理逻辑 ──────────────────────────────────────────────────────────────
 
@@ -1019,15 +1117,15 @@ ${rawSessions.slice(0, 15).map((r: any) => {
   const pageOffset = typeof body.offset === "number" ? body.offset : 0;
 
   try {
-    // 1. 按分页获取学生（按 composite_score 降序排列，保证每次分批结果稳定）
+    // 1. 按分页获取学生（分页必须使用稳定排序键，否则分数波动会导致 offset 分页漏人/重复）
     const students = await dbGet(
-      `student_baseline?select=student_name,composite_score,raw_score,baseline_score,trend_score,momentum_score,accum_score,mean_duration,record_count,is_cold_start,weeks_improving,personal_best,short_session_rate,student_major,student_grade&order=composite_score.desc.nullslast&limit=${pageLimit}&offset=${pageOffset}`
+      `student_baseline?select=student_name,composite_score,raw_score,baseline_score,trend_score,momentum_score,accum_score,mean_duration,record_count,is_cold_start,weeks_improving,personal_best,short_session_rate,student_major,student_grade&order=student_name.asc&limit=${pageLimit}&offset=${pageOffset}`
     );
     log.push(`分页 offset=${pageOffset} limit=${pageLimit}，获取到 ${students.length} 名学生`);
 
     // 2. 一次性获取所有学生的 AI 缓存时间
     const cacheRows = await dbGet(
-      "student_ai_analysis?select=student_name,generated_at&limit=1000"
+      "student_ai_analysis?select=student_name,generated_at&limit=5000"
     );
     // generated_at → ISO 字符串，方便后面直接与 practice_sessions 时间比较
     const cacheMap = new Map<string, string>(
