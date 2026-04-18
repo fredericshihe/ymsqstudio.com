@@ -3,7 +3,32 @@
 > 琴房练琴数据、排行榜、音符币、AI 分析统一说明文档  
 > 最后更新：2026-03-31  
 > 本文档是当前**唯一整理版说明文档 / 单一阅读入口**。  
-> `baseline_monitoring_backup.md` 保留为**完整备份与历史审计档案**，`系统架构文档.md` 保留为扩展说明参考。
+> `docs/backups/baseline_monitoring_backup.md` 保留为**完整备份与历史审计档案**，`docs/architecture/系统架构文档.md` 保留为扩展说明参考。
+
+---
+
+## 仓库目录结构（2026-04-18）
+
+为降低根目录噪音，仓库已按职责整理：
+
+- 根目录：仅保留当前主要线上页面、主说明文档与站点级入口文件
+- `sql/setup/`：初始化与正式部署入口
+- `sql/migrations/`：结构迁移类 SQL
+- `sql/core/`：长期生效的核心数据库能力
+- `sql/fixes/active/`：当前仍建议保留的有效修复入口
+- `sql/fixes/archive/`：历史补丁归档
+- `sql/verify/`：验收、核对、测试脚本
+- `sql/debug/`：单点排查与诊断脚本
+- `sql/backtest/`：回测与历史模拟脚本
+- `docs/`：架构说明、备份档案与运维文档
+- `presentations/`：排行榜宣讲页、打印页、活动物料
+- `assets/images/`：项目中的静态图片素材
+- `scripts/`：零散辅助脚本
+
+说明：
+
+- README 中保留了大量历史 SQL 文件名，便于搜索与审计；这些文件现已按上面的目录结构归类存放。
+- `supabase/functions/` 与当前线上主页面路径保持不变，避免影响部署与访问 URL。
 
 ---
 
@@ -16,8 +41,8 @@
 | 管理端 · 练琴记录查询 | `index.html` | **按时段查练琴学生**：列表中的「练琴次数」不再按原始日志条数累计；仅拉取 `action ∈ (assign, clear)` 且 **`created_at` 落在所选时段** 的行，按学生分组后使用与同琴房 FIFO、与点击行明细一致的 `pairAssignClearSessions`。**完成「登记+还卡」配对计 1 次**；时段内已登记、未在时段内还卡各计 1 次。表头 / 元信息 / CSV 列名同步为「该时段练琴次数」并注明与明细规则一致。 |
 | 管理端 · 明细说明 | `index.html` | **孤立还卡**区块文案：下列还卡多为 **对应的登记时间落在查询时段之外**（本次仅按时段拉取登记/还卡，FIFO 无法在窗口内找到配对登记）。 |
 | 评分 · 异常率惩罚（可选部署） | `fix85_outlier_penalty_25pct.sql` | **FIX-85**：`outlier_penalty` 分段调整——约 **25%** 异常率起明显惩罚（约 **0.85** 系数），**25%~60%** 区间更陡，**>60%** 继续指数下压；对 `compute_student_score`、`compute_student_score_as_of` 内对应 `CASE` 块做文本级补丁替换。部署后视需要执行 `backfill_score_history()`。 |
-| 宣讲 / 演示 | `leaderboard_launch_slide_1.html`、`leaderboard_launch_slide_2.html`、`leaderboard_launch_slide_3.html`、`leaderboard_launch_slide_three_boards.html`、`leaderboard_launch_slide_vouchers.html`、`leaderboard_presentation.html` | 排行榜上线或活动用静态幻灯片/演示页（不涉及数据库）。 |
-| 档案与配套页 | `baseline_monitoring_backup.md`、`兑换券.html`、`排行榜指南.html` | 与本轮一并提交的监控备份档案与前端说明页更新（以各文件内容为准）。 |
+| 宣讲 / 演示 | `presentations/leaderboard/leaderboard_launch_slide_1.html`、`presentations/leaderboard/leaderboard_launch_slide_2.html`、`presentations/leaderboard/leaderboard_launch_slide_3.html`、`presentations/leaderboard/leaderboard_launch_slide_three_boards.html`、`presentations/leaderboard/leaderboard_launch_slide_vouchers.html`、`presentations/leaderboard/leaderboard_presentation.html` | 排行榜上线或活动用静态幻灯片/演示页（不涉及数据库）。 |
+| 档案与配套页 | `docs/backups/baseline_monitoring_backup.md`、`兑换券.html`、`排行榜指南.html` | 与本轮一并提交的监控备份档案与前端说明页更新（以各文件内容为准）。 |
 | 版本控制 | Git `main` | 合并提交示例：`4694725`（练琴记录计次与文案 + 上述文件）；远程 `origin` 见仓库设置。 |
 
 ---
@@ -28,7 +53,7 @@
 |------|------|------|
 | 管理端 · 排行榜 PDF 导出 | `practiceanalyse.html` | 新增「**导出榜单 PDF**」：导出**综合榜前 10** 与**三类分榜前 6**，并在同一页 A4 中展示；每行标注「应加音符币」金额（与 `setup_coin_rewards.sql` 规则一致）。版式调整为：综合榜横向占满上方，三分榜下方三列并排对齐；去除分榜指标列与冗余说明文案；标题居中放大并标注榜单周期（周一～周五）。 |
 | 管理端 · 导出数据口径 | `practiceanalyse.html` | 导出数据来源改为 `weekly_leaderboard_history` 中**最新 `backup_date`**的快照（即“最近完结一周”）；并补充无快照/无读权限的排查提示（参考 `leaderboard_backup.sql` 与 README 备份链路）。 |
-| 奖励物料 | `兑换券_八券一页.html` | 新增独立页面：将 `兑换券.html` 中**除最后一张全页证书券**外的 **8 张兑换券**在同一张 A4 上展示，便于打印/投屏。 |
+| 奖励物料 | `presentations/vouchers/兑换券_八券一页.html` | 新增独立页面：将 `兑换券.html` 中**除最后一张全页证书券**外的 **8 张兑换券**在同一张 A4 上展示，便于打印/投屏。 |
 
 ---
 
@@ -62,34 +87,34 @@
 
 生产部署请优先使用以下文件，避免误执行历史 SQL：
 
-1. `fix76_beijing_boundary_and_weekend_alignment.sql`
+1. `sql/fixes/active/fix76_beijing_boundary_and_weekend_alignment.sql`
    - 统一北京时间周边界
    - 统一“周末不计榜 / 不计基线 / 不计近10条统计”
 
-2. `fix77_sync_raw_and_composite.sql`
+2. `sql/fixes/active/fix77_sync_raw_and_composite.sql`
    - 修复 `backfill_score_history()` 回填后 `raw_score` 与 `composite_score` 漂移
 
-3. `fix_w_score_updated_at.sql`
+3. `sql/fixes/active/fix_w_score_updated_at.sql`
    - 新增 `student_baseline.w_score_updated_at`
    - 让 W 的刷新时间可观测、可审计
 
-4. `fix_w_score_staleness.sql`
+4. `sql/fixes/active/fix_w_score_staleness.sql`
    - 新增 `refresh_all_w_scores()`
    - 配置 W 兜底刷新任务
 
-5. `setup_weekly_score_cron.sql`
+5. `sql/setup/setup_weekly_score_cron.sql`
    - 注册周五三段任务链
 
-6. `fix80_trigger_chain_stable.sql`
+6. `sql/fixes/active/fix80_trigger_chain_stable.sql`
    - 触发链稳定版修复：解决“新增 `practice_session` 后分数不自动更新 / 手动触发才更新 / 栈溢出递归”问题
    - 稳定策略：`trigger_update_student_baseline` 回归纯 baseline 更新；`trigger_compute_student_score` 同时保留
      `skip_score_trigger`、`app.computing_score`、`pg_trigger_depth()>2` 三层保护（兼容 `on/true/1`）
 
-7. `simplify_semester_ranking.sql`（如需学期管理精简）
+7. `sql/fixes/active/simplify_semester_ranking.sql`（如需学期管理精简）
    - 移除梅纽因之星相关对象
    - 保留学期累计排行 + 新学期重置
 
-8. （可选）`fix85_outlier_penalty_25pct.sql`（FIX-85）
+8. （可选）`sql/fixes/active/fix85_outlier_penalty_25pct.sql`（FIX-85）
    - 异常率惩罚：**约 25% 起明显惩罚**，中段更陡；补丁写入 `compute_student_score` / `compute_student_score_as_of`
    - 摘要见上文 **「变更备份索引（2026-03-30）」**
 
@@ -101,14 +126,14 @@ SELECT public.backfill_score_history();
 
 ### 推荐部署顺序
 
-1. 运行 `fix76_beijing_boundary_and_weekend_alignment.sql`
-2. 运行 `fix77_sync_raw_and_composite.sql`
-3. 运行 `fix_w_score_updated_at.sql`
-4. 运行 `fix_w_score_staleness.sql`
-5. 运行 `setup_weekly_score_cron.sql`
-6. 运行 `fix80_trigger_chain_stable.sql`
-7. （可选）运行 `simplify_semester_ranking.sql`
-8. （可选）运行 `fix85_outlier_penalty_25pct.sql`
+1. 运行 `sql/fixes/active/fix76_beijing_boundary_and_weekend_alignment.sql`
+2. 运行 `sql/fixes/active/fix77_sync_raw_and_composite.sql`
+3. 运行 `sql/fixes/active/fix_w_score_updated_at.sql`
+4. 运行 `sql/fixes/active/fix_w_score_staleness.sql`
+5. 运行 `sql/setup/setup_weekly_score_cron.sql`
+6. 运行 `sql/fixes/active/fix80_trigger_chain_stable.sql`
+7. （可选）运行 `sql/fixes/active/simplify_semester_ranking.sql`
+8. （可选）运行 `sql/fixes/active/fix85_outlier_penalty_25pct.sql`
 9. 运行 `SELECT public.backfill_score_history();`
 
 > 说明：`fix74`、`fix75` 已被后续入口覆盖，常规部署不需要再单独执行。
@@ -484,20 +509,20 @@ SELECT public.backfill_score_history();
 
 | 文件 | 类型 | 用途 |
 |---|---|---|
-| `fix44_46_score_functions.sql` | SQL | B/T/M/A/W 五维评分主函数 |
-| `leaderboard_rpc.sql` | SQL | 四榜 RPC |
-| `setup_weekly_score_cron.sql` | SQL | 周五任务链 |
-| `setup_coin_rewards.sql` | SQL | 音符币自动结算 |
-| `setup_semester.sql` | SQL | 学期累计 / 新学期重置 |
-| `simplify_semester_ranking.sql` | SQL | 学期管理精简 |
-| `fix_w_score_staleness.sql` | SQL | W 兜底刷新任务 |
-| `fix_w_score_updated_at.sql` | SQL | W 刷新可观测性 |
-| `backtest_score_reasonableness.sql` | SQL | 全局分数回测 |
-| `backtest_dimension_thresholds.sql` | SQL | 全维度阈值回测 |
-| `backtest_leaderboard_min_thresholds.sql` | SQL | 三榜最低门槛历史回测 |
-| `verify_w_dimension_alignment.sql` | SQL | W 专项验收 |
-| `baseline_monitoring_backup.md` | 文档 | 完整历史备份与修复档案 |
-| `系统架构文档.md` | 文档 | 扩展架构参考 |
+| `sql/fixes/archive/fix44_46_score_functions.sql` | SQL | B/T/M/A/W 五维评分主函数 |
+| `sql/core/leaderboard_rpc.sql` | SQL | 四榜 RPC |
+| `sql/setup/setup_weekly_score_cron.sql` | SQL | 周五任务链 |
+| `sql/setup/setup_coin_rewards.sql` | SQL | 音符币自动结算 |
+| `sql/setup/setup_semester.sql` | SQL | 学期累计 / 新学期重置 |
+| `sql/fixes/active/simplify_semester_ranking.sql` | SQL | 学期管理精简 |
+| `sql/fixes/active/fix_w_score_staleness.sql` | SQL | W 兜底刷新任务 |
+| `sql/fixes/active/fix_w_score_updated_at.sql` | SQL | W 刷新可观测性 |
+| `sql/backtest/backtest_score_reasonableness.sql` | SQL | 全局分数回测 |
+| `sql/backtest/backtest_dimension_thresholds.sql` | SQL | 全维度阈值回测 |
+| `sql/backtest/backtest_leaderboard_min_thresholds.sql` | SQL | 三榜最低门槛历史回测 |
+| `sql/verify/verify_w_dimension_alignment.sql` | SQL | W 专项验收 |
+| `docs/backups/baseline_monitoring_backup.md` | 文档 | 完整历史备份与修复档案 |
+| `docs/architecture/系统架构文档.md` | 文档 | 扩展架构参考 |
 
 ---
 
@@ -508,18 +533,18 @@ SELECT public.backfill_score_history();
 1. `README.md`  
    - 作为当前**统一说明文档 / 单一阅读入口**
 
-2. `baseline_monitoring_backup.md`  
+2. `docs/backups/baseline_monitoring_backup.md`  
    - 作为**备份 / 历史审计 / 旧函数快照归档**
    - 可查，但不能直接当部署入口
 
-3. `系统架构文档.md`  
+3. `docs/architecture/系统架构文档.md`  
    - 作为扩展版架构参考
    - 非唯一维护入口
 
 如果未来再改评分、榜单、音符币或 W 链路，优先更新：
 
 1. `README.md`
-2. `baseline_monitoring_backup.md`
+2. `docs/backups/baseline_monitoring_backup.md`
 
 ---
 
