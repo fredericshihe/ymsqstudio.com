@@ -811,7 +811,12 @@
 		.import-box {background:var(--surface);border:1px dashed var(--outline); border-radius:var(--radius); padding:14px; display:flex; flex-direction:column; gap:10px;}
 		.import-box input {width:100%;}
 		.list-small {max-height:220px; overflow:auto; font-size:12px; line-height:1.4; background:var(--surface-alt); padding:8px 10px; border:1px solid var(--outline); border-radius:var(--radius-sm);} .list-small code{font-size:11px;}
-		.toast {position:fixed; bottom:24px; right:24px; background:#222c36; color:#fff; padding:10px 16px; border-radius:10px; font-size:13px; box-shadow:0 6px 18px -8px #000; display:flex; gap:10px; align-items:center; animation:fadeIn .3s;} @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+		.toast {position:fixed; bottom:24px; right:24px; background:#222c36; color:#fff; padding:10px 16px; border-radius:10px; font-size:13px; box-shadow:0 6px 18px -8px #000; display:flex; gap:10px; align-items:center; animation:fadeIn .3s;}
+		.toast.toast-success{background:#166534;}
+		.toast.toast-warn{background:#92400e;}
+		.toast.toast-error{background:#991b1b;}
+		.toast.toast-info{background:#1d4ed8;}
+		@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 		.modal-backdrop {position:fixed; inset:0; background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; z-index:100; opacity:1; transition:opacity .15s ease-out;}
 		.modal {background:var(--surface); border:1px solid var(--outline); width:480px; max-width:92%; border-radius:18px; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 12px 40px -16px rgba(0,0,0,.7);} .modal-header{padding:16px 20px; display:flex; align-items:center; justify-content:space-between; background:var(--surface-alt);} .modal-header h3{margin:0;font-size:15px;font-weight:600;} .modal-body{padding:16px 20px; display:flex; flex-direction:column; gap:14px; max-height:60vh; overflow:auto;} .modal-footer{padding:14px 20px; display:flex; gap:10px; justify-content:flex-end; background:var(--surface-alt);} 
 		/* 放大学生选择弹窗：在特定 backdrop 下作用，避免影响新增房间弹窗 */
@@ -5002,6 +5007,11 @@
 		return out;
 	}
 	function toMs(v){ if(!v) return null; if(typeof v==='number') return v* (v<2e12?1000:1); return new Date(v).getTime(); }
+	const ENABLE_DEV_CONSOLE_TOOLS = location.protocol === 'file:' || /^localhost$|^127\.0\.0\.1$/.test(location.hostname) || new URLSearchParams(location.search).get('devtools') === '1';
+	function exposeDevTool(name, value){
+		if(!ENABLE_DEV_CONSOLE_TOOLS || window[name]) return;
+		window[name] = value;
+	}
 
 	/*************************************************
 	 * Supabase 适配器
@@ -5549,8 +5559,7 @@
 	}
 
 	// 🧪 测试辅助：快速在控制台触发重命名并输出阶段性日志
-	if(!window.testRoomRename){
-		window.testRoomRename = async function(oldName, newName){
+	exposeDevTool('testRoomRename', async function(oldName, newName){
 			console.log('[TEST] rename start', oldName, '->', newName);
 			try{
 				const r = Store.byName.get(oldName);
@@ -5558,12 +5567,10 @@
 				await syncRoomNameToDatabase(oldName, newName);
 				console.log('[TEST] rename success');
 			}catch(e){ console.error('[TEST] rename fail', e.message); }
-		};
-	}
+		});
 
 	// 🧪 测试辅助：快速在控制台触发删除并观测同步
-	if(!window.testRoomDeletion){
-		window.testRoomDeletion = async function(roomName){
+	exposeDevTool('testRoomDeletion', async function(roomName){
 			console.log('[TEST] deletion start', roomName);
 			try{
 				const r = Store.byName.get(roomName);
@@ -5576,12 +5583,10 @@
 					console.log('[TEST] deletion check after 2s - still exists:', stillExists);
 				}, 2000);
 			}catch(e){ console.error('[TEST] deletion fail', e.message); }
-		};
-	}
+		});
 
 	// 🧪 跨窗口删除同步测试
-	if(!window.testCrossWindowDeletion){
-		window.testCrossWindowDeletion = function(roomName){
+	exposeDevTool('testCrossWindowDeletion', function(roomName){
 			console.log('[CROSS-WINDOW-TEST] 准备跨窗口删除测试:', roomName);
 			console.log('📋 测试步骤:');
 			console.log('1. 在窗口A执行: testRoomDeletion("' + roomName + '")');
@@ -5597,12 +5602,10 @@
 			
 			console.log('✅ 房间存在，可以开始测试');
 			console.log('💡 建议先在另一个窗口执行监控，然后回到这个窗口删除');
-		};
-	}
+		});
 
 	// 🧪 增强删除同步监控工具
-	if(!window.watchRoomDeletionSync){
-		window.watchRoomDeletionSync = function(roomName, seconds=8){
+	exposeDevTool('watchRoomDeletionSync', function(roomName, seconds=8){
 			console.log('[WATCH] 开始监控房间删除同步:', roomName);
 			let i=0; const timer=setInterval(()=>{
 				i++;
@@ -5619,12 +5622,10 @@
 					console.log(`[WATCH] 监控结束 - 完全删除: ${isFullyRemoved}`);
 				}
 			},1000);
-		};
-	}
+		});
 
 	// 🏗️ 简单房间创建函数 (用于测试)
-	if(!window.createTestRoom){
-		window.createTestRoom = async function(roomName) {
+	exposeDevTool('createTestRoom', async function(roomName) {
 			console.log(`📝 创建测试房间: ${roomName}`);
 			
 			const newRoom = {
@@ -5671,12 +5672,10 @@
 			
 			console.log(`✅ 测试房间创建完成: ${roomName}`);
 			return roomName;
-		};
-	}
+		});
 
 	// 🧪 快速测试删除同步
-	if(!window.quickDeletionTest){
-		window.quickDeletionTest = async function() {
+	exposeDevTool('quickDeletionTest', async function() {
 			// 创建测试房间
 			console.log('🧪 开始快速删除测试...');
 			const testName = `测试房间_${Date.now()}`;
@@ -5723,8 +5722,7 @@
 			} catch (error) {
 				console.error('❌ 快速删除测试失败:', error);
 			}
-		};
-	}
+		});
 
 	// 🔌 检查实时连接状态
 	if(!window.checkRealtimeStatus){
@@ -6010,7 +6008,7 @@
 	};
 
 	// 💡 测试房间重命名同步的便捷函数
-	window.testRoomRenameSync = async function(oldName, newName) {
+	exposeDevTool('testRoomRenameSync', async function(oldName, newName) {
 		if (!oldName || !newName) {
 			console.log('用法: testRoomRenameSync("旧名称", "新名称")');
 			console.log('示例: testRoomRenameSync("101", "101A")');
@@ -6070,7 +6068,7 @@
 			
 			return { success: false, error: error.message };
 		}
-	};
+	});
 
 	// 💡 检查房间元数据实时同步状态的调试函数
 	window.checkRoomMetaSync = function() {
@@ -8559,8 +8557,7 @@
 	})();
 
 	// =============== 🧪 测试辅助：房间删除同步 ===============
-	if(!window.testRoomDeletionSync){
-		window.testRoomDeletionSync = function(roomName){
+	exposeDevTool('testRoomDeletionSync', function(roomName){
 			console.log('[TEST] testRoomDeletionSync start', roomName);
 			let i=0; const max=6;
 			const timer = setInterval(()=>{
@@ -8570,12 +8567,10 @@
 				console.log(`[TEST] #${i} store=${existsInStore} dom=${domExists}`);
 				if(i>=max) clearInterval(timer);
 			},1000);
-		};
-	}
+		});
 
 	// 🧪 重命名事件观察工具：持续打印 oldName / newName 是否完成替换
-	if(!window.testRoomRenameWatch){
-		window.testRoomRenameWatch = function(oldName, newName, seconds=6){
+	exposeDevTool('testRoomRenameWatch', function(oldName, newName, seconds=6){
 			console.log('[TEST] watch rename', oldName,'->',newName,'for',seconds,'s');
 			let i=0; const timer=setInterval(()=>{
 				i++;
@@ -8586,8 +8581,7 @@
 				console.log(`[TEST][rename] t=${i}s store(old:${hasOld} new:${hasNew}) dom(old:${domOld} new:${domNew})`);
 				if(i>=seconds) clearInterval(timer);
 			},1000);
-		};
-	}
+		});
 
 	// 扩展 checkRoomMetaSync (若存在) 统计已删除残留
 	if(window.checkRoomMetaSync){
@@ -11599,8 +11593,9 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		// 建立占用索引，提高查找速度
 		const occupancyMap = new Map();
 		for(const r of Store.rooms){ if(r.occupant_student_name){ occupancyMap.set(r.occupant_student_name, r); } }
-
-		box.innerHTML = arr.map((s,i)=>{ 
+		box.replaceChildren();
+		const frag = document.createDocumentFragment();
+		arr.forEach((s,i)=>{ 
 			const occRoom = occupancyMap.get(s.name);
 			const isOccupied = !!occRoom && occRoom.name !== roomName; // 已在其它房间
 			let titleText = `${s.major||''} ${s.grade||''}`.trim();
@@ -11621,25 +11616,58 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 				if(st.state==='occupied' && /:\d{2}$/.test(st.chip)){
 					label += ` ${st.chip}`; // 已有 mm:ss 或 hh:mm:ss
 				}
-				stateTag = `<span class="state-tag st-${st.state}">${label}</span>`;
+				stateTag = { cls: `state-tag st-${st.state}`, text: label };
 			}
 
 			const kbCls = (i===studentListKB.index)?' kb-selected':'';
 			// 检查是否在多选模式的选中列表中
 			const isMultiSelected = window.studentModalState && window.studentModalState.selectedStudents.has(s.name);
 			const multiSelectCls = isMultiSelected ? ' multi-selected' : '';
-			return `<div class="student-item${kbCls}${multiSelectCls}" data-name="${s.name}" title="${titleText}">
-				<div class="col-left">
-					<span class="stu-name">${escapeHtml(s.name)}</span>
-					<span class="tag major">${escapeHtml(s.major||'')}</span>
-					${s.grade?`<span class=\"tag grade\">${escapeHtml(s.grade)}</span>`:''}
-				</div>
-				<div class="col-right">
-					${isOccupied?`<span class=\"room-tag\" title=\"当前占用房间\">${occRoom.name}</span>`:''}
-					${stateTag}
-				</div>
-			</div>`; 
-		}).join('');
+			const item = document.createElement('div');
+			item.className = `student-item${kbCls}${multiSelectCls}`;
+			item.dataset.name = s.name;
+			item.title = titleText;
+
+			const left = document.createElement('div');
+			left.className = 'col-left';
+			const nameEl = document.createElement('span');
+			nameEl.className = 'stu-name';
+			nameEl.textContent = s.name;
+			left.appendChild(nameEl);
+
+			const majorEl = document.createElement('span');
+			majorEl.className = 'tag major';
+			majorEl.textContent = s.major || '';
+			left.appendChild(majorEl);
+
+			if(s.grade){
+				const gradeEl = document.createElement('span');
+				gradeEl.className = 'tag grade';
+				gradeEl.textContent = s.grade;
+				left.appendChild(gradeEl);
+			}
+
+			const right = document.createElement('div');
+			right.className = 'col-right';
+			if(isOccupied){
+				const roomTag = document.createElement('span');
+				roomTag.className = 'room-tag';
+				roomTag.title = '当前占用房间';
+				roomTag.textContent = occRoom.name || '';
+				right.appendChild(roomTag);
+			}
+			if(stateTag){
+				const stateEl = document.createElement('span');
+				stateEl.className = stateTag.cls;
+				stateEl.textContent = stateTag.text;
+				right.appendChild(stateEl);
+			}
+
+			item.appendChild(left);
+			item.appendChild(right);
+			frag.appendChild(item);
+		});
+		box.appendChild(frag);
 		// 越界保护 & 重新高亮
 		const items = box.querySelectorAll('.student-item');
 		if(items.length===0){ studentListKB.index=-1; return; }
@@ -12656,7 +12684,18 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 	function formatHMS(sec){ const h=Math.floor(sec/3600); const m=Math.floor((sec%3600)/60); const s=sec%60; return (h>0?h+':':'')+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'); }
 	function formatDuration(sec){ if(sec<60) return sec+'s'; const m=Math.floor(sec/60); const s=sec%60; if(m<60) return m+'m'+(s? s+'s':''); const h=Math.floor(m/60); const mm=m%60; return h+'h'+(mm?mm+'m':''); }
 	function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
-	function toast(msg, type){ const box=document.getElementById('toastContainer'); const el=document.createElement('div'); el.className='toast'; el.innerHTML=`<span>${escapeHtml(msg)}</span>`; box.appendChild(el); setTimeout(()=>{ el.style.opacity='0'; setTimeout(()=>el.remove(),320); }, 2800); }
+	function toast(msg, type){
+		const box=document.getElementById('toastContainer');
+		if(!box) return;
+		const variant=['success','warn','error','info'].includes(type)?type:'info';
+		const el=document.createElement('div');
+		el.className=`toast toast-${variant}`;
+		const text=document.createElement('span');
+		text.textContent=String(msg ?? '');
+		el.appendChild(text);
+		box.appendChild(el);
+		setTimeout(()=>{ el.style.opacity='0'; setTimeout(()=>el.remove(),320); }, 2800);
+	}
 	function logInfo(...a){ console.log('[INFO]',...a); appendRuntime('INFO', a.join(' ')); }
 	function logWarn(...a){ console.warn('[WARN]',...a); appendRuntime('WARN', a.join(' ')); }
 	function logErr(...a){ console.error('[ERR]',...a); appendRuntime('ERR', a.join(' ')); }
@@ -13419,15 +13458,103 @@ body{--text:#e2ebf3; --text-dim:#a5b6c6;}
 			if(!a && !b) return false; if(!a||!b) return true; if(a.size!==b.size) return true; for(const k of a){ if(!b.has(k)) return true; } return false;
 		},
 		applyFilter(){ const kw=(this.dom.search?.value||'').trim().toLowerCase(); this.filteredStudents=this.students.filter(s=> !kw || (window.matchPinyin?matchPinyin(s.name,kw):s.name.includes(kw))); this.renderStudentSelect(); },
-		renderStudentSelect(){ const sel=this.dom.studentSelect; if(!sel) return; sel.innerHTML=this.filteredStudents.map((s,i)=>`<option value="${i}">${s.name} - ${s.major||''}</option>`).join(''); },
+		renderStudentSelect(){
+			const sel=this.dom.studentSelect;
+			if(!sel) return;
+			sel.replaceChildren();
+			const frag=document.createDocumentFragment();
+			this.filteredStudents.forEach((s,i)=>{
+				const option=document.createElement('option');
+				option.value=String(i);
+				option.textContent=`${s.name} - ${s.major||''}`;
+				frag.appendChild(option);
+			});
+			sel.appendChild(frag);
+		},
 		renderTable(){ const tb=this.dom.tbody; if(!tb) return; tb.innerHTML=''; for(let i=0;i<this.timeSlots.length;i++){ const tr=document.createElement('tr'); const timeTd=document.createElement('td'); timeTd.className='btm-cell btm-time-col'; timeTd.textContent=this.timeSlots[i]; tr.appendChild(timeTd); for(let d=0;d<5;d++){ const td=document.createElement('td'); if(d===2){ const w=this.wednesdaySlots[i]; if(typeof w==='string'){ if(this.isRest(i,d,true)){ td.className='btm-cell-rest'; td.textContent=this.breakIdx.includes(i)?'休息':'午餐'; } else { td.className='btm-cell'; td.dataset.key=`wed-${i}-0-2`; td.textContent=w; td.onclick=()=>this.toggle(td.dataset.key); } } else { const wrap=document.createElement('div'); wrap.className='btm-wed-subwrap'; w.forEach((sub,si)=>{ const div=document.createElement('div'); const key=`wed-${i}-${si}-2`; div.dataset.key=key; if(this.isSubRest(i,si) || !/\d{1,2}:\d{2}-\d{1,2}:\d{2}/.test(sub)){ div.className='btm-wed-sub rest'; div.textContent=sub==='11:50-12:50'?'午餐':sub; } else { div.className='btm-wed-sub'; div.textContent=sub; div.onclick=()=>this.toggle(key,true); } wrap.appendChild(div); }); td.appendChild(wrap); } } else { if(this.isRest(i,d,false)){ td.className='btm-cell-rest'; td.textContent=this.breakIdx.includes(i)?'休息':'午餐'; } else { td.className='btm-cell'; td.dataset.key=`${i}-${d}`; td.textContent=this.timeSlots[i]; td.onclick=()=>this.toggle(td.dataset.key); } } tr.appendChild(td);} tb.appendChild(tr);} },
 		isRest(i,day,isWed){ if(isWed){ if(i===2||i===8) return true; if(i===5) return true; } else { if(this.breakIdx.includes(i)) return true; if(this.lunchIdx.includes(i)) return true; } return false; },
 		isSubRest(i){ return i===2||i===8||i===5; },
 		selectStudent(){ const idx=parseInt(this.dom.studentSelect.value); if(isNaN(idx)) { this.currentIndex=-1; return;} this.currentIndex=idx; this.updateInfo(); this.highlight(); this.refreshSelectedList(); },
-		updateInfo(){ if(this.currentIndex<0){ this.dom.info.innerHTML=''; return;} const st=this.filteredStudents[this.currentIndex]; this.dom.info.innerHTML=`<b>学生：</b>${st.name}　<b>专业：</b>${st.major||''}　<b>年级：</b>${st.grade||'未指定'}`; },
+		updateInfo(){
+			if(this.currentIndex<0){
+				this.dom.info.replaceChildren();
+				return;
+			}
+			const st=this.filteredStudents[this.currentIndex];
+			const frag=document.createDocumentFragment();
+			const fields=[
+				['学生：', st.name],
+				['专业：', st.major||''],
+				['年级：', st.grade||'未指定']
+			];
+			fields.forEach((field, idx)=>{
+				const label=document.createElement('b');
+				label.textContent=field[0];
+				frag.appendChild(label);
+				frag.appendChild(document.createTextNode(field[1]));
+				if(idx<fields.length-1){
+					frag.appendChild(document.createTextNode('　'));
+				}
+			});
+			this.dom.info.replaceChildren(frag);
+		},
 		toggle(key){ if(this.currentIndex<0) return; const st=this.filteredStudents[this.currentIndex]; const set=this.selectionMap[st.name]; if(set.has(key)) set.delete(key); else set.add(key); this.highlight(); this.refreshSelectedList(); },
 		highlight(){ if(this.currentIndex<0) return; const st=this.filteredStudents[this.currentIndex]; const set=this.selectionMap[st.name]; this.dom.tbody.querySelectorAll('.btm-cell').forEach(c=>{ const k=c.dataset.key; if(!k) return; c.classList.toggle('btm-cell-selected', set.has(k)); }); this.dom.tbody.querySelectorAll('.btm-wed-sub:not(.rest)').forEach(s=>{ const k=s.dataset.key; if(!k) return; s.classList.toggle('selected', set.has(k)); }); },
-		refreshSelectedList(){ if(!this.dom.selectedList) return; if(this.currentIndex<0){ this.dom.selectedList.innerHTML=''; return;} const st=this.filteredStudents[this.currentIndex]; const set=this.selectionMap[st.name]; if(!set.size){ this.dom.selectedList.innerHTML='<div style="color:#999;font-style:italic;">暂无选择</div>'; return;} const groups={0:[],1:[],2:[],3:[],4:[]}; set.forEach(k=>{ if(k.startsWith('wed-')){ const p=k.split('-'); groups[2].push(k); } else { const [ti,di]=k.split('-').map(Number); groups[di].push(k);} }); let html=''; Object.entries(groups).forEach(([d,arr])=>{ if(!arr.length) return; arr.sort(); html+=`<div style="margin-bottom:6px;"><b>${CHINESE_DAY[d]}:</b><br>`; arr.forEach(k=>{ if(k.startsWith('wed-')){ const p=k.split('-'); const ti=parseInt(p[1]); const si=parseInt(p[2]); const slot=this.wednesdaySlots[ti]; const txt=Array.isArray(slot)?slot[si]:slot; if(/\d{1,2}:\d{2}-\d{1,2}:\d{2}/.test(txt)) html+=`<span class="btm-chip wed">${txt}</span>`; } else { const [ti]=k.split('-'); html+=`<span class="btm-chip">${this.timeSlots[ti]}</span>`; } }); html+='</div>'; }); this.dom.selectedList.innerHTML=html; },
+		refreshSelectedList(){
+			if(!this.dom.selectedList) return;
+			if(this.currentIndex<0){
+				this.dom.selectedList.replaceChildren();
+				return;
+			}
+			const st=this.filteredStudents[this.currentIndex];
+			const set=this.selectionMap[st.name];
+			if(!set.size){
+				const empty=document.createElement('div');
+				empty.style.color='#999';
+				empty.style.fontStyle='italic';
+				empty.textContent='暂无选择';
+				this.dom.selectedList.replaceChildren(empty);
+				return;
+			}
+			const groups={0:[],1:[],2:[],3:[],4:[]};
+			set.forEach(k=>{ if(k.startsWith('wed-')){ groups[2].push(k); } else { const parts=k.split('-').map(Number); groups[parts[1]].push(k);} });
+			const frag=document.createDocumentFragment();
+			Object.entries(groups).forEach(([d,arr])=>{
+				if(!arr.length) return;
+				arr.sort();
+				const wrap=document.createElement('div');
+				wrap.style.marginBottom='6px';
+				const label=document.createElement('b');
+				label.textContent=`${CHINESE_DAY[d]}:`;
+				wrap.appendChild(label);
+				wrap.appendChild(document.createElement('br'));
+				arr.forEach(k=>{
+					let text='';
+					let extraCls='';
+					if(k.startsWith('wed-')){
+						const p=k.split('-');
+						const ti=parseInt(p[1],10);
+						const si=parseInt(p[2],10);
+						const slot=this.wednesdaySlots[ti];
+						const txt=Array.isArray(slot)?slot[si]:slot;
+						if(/\d{1,2}:\d{2}-\d{1,2}:\d{2}/.test(txt)){
+							text=txt;
+							extraCls=' wed';
+						}
+					}else{
+						const ti=Number(k.split('-')[0]);
+						text=this.timeSlots[ti];
+					}
+					if(!text) return;
+					const chip=document.createElement('span');
+					chip.className=`btm-chip${extraCls}`;
+					chip.textContent=text;
+					wrap.appendChild(chip);
+				});
+				frag.appendChild(wrap);
+			});
+			this.dom.selectedList.replaceChildren(frag);
+		},
 		matchSlot(dayIndex,range){ const norm=rangeNorm(range); if(dayIndex===2){ for(let t=0;t<this.wednesdaySlots.length;t++){ const w=this.wednesdaySlots[t]; if(Array.isArray(w)){ for(let s=0;s<w.length;s++){ const seg=w[s]; if(/^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/.test(seg) && sameRange(seg,norm)) return `wed-${t}-${s}-2`; } } else { if(/^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/.test(w) && sameRange(w,norm)) return `wed-${t}-0-2`; } } return null;} else { for(let i=0;i<this.timeSlots.length;i++){ if(sameRange(this.timeSlots[i],norm)) return `${i}-${dayIndex}`; } return null; } },
 		clearAll(){ if(!confirm('确定清空所有学生当前选择？')) return; Object.values(this.selectionMap).forEach(set=>set.clear()); this.highlight(); this.refreshSelectedList(); toastLite('已清空'); },
 		async save(){ 
@@ -15343,9 +15470,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			].join('|');
 			let el = existing.get(id);
 			if(!el || el.dataset.sig !== sig){
-				const temp = document.createElement('div');
-				temp.innerHTML = alertHtml(a).trim();
-				el = temp.firstElementChild;
+				el = createAlertElement(a);
 			}
 			el.dataset.sig = sig;
 			frag.appendChild(el);
@@ -15407,42 +15532,70 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			renderAlerts();
 		});
 	}
-		function alertHtml(a){ 
-			const tags=[`<span class="alert-tag type-${a.type}">${a.type==='absent'?'缺勤':'异常'}</span>`]; 
-			if(a.slot){ 
-				// 时间格式验证和修复
-				let startTime = a.slot.start_time || '';
-				let endTime = a.slot.end_time || '';
-				
-				// 如果时间格式不正确（如 "1" 而不是 "11:07"），尝试修复
-				if(!/^\d{2}:\d{2}$/.test(startTime) && /^\d{1,2}$/.test(startTime)) {
-					startTime = startTime.padStart(2, '0') + ':00';
-				}
-				if(!/^\d{2}:\d{2}$/.test(endTime) && /^\d{1,2}$/.test(endTime)) {
-					endTime = endTime.padStart(2, '0') + ':00';
-				}
-				
-				// 如果仍然不是正确格式，显示原始值
-				const timeDisplay = (startTime && endTime) ? `${startTime}-${endTime}` : 
-					(startTime || endTime || '时间异常');
-				
-				tags.push(`<span class="alert-tag slot-time">${timeDisplay}</span>`); 
-			} 
-			// 紧凑单行布局
+		function normalizeAlertSlotTimeRange(slot){
+			if(!slot) return '';
+			let startTime = slot.start_time || '';
+			let endTime = slot.end_time || '';
+			if(!/^\d{2}:\d{2}$/.test(startTime) && /^\d{1,2}$/.test(startTime)) {
+				startTime = startTime.padStart(2, '0') + ':00';
+			}
+			if(!/^\d{2}:\d{2}$/.test(endTime) && /^\d{1,2}$/.test(endTime)) {
+				endTime = endTime.padStart(2, '0') + ':00';
+			}
+			return (startTime && endTime) ? `${startTime}-${endTime}` : (startTime || endTime || '时间异常');
+		}
+		function createAlertTag(text, className){
+			const tag = document.createElement('span');
+			tag.className = className;
+			tag.textContent = text;
+			return tag;
+		}
+		function createAlertElement(a){
 			const msg = a._msg || buildAlertMessage(a) || '';
-			return `<div class="alert-item ${a.type}${a.ignored?' ignored':''}" data-id="${a.id}" data-severity="${a.severity||0}" title="${escapeHtml(msg)}">
-			<div class="alert-content">
-				<div class="alert-student">${a.student_name||''}</div>
-				<div class="alert-info">
-					${tags.join('')}
-					<span class="alert-time">${fmt(a.created_at||a.createdAt||Date.now())}</span>
-				</div>
-			</div>
-			<div class="alert-actions">
-				<button class="alert-btn ignore" data-act="ignore" data-id="${a.id}">${a.ignored?'已忽略':'忽略'}</button>
-				${a.ignored?'<span class="alert-ignored-flag">已忽略</span>':''}
-			</div>
-		</div>`; 
+			const item = document.createElement('div');
+			item.className = `alert-item ${a.type}${a.ignored ? ' ignored' : ''}`;
+			item.dataset.id = String(a.id);
+			item.dataset.severity = String(a.severity || 0);
+			item.title = msg;
+
+			const content = document.createElement('div');
+			content.className = 'alert-content';
+
+			const student = document.createElement('div');
+			student.className = 'alert-student';
+			student.textContent = a.student_name || '';
+			content.appendChild(student);
+
+			const info = document.createElement('div');
+			info.className = 'alert-info';
+			info.appendChild(createAlertTag(a.type === 'absent' ? '缺勤' : '异常', `alert-tag type-${a.type}`));
+			if(a.slot){
+				info.appendChild(createAlertTag(normalizeAlertSlotTimeRange(a.slot), 'alert-tag slot-time'));
+			}
+			const time = document.createElement('span');
+			time.className = 'alert-time';
+			time.textContent = fmt(a.created_at || a.createdAt || Date.now());
+			info.appendChild(time);
+			content.appendChild(info);
+
+			const actions = document.createElement('div');
+			actions.className = 'alert-actions';
+			const ignoreBtn = document.createElement('button');
+			ignoreBtn.className = 'alert-btn ignore';
+			ignoreBtn.dataset.act = 'ignore';
+			ignoreBtn.dataset.id = String(a.id);
+			ignoreBtn.textContent = a.ignored ? '已忽略' : '忽略';
+			actions.appendChild(ignoreBtn);
+			if(a.ignored){
+				const ignoredFlag = document.createElement('span');
+				ignoredFlag.className = 'alert-ignored-flag';
+				ignoredFlag.textContent = '已忽略';
+				actions.appendChild(ignoredFlag);
+			}
+
+			item.appendChild(content);
+			item.appendChild(actions);
+			return item;
 		}
 		async function ignoreAlert(id){ const a=AlertStore.byId.get(id); if(!a) return; if(a.ignored) return; a.ignored=true; // 本地先置位
 			removeAlertLocal(id); scheduleRenderAlerts();
@@ -16857,9 +17010,6 @@ async function transferStudent(source,target,student,opts){const ctx={id:genUUID
 	return fail('unexpected');
 	function fail(code){ctx.phase=TransferPhase.Failed; xLogErr(ctx,code); toast('转移失败: '+code); return {success:false,error:code};}
 }
-
-// Toast 简易 - 显示在右下角
-function toast(msg){let box=document.getElementById('dev-toast-box'); if(!box){box=document.createElement('div'); box.id='dev-toast-box'; box.style.cssText='position:fixed;bottom:16px;right:16px;display:flex;flex-direction:column-reverse;gap:8px;z-index:9999;'; document.body.appendChild(box);} const item=document.createElement('div'); item.textContent=msg; item.style.cssText='background:#1f2937;color:#fff;padding:8px 14px;border-radius:6px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.4);opacity:0;transform:translateY(4px);transition:.3s'; box.appendChild(item); requestAnimationFrame(()=>{item.style.opacity='1';item.style.transform='translateY(0)';}); setTimeout(()=>{item.style.opacity='0';item.style.transform='translateY(4px)'; setTimeout(()=>item.remove(),300);},3000);}
 
 // （已移除内置转移调试面板，如需再次启用请参考版本控制历史）
 </script>
