@@ -12,7 +12,7 @@
 --
 -- 设计原则：
 --   - balance（总余额）：可跨学期积累，用于兑换任意奖励
---   - semester_earned：计入所有正向调整（auto_reward + manual），每学期可重置
+--   - semester_earned：按交易类型更新（auto_reward / compensation 增加，deduction 减少，redemption 不变），每学期可重置
 --   - 后台仅保留“学期累计排行 + 学期重置”，移除梅纽因之星功能
 -- ============================================================
 
@@ -62,15 +62,16 @@ GRANT EXECUTE ON FUNCTION public.start_new_semester(TEXT) TO anon, authenticated
 
 
 -- ============================================================
--- 4. 更新 adjust_student_coins()：同步累加 semester_earned
---    所有正向调整（auto_reward 自动发放 + manual 手动补发）均计入本学期统计
---    扣减操作（p_amount < 0）不影响 semester_earned
+-- 4. 更新 adjust_student_coins()：按交易类型更新 semester_earned
+--    - auto_reward / compensation：正向计入本学期累计
+--    - deduction：负向冲减本学期累计，但最低不低于 0
+--    - redemption：只影响余额，不影响本学期累计
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.adjust_student_coins(
     p_student_name TEXT,
     p_amount       INTEGER,
     p_reason       TEXT,
-    p_type         TEXT DEFAULT 'manual'
+    p_type         TEXT DEFAULT 'compensation'
 )
 RETURNS INTEGER
 LANGUAGE plpgsql
@@ -79,14 +80,28 @@ AS $$
 DECLARE
     v_current_balance INTEGER;
     v_new_balance     INTEGER;
+    v_new_semester_earned INTEGER;
 BEGIN
+    IF p_type NOT IN ('auto_reward', 'compensation', 'deduction', 'redemption') THEN
+        RAISE EXCEPTION '不支持的 p_type: %', p_type;
+    END IF;
+
+    IF p_type IN ('auto_reward', 'compensation') AND p_amount <= 0 THEN
+        RAISE EXCEPTION '类型 % 的 p_amount 必须为正数', p_type;
+    END IF;
+
+    IF p_type IN ('deduction', 'redemption') AND p_amount >= 0 THEN
+        RAISE EXCEPTION '类型 % 的 p_amount 必须为负数', p_type;
+    END IF;
+
     -- 1. 若学生不在余额表，先初始化
     INSERT INTO public.student_coins (student_name, balance, semester_earned)
     VALUES (p_student_name, 0, 0)
     ON CONFLICT (student_name) DO NOTHING;
 
     -- 2. 行锁 + 读当前余额
-    SELECT balance INTO v_current_balance
+    SELECT balance, semester_earned
+    INTO v_current_balance, v_new_semester_earned
     FROM public.student_coins
     WHERE student_name = p_student_name
     FOR UPDATE;
@@ -94,18 +109,24 @@ BEGIN
     -- 3. 计算新余额
     v_new_balance := v_current_balance + p_amount;
 
-    -- 4. 更新余额 + 同步累加 semester_earned（仅 auto_reward 正向金额）
+    -- 4. 按交易类型更新本学期累计
+    v_new_semester_earned := CASE
+        WHEN p_type IN ('auto_reward', 'compensation')
+            THEN v_new_semester_earned + p_amount
+        WHEN p_type = 'deduction'
+            THEN GREATEST(0, v_new_semester_earned + p_amount)
+        ELSE
+            v_new_semester_earned
+    END;
+
+    -- 5. 更新余额 + semester_earned
     UPDATE public.student_coins
     SET balance         = v_new_balance,
-        semester_earned = CASE
-                              WHEN p_amount > 0
-                              THEN semester_earned + p_amount
-                              ELSE semester_earned
-                          END,
+        semester_earned = v_new_semester_earned,
         updated_at      = NOW()
     WHERE student_name = p_student_name;
 
-    -- 5. 写入流水记录
+    -- 6. 写入流水记录
     INSERT INTO public.coin_transactions
         (student_name, amount, balance_after, reason, transaction_type)
     VALUES

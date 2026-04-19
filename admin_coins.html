@@ -69,8 +69,9 @@
     
     .type-toggle { display: flex; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 4px; gap: 4px; }
     .type-btn { flex: 1; text-align: center; padding: 8px 0; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 600; color: var(--t3); transition: all 0.2s; border: 1px solid transparent; }
-    .type-btn.active[data-type="add"] { background: rgba(16, 185, 129, 0.15); color: var(--green); border-color: rgba(16, 185, 129, 0.3); }
-    .type-btn.active[data-type="sub"] { background: rgba(239, 68, 68, 0.15); color: var(--red); border-color: rgba(239, 68, 68, 0.3); }
+    .type-btn.active[data-type="compensation"] { background: rgba(16, 185, 129, 0.15); color: var(--green); border-color: rgba(16, 185, 129, 0.3); }
+    .type-btn.active[data-type="deduction"] { background: rgba(239, 68, 68, 0.15); color: var(--red); border-color: rgba(239, 68, 68, 0.3); }
+    .type-btn.active[data-type="redemption"] { background: rgba(245, 158, 11, 0.15); color: var(--yellow); border-color: rgba(245, 158, 11, 0.3); }
     
     /* History List */
     .history-list { display: flex; flex-direction: column; gap: 12px; }
@@ -80,6 +81,9 @@
     .hi-meta { font-size: 0.75rem; color: var(--t3); display: flex; gap: 8px; }
     .hi-tag { padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; background: rgba(255,255,255,0.1); }
     .hi-tag.auto { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+    .hi-tag.compensation { background: rgba(16, 185, 129, 0.15); color: var(--green); }
+    .hi-tag.deduction { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+    .hi-tag.redemption { background: rgba(245, 158, 11, 0.15); color: var(--yellow); }
     .hi-amount { font-size: 1.1rem; font-weight: 800; }
     .hi-amount.pos { color: var(--green); }
     .hi-amount.neg { color: var(--red); }
@@ -296,8 +300,9 @@
         <div class="form-group">
           <label>操作类型</label>
           <div class="type-toggle">
-            <div class="type-btn active" data-type="add" onclick="setAdjType('add')">增加 (+)</div>
-            <div class="type-btn" data-type="sub" onclick="setAdjType('sub')">扣除 (-)</div>
+            <div class="type-btn active" data-type="compensation" onclick="setAdjType('compensation')">补偿 (+)</div>
+            <div class="type-btn" data-type="deduction" onclick="setAdjType('deduction')">扣除 (-)</div>
+            <div class="type-btn" data-type="redemption" onclick="setAdjType('redemption')">兑换 (-)</div>
           </div>
         </div>
         <div class="form-group">
@@ -306,7 +311,7 @@
         </div>
         <div class="form-group">
           <label>备注说明 (必填)</label>
-          <input type="text" id="adjReason" class="form-control" placeholder="例如: 帮老师打扫琴房 / 违规扣除">
+          <input type="text" id="adjReason" class="form-control" placeholder="例如: 表现补偿 / 违规扣除 / 奖品兑换">
         </div>
       </div>
       <div class="modal-ft">
@@ -342,7 +347,7 @@
     
     let supabaseClient = null;
     let allStudents = [];
-    let currentAdjType = 'add';
+    let currentAdjType = 'compensation';
     let currentAdjStudent = '';
     let loadDataRequestId = 0;
     let renderTimer = null;
@@ -550,7 +555,7 @@
       document.getElementById('adjCurrentCoins').textContent = `🎵 ${balance}`;
       document.getElementById('adjAmount').value = '';
       document.getElementById('adjReason').value = '';
-      setAdjType('add');
+      setAdjType('compensation');
       
       document.getElementById('adjustModalMask').classList.add('show');
     }
@@ -564,6 +569,15 @@
       document.querySelectorAll('.type-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.type === type);
       });
+      const reasonInput = document.getElementById('adjReason');
+      if (reasonInput) {
+        const placeholders = {
+          compensation: '例如: 比赛补偿 / 帮老师打扫琴房',
+          deduction: '例如: 违规扣除 / 未按要求归还',
+          redemption: '例如: 兑换奖品 / 兑换特权'
+        };
+        reasonInput.placeholder = placeholders[type] || '请输入备注说明';
+      }
     }
 
     async function submitAdjustment() {
@@ -579,9 +593,13 @@
         return;
       }
 
-      const finalAmount = currentAdjType === 'add' ? amountInput : -amountInput;
-      const actionText = currentAdjType === 'add' ? `+${amountInput}` : `-${amountInput}`;
-      if (!confirm(`确认对「${currentAdjStudent}」${actionText} 音符币？\n备注：${reason}`)) return;
+      const typeMeta = {
+        compensation: { amount: amountInput, signText: `+${amountInput}`, label: '补偿' },
+        deduction: { amount: -amountInput, signText: `-${amountInput}`, label: '扣除' },
+        redemption: { amount: -amountInput, signText: `-${amountInput}`, label: '兑换' }
+      };
+      const { amount: finalAmount, signText, label } = typeMeta[currentAdjType];
+      if (!confirm(`确认对「${currentAdjStudent}」执行「${label}」${signText} 音符币？\n备注：${reason}`)) return;
       if (!confirm(`二次确认：此操作将直接写入流水记录，无法撤销。`)) return;
 
       const btn = document.getElementById('adjSubmitBtn');
@@ -594,7 +612,7 @@
           p_student_name: currentAdjStudent,
           p_amount: finalAmount,
           p_reason: reason,
-          p_type: 'manual'
+          p_type: currentAdjType
         });
 
         if (error) throw error;
@@ -642,9 +660,13 @@
           const date = new Date(tx.created_at).toLocaleString('zh-CN', {
             month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
           });
-          const typeTag = tx.transaction_type === 'auto_reward' 
-            ? '<span class="hi-tag auto">系统结算</span>' 
-            : '<span class="hi-tag">手动操作</span>';
+          const typeTagMap = {
+            auto_reward: '<span class="hi-tag auto">系统结算</span>',
+            compensation: '<span class="hi-tag compensation">补偿</span>',
+            deduction: '<span class="hi-tag deduction">扣除</span>',
+            redemption: '<span class="hi-tag redemption">兑换</span>'
+          };
+          const typeTag = typeTagMap[tx.transaction_type] || '<span class="hi-tag">手动操作</span>';
 
           return `
             <div class="history-item">
