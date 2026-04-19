@@ -1781,6 +1781,16 @@
 	};
 	window.RealtimeRegistry = RealtimeRegistry;
 
+	async function cleanupRealtimeTopic(topicName, client = supabaseClient){
+		if(!client || typeof client.getChannels !== 'function' || typeof client.removeChannel !== 'function') return;
+		const topic = topicName.startsWith('realtime:') ? topicName : `realtime:${topicName}`;
+		const staleChannels = (client.getChannels() || []).filter(ch => ch && (ch.topic === topic || ch.topic === topicName));
+		if(!staleChannels.length) return;
+		await Promise.all(staleChannels.map(ch => {
+			try { return client.removeChannel(ch); } catch(_) { return Promise.resolve(); }
+		}));
+	}
+
 	// 请求频率限制器
 	class RequestThrottler {
 		constructor() {
@@ -2474,6 +2484,7 @@
 		if (window.__operationTimeoutInterval) clearInterval(window.__operationTimeoutInterval);
 		if (window.__roomsRealtimeReconnectTimer) clearTimeout(window.__roomsRealtimeReconnectTimer);
 		if (window.__studentsRealtimeReconnectTimer) clearTimeout(window.__studentsRealtimeReconnectTimer);
+		if (window.__roomMetaRealtimeReconnectTimer) clearTimeout(window.__roomMetaRealtimeReconnectTimer);
 		
 		// 清理realtime连接（统一注册表）
 		try { RealtimeRegistry.cleanupAll(supabaseClient); } catch(_) {}
@@ -2802,6 +2813,12 @@
 				clearTimeout(window.__studentsRealtimeReconnectTimer);
 				window.__studentsRealtimeReconnectTimer = null;
 				logInfo('已清理学生重连计时器');
+			}
+
+			if (window.__roomMetaRealtimeReconnectTimer) {
+				clearTimeout(window.__roomMetaRealtimeReconnectTimer);
+				window.__roomMetaRealtimeReconnectTimer = null;
+				logInfo('已清理房间元数据重连计时器');
 			}
 		}
 		
@@ -7598,70 +7615,83 @@
 		logInfo(`已清理房间 ${roomName} 的所有状态`);
 	}
 	async function setupRealtime(){
-		// 检查页面可见性
-		if (document.hidden) {
-			logInfo('页面隐藏中，跳过realtime初始化');
-			return;
+		if (window.__setupRealtimePromise) {
+			return window.__setupRealtimePromise;
 		}
-		
-		// 检查紧急刹车状态
-		if (emergencyBrake.isEngaged()) {
-			logWarn('紧急刹车激活中，跳过realtime初始化');
-			return;
-		}
-		
-		if(!supabaseReady) {
-			logWarn('Supabase 未就绪，跳过实时订阅');
-			updateSyncStatus('error', '未连接');
-			return;
-		}
-		
-		// 🔧 修复：检查 supabaseClient 是否存在且有效
-		if (!supabaseClient || !supabaseClient.channel) {
-			logErr('❌ Supabase 客户端无效，无法建立 Realtime 连接');
-			updateSyncStatus('error', '客户端无效');
-			// 尝试重新初始化 Supabase
-			setTimeout(() => {
-				logInfo('尝试重新初始化 Supabase...');
-				supabaseReady = false;
-				window.__roomsRealtimeInit = false;
-				initSupabase().then(() => {
-					if (supabaseReady) {
-						setupRealtime();
-					}
-				});
-			}, 3000);
-			return;
-		}
-		
-		// 避免重复初始化（标签页多次触发）
-		if(window.__roomsRealtimeInit && !window.__roomsRealtimeReconnecting){
-			logInfo('setupRealtime 已初始化，跳过');
-			return;
-		}
-		window.__roomsRealtimeInit = true;
-		
-		updateSyncStatus('connecting', '订阅中...');
-		
-		// 清理旧连接（统一通过 RealtimeRegistry）
-		try{
-			await Promise.race([
-				RealtimeRegistry.cleanupAll(supabaseClient),
-				new Promise(resolve => setTimeout(resolve, 2500))
-			]);
-			realtimeChannel = null;
-			window.studentRealtimeChannel = null;
-			window.roomMetaRealtimeChannel = null;
-			logInfo('旧 realtime 连接清理完成');
-			await new Promise(resolve => setTimeout(resolve, 300));
-		}catch(e){
-			logWarn('旧 realtime 连接清理异常（继续）:', e.message);
-		}
-		
-		// 创建新的实时频道（房间）
-		window.__roomsRealtimeReconnecting = true;
-		realtimeChannel = RealtimeRegistry.register('rooms', supabaseClient.channel('realtime-rooms'))
-			.on('postgres_changes', {
+		window.__setupRealtimePromise = (async () => {
+			// 检查页面可见性
+			if (document.hidden) {
+				logInfo('页面隐藏中，跳过realtime初始化');
+				return;
+			}
+			
+			// 检查紧急刹车状态
+			if (emergencyBrake.isEngaged()) {
+				logWarn('紧急刹车激活中，跳过realtime初始化');
+				return;
+			}
+			
+			if(!supabaseReady) {
+				logWarn('Supabase 未就绪，跳过实时订阅');
+				updateSyncStatus('error', '未连接');
+				return;
+			}
+			
+			// 🔧 修复：检查 supabaseClient 是否存在且有效
+			if (!supabaseClient || !supabaseClient.channel) {
+				logErr('❌ Supabase 客户端无效，无法建立 Realtime 连接');
+				updateSyncStatus('error', '客户端无效');
+				// 尝试重新初始化 Supabase
+				setTimeout(() => {
+					logInfo('尝试重新初始化 Supabase...');
+					supabaseReady = false;
+					window.__roomsRealtimeInit = false;
+					initSupabase().then(() => {
+						if (supabaseReady) {
+							setupRealtime();
+						}
+					});
+				}, 3000);
+				return;
+			}
+			
+			// 避免重复初始化（标签页多次触发）
+			if(window.__roomsRealtimeInit && !window.__roomsRealtimeReconnecting){
+				logInfo('setupRealtime 已初始化，跳过');
+				return;
+			}
+			window.__roomsRealtimeInit = true;
+			
+			updateSyncStatus('connecting', '订阅中...');
+			realtimeMonitor.clearReconnectTimers();
+			
+			// 清理旧连接（统一通过 RealtimeRegistry）
+			try{
+				await Promise.race([
+					RealtimeRegistry.cleanupAll(supabaseClient),
+					new Promise(resolve => setTimeout(resolve, 2500))
+				]);
+				await Promise.all([
+					cleanupRealtimeTopic('realtime-rooms', supabaseClient),
+					cleanupRealtimeTopic('realtime-students', supabaseClient),
+					cleanupRealtimeTopic('room_metadata_sync', supabaseClient)
+				]);
+				realtimeChannel = null;
+				window.studentRealtimeChannel = null;
+				window.roomMetaRealtimeChannel = null;
+				window.__roomMetaRealtimeInit = false;
+				window.__roomMetaRealtimeConnected = false;
+				window.__roomMetaRealtimeAttempts = 0;
+				logInfo('旧 realtime 连接清理完成');
+				await new Promise(resolve => setTimeout(resolve, 300));
+			}catch(e){
+				logWarn('旧 realtime 连接清理异常（继续）:', e.message);
+			}
+			
+			// 创建新的实时频道（房间）
+			window.__roomsRealtimeReconnecting = true;
+			const roomsChannel = supabaseClient.channel('realtime-rooms');
+			roomsChannel.on('postgres_changes', {
 				event: '*',
 				schema: 'public',
 				table: 'rooms'
@@ -7679,8 +7709,9 @@
 				realtimeMonitor.recordActivity(); // 记录realtime活动
 				requestStats.record('realtimeEvents'); // 记录realtime事件统计
 				handleRealtimeRoom(payload);
-			})
-			.subscribe((status) => {
+			});
+			realtimeChannel = RealtimeRegistry.register('rooms', roomsChannel);
+			realtimeChannel.subscribe((status) => {
 				if (status === 'SUBSCRIBED') {
 					// 只在首次连接或重连成功时显示详细信息
 					const hadReconnectAttempts = window.__roomsRealtimeAttempts > 0;
@@ -7724,30 +7755,23 @@
 					const attempts = (window.__roomsRealtimeAttempts||0) + 1;
 					window.__roomsRealtimeAttempts = attempts;
 					
-					// 区分不同错误类型的处理策略
-					let shouldReconnect = true;
 					let baseDelay = 1000;
 					
 					if (status === 'CLOSED') {
-						// CLOSED状态可能是正常关闭，减少重连频率
 						baseDelay = 3000;
-						// 如果短时间内多次CLOSED，可能是网络问题，延长等待
 						const now = Date.now();
 						const lastClosedTime = window.__lastClosedTime || 0;
-						if (now - lastClosedTime < 10000) { // 10秒内多次CLOSED
-							baseDelay = Math.min(30000, baseDelay * attempts); // 最长30秒
+						if (now - lastClosedTime < 10000) {
+							baseDelay = Math.min(30000, baseDelay * attempts);
 						}
 						window.__lastClosedTime = now;
 					}
 					
-					// 智能重连延迟算法
-					const maxDelay = status === 'CLOSED' ? 180000 : 120000; // CLOSED状态允许更长延迟
+					const maxDelay = status === 'CLOSED' ? 180000 : 120000;
 					const delay = Math.min(maxDelay, Math.round(baseDelay * Math.pow(1.4, attempts-1) + Math.random()*1000));
 					
-					// 超过5次重连失败后，大幅延长重连间隔
 					if (attempts > 5) {
-						const longDelay = Math.min(300000, delay * 2); // 最长5分钟
-						// 只在第6次和每10次时输出日志
+						const longDelay = Math.min(300000, delay * 2);
 						if(attempts === 6 || attempts % 10 === 0) {
 							logWarn(`[RT][rooms] 状态=${status} 重连#${attempts} 延长等待 ${Math.round(longDelay/1000)}秒 (频繁失败)`);
 						}
@@ -7759,8 +7783,7 @@
 							setupRealtime();
 						}, longDelay);
 					} else if (attempts > 3) {
-						const mediumDelay = Math.min(180000, delay * 1.5); // 最长3分钟
-						// 只在第4次和第8次时输出日志
+						const mediumDelay = Math.min(180000, delay * 1.5);
 						if(attempts === 4 || attempts % 4 === 0) {
 							logWarn(`[RT][rooms] 状态=${status} 重连#${attempts} 延长等待 ${Math.round(mediumDelay/1000)}秒`);
 						}
@@ -7772,7 +7795,6 @@
 							setupRealtime();
 						}, mediumDelay);
 					} else {
-						// 减少日志频率：只在前2次或每5次输出警告
 						if(attempts <= 2 || attempts % 5 === 0) {
 							logWarn(`[RT][rooms] 状态=${status} 重连#${attempts} 预计 ${Math.round(delay/1000)}秒`);
 						}
@@ -7788,10 +7810,10 @@
 					logInfo('[RT][rooms] 状态=', status);
 				}
 			});
-		
-		// 创建学生数据库实时频道
-		window.studentRealtimeChannel = RealtimeRegistry.register('students', supabaseClient.channel('realtime-students'))
-			.on('postgres_changes', {
+			
+			// 创建学生数据库实时频道
+			const studentsChannel = supabaseClient.channel('realtime-students');
+			studentsChannel.on('postgres_changes', {
 				event: '*',
 				schema: 'public',
 				table: 'student_database'
@@ -7803,16 +7825,15 @@
 				const src = (payload.subscription && payload.subscription.socket) ? 'ws' : 'unknown';
 				console.log(`[RT][students][${seq}] event=${payload.eventType} name=${name} origin=${src}`, payload);
 				
-				// 记录数据更新时间和活动
 				window.__lastRealtimeDataUpdate = Date.now();
-				realtimeMonitor.recordActivity(); // 记录realtime活动
-				requestStats.record('realtimeEvents'); // 记录realtime事件统计
+				realtimeMonitor.recordActivity();
+				requestStats.record('realtimeEvents');
 				try{ handleRealtimeStudent(payload); }catch(e){ console.warn('[RT] 处理学生事件异常', e); }
-			})
-			.subscribe((status) => {
+			});
+			window.studentRealtimeChannel = RealtimeRegistry.register('students', studentsChannel);
+			window.studentRealtimeChannel.subscribe((status) => {
 				const nowTs=new Date().toISOString();
 				if (status === 'SUBSCRIBED') {
-					// 只在首次连接或重连成功时输出日志
 					const hadReconnectAttempts = window.__studentsRealtimeAttempts > 0;
 					if (hadReconnectAttempts) {
 						console.log(`[RT][students] ✅ 重连成功 @${nowTs}`);
@@ -7823,25 +7844,19 @@
 					window.__studentsRealtimeAttempts = 0;
 					if(window.loadFromCloud){ setTimeout(()=>{ try{ loadFromCloud(); }catch(_){ } }, 800); }
 				} else if (status === 'CHANNEL_ERROR' || status==='TIMED_OUT' || status==='CLOSED') {
-					// 📱 页面隐藏时的智能处理
 					if (realtimeMonitor.pageHidden) {
-						// 页面隐藏时静默处理，不记录日志
 						console.debug(`[RT][students] 页面隐藏中，静默处理连接状态 (${status})`);
 						return;
 					}
 					
-					// 刚从隐藏状态恢复，给连接一些恢复时间
 					if ((Date.now() - (window.__lastVisibilityChange || 0)) < 5000) {
 						console.debug(`[RT][students] 页面刚恢复可见，延迟处理 (status=${status})`);
 						return;
 					}
 					
-					// 对于 CLOSED 状态，更加保守的处理
 					if (status === 'CLOSED') {
-						// 检查是否频繁出现 CLOSED 事件
 						if (realtimeMonitor.checkClosedEventFrequency()) {
 							console.warn(`[RT][students] 频繁的 CLOSED 事件，暂停重连 10 分钟`);
-							// 10分钟后重置计数器
 							setTimeout(() => {
 								realtimeMonitor.closedEvents = [];
 								console.log(`[RT][students] CLOSED 事件计数器已重置`);
@@ -7850,10 +7865,8 @@
 						}
 						
 						const timeSinceActivity = Date.now() - realtimeMonitor.lastActivity;
-						// 如果最近有活动（5分钟内），说明连接是正常的，可能是临时断开
 						if (timeSinceActivity < 300000) {
 							console.log(`[RT][students] CLOSED状态但最近有活动(${Math.round(timeSinceActivity/60000)}分钟前)，延迟重连`);
-							// 延迟15秒后再检查是否需要重连
 							setTimeout(() => {
 								if (!document.hidden && !realtimeMonitor.isReconnecting && !window.studentRealtimeChannel) {
 									console.log(`[RT][students] 延迟检查后确认需要重连`);
@@ -7864,25 +7877,21 @@
 						}
 					}
 					
-					// 检查网络状态
 					if (window.RealtimeConnectionManager && !window.RealtimeConnectionManager.checkNetworkStatus()) {
 						console.log(`[RT][students] 网络离线，跳过重连`);
 						return;
 					}
 					
-					// 检查是否正在强制重连中
 					if (realtimeMonitor.isReconnecting) {
 						console.log(`[RT][students] 强制重连进行中，跳过自动重连 (status=${status})`);
 						return;
 					}
 					
-					// 防止重复触发重连
 					if (window.__studentsRealtimeReconnectTimer) {
 						console.log(`[RT][students] 状态=${status} 已有重连计时器运行，跳过`);
 						return;
 					}
 					
-					// 🤖 使用智能重连策略
 					if (!realtimeMonitor.shouldAttemptReconnect(status)) {
 						console.debug(`[RT][students] 智能重连策略决定跳过重连 (${status})`);
 						return;
@@ -7890,15 +7899,10 @@
 					
 					const attempts = (window.__studentsRealtimeAttempts||0)+1;
 					window.__studentsRealtimeAttempts = attempts;
-					
-					// 使用统一的重连延迟计算
 					const delay = realtimeMonitor.calculateReconnectDelay(attempts, status);
-					
-					// 根据页面状态选择日志级别
 					const logLevel = document.hidden || realtimeMonitor.silentMode ? 'debug' : 'warn';
 					const logFunc = logLevel === 'debug' ? console.debug : console.warn;
 					
-					// 减少日志频率
 					if (attempts <= 2 || attempts % 5 === 0) {
 						logFunc(`[RT][students] 状态=${status} 重连#${attempts} in ${Math.round(delay/1000)}s`);
 					}
@@ -7912,18 +7916,14 @@
 					logFunc(`[RT][students] 状态=${status} @${nowTs}`);
 				}
 			});
-		
-		// 💡 添加房间元数据实时订阅，确保备注等信息的多设备同步
-		if (!window.__roomMetaRealtimeInit) {
-			window.__roomMetaRealtimeInit = true;
-			logInfo('初始化房间元数据实时订阅...');
 			
-			window.roomMetaRealtimeChannel = RealtimeRegistry.register(
-				'room_meta',
-				supabaseClient.channel('room_metadata_sync')
-			);
-			window.roomMetaRealtimeChannel
-				.on('postgres_changes', {
+			// 💡 添加房间元数据实时订阅，确保备注等信息的多设备同步
+			if (!window.__roomMetaRealtimeInit) {
+				window.__roomMetaRealtimeInit = true;
+				logInfo('初始化房间元数据实时订阅...');
+				
+				const roomMetaChannel = supabaseClient.channel('room_metadata_sync');
+				roomMetaChannel.on('postgres_changes', {
 					event: '*',
 					schema: 'public',
 					table: 'room_database'
@@ -7931,37 +7931,41 @@
 					const roomName = payload.new?.name || payload.old?.name;
 					logInfo(`🔔 [ROOM_DATABASE表] 收到实时事件: ${payload.eventType} - ${roomName}`);
 					
-					// 💡 特别标记删除事件
 					if(payload.eventType === 'DELETE'){
-						logInfo(`�️ [ROOM_DATABASE表] DELETE事件详情:`, payload);
+						logInfo(`🗑️ [ROOM_DATABASE表] DELETE事件详情:`, payload);
 					}
 					
 					realtimeMonitor.recordActivity();
 					requestStats.record('realtimeEvents');
 					handleRealtimeRoomMeta(payload);
-				})
-				.subscribe((status) => {
+				});
+				window.roomMetaRealtimeChannel = RealtimeRegistry.register('room_meta', roomMetaChannel);
+				window.roomMetaRealtimeChannel.subscribe((status) => {
 					if (status === 'SUBSCRIBED') {
 						logInfo('✅ 房间元数据实时同步已连接');
-						// 设置全局标志，便于调试
 						window.__roomMetaRealtimeConnected = true;
+						window.__roomMetaRealtimeAttempts = 0;
 					} else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-						// 🤖 使用智能日志记录
 						const logFunc = document.hidden || realtimeMonitor.silentMode ? console.debug : console.warn;
 						logFunc(`[RT][room-meta] 订阅状态: ${status}`);
 						
 						window.__roomMetaRealtimeConnected = false;
 						
-						// 🤖 使用智能重连策略
 						if (!realtimeMonitor.shouldAttemptReconnect(status)) {
 							console.debug(`[RT][room-meta] 智能重连策略决定跳过重连 (${status})`);
 							return;
 						}
 						
-						// 使用统一的重连延迟计算
-						const delay = realtimeMonitor.calculateReconnectDelay(1, status);
+						if (window.__roomMetaRealtimeReconnectTimer) {
+							return;
+						}
 						
-						setTimeout(() => {
+						const attempts = (window.__roomMetaRealtimeAttempts || 0) + 1;
+						window.__roomMetaRealtimeAttempts = attempts;
+						const delay = realtimeMonitor.calculateReconnectDelay(attempts, status);
+						
+						window.__roomMetaRealtimeReconnectTimer = setTimeout(() => {
+							window.__roomMetaRealtimeReconnectTimer = null;
 							if (!document.hidden) {
 								const logFunc2 = document.hidden || realtimeMonitor.silentMode ? console.debug : console.info;
 								logFunc2('🔄 重新初始化房间元数据订阅...');
@@ -7973,16 +7977,16 @@
 						logInfo(`📡 房间元数据订阅状态: ${status}`);
 					}
 				});
-		}
+			}
 
-		// 💡 重新评估心跳检测的必要性
-		// 在有realtime的情况下，心跳主要是冗余机制
-		const HEARTBEAT_ENABLED = false; // 🔧 可配置开关，默认关闭
-		const HEARTBEAT_INTERVAL = 600000; // 10分钟（如果启用的话）
-		
-		if (HEARTBEAT_ENABLED && !window.__heartbeatInterval) {
-			logInfo(`启用心跳检测，间隔${HEARTBEAT_INTERVAL/60000}分钟`);
-			window.__heartbeatInterval = setInterval(async () => {
+			// 💡 重新评估心跳检测的必要性
+			// 在有realtime的情况下，心跳主要是冗余机制
+			const HEARTBEAT_ENABLED = false; // 🔧 可配置开关，默认关闭
+			const HEARTBEAT_INTERVAL = 600000; // 10分钟（如果启用的话）
+			
+			if (HEARTBEAT_ENABLED && !window.__heartbeatInterval) {
+				logInfo(`启用心跳检测，间隔${HEARTBEAT_INTERVAL/60000}分钟`);
+				window.__heartbeatInterval = setInterval(async () => {
 				try {
 					// 检查紧急刹车和连接状态
 					if (emergencyBrake.isEngaged() || !supabaseReady || !supabaseClient) return;
@@ -8016,6 +8020,12 @@
 			}, HEARTBEAT_INTERVAL);
 		} else {
 			logInfo('心跳检测已禁用，完全依赖realtime机制');
+		}
+		})();
+		try {
+			return await window.__setupRealtimePromise;
+		} finally {
+			window.__setupRealtimePromise = null;
 		}
 	}
 
