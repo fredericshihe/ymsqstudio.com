@@ -1094,10 +1094,12 @@
 	.pls-mode-row{display:flex;flex-wrap:wrap;gap:14px 20px;align-items:center;width:100%;margin-bottom:2px;}
 	.pls-mode-row label{display:inline-flex;flex-direction:row;align-items:center;gap:6px;font-weight:600;cursor:pointer;color:var(--text);}
 	.pls-mode-row input[type=radio]{accent-color:var(--accent);width:15px;height:15px;}
-	.pls-fields-student,.pls-fields-range{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;width:100%;}
-	.pls-fields-range{display:none;}
+	.pls-fields-student,.pls-fields-range,.pls-fields-room{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;width:100%;}
+	.pls-fields-range,.pls-fields-room{display:none;}
 	.pls-backdrop.pls-mode-range .pls-fields-student{display:none;}
 	.pls-backdrop.pls-mode-range .pls-fields-range{display:flex;}
+	.pls-backdrop.pls-mode-room .pls-fields-student{display:none;}
+	.pls-backdrop.pls-mode-room .pls-fields-room{display:flex;}
 	.pls-form select{background:#11161d;border:1px solid var(--outline);color:var(--text);padding:8px 10px;border-radius:8px;}
 	.pls-form button{background:var(--accent);border:1px solid var(--accent);color:#fff;font-weight:600;padding:8px 16px;border-radius:8px;cursor:pointer;letter-spacing:.5px;}
 	.pls-form button:hover{background:var(--accent-hover);} 
@@ -1179,6 +1181,71 @@
 			const { data, error } = await q;
 			if(error){ console.warn('[PracticeLogSearch] student assign/clear range error', error); throw error; }
 			return data || [];
+		}
+
+		/** 某琴房近 N 天练琴场次：按学生聚合后做 assign/clear 配对，返回登记/退出时间 */
+		async function queryRoomPracticeSessions({ roomName, days=30, limit=2000, signal }){
+			if(!supabaseClient){ toast('Supabase 尚未就绪'); throw new Error('supabase not ready'); }
+			const now = new Date();
+			const from = new Date(now.getTime() - days*24*60*60*1000);
+			let q = supabaseClient.from('practice_logs')
+				.select('student_name,action,created_at,timestamp,room_name')
+				.ilike('room_name', roomName)
+				.in('action', ['assign', 'clear'])
+				.gte('created_at', from.toISOString())
+				.not('student_name', 'is', null)
+				.order('created_at', { ascending: true });
+			if(signal && typeof q.abortSignal === 'function'){ q = q.abortSignal(signal); }
+			q = q.limit(Math.min(5000, Math.max(100, limit)));
+			const { data, error } = await q;
+			if(error){ console.warn('[PracticeLogSearch] room query error', error); throw error; }
+			const byStudent = new Map();
+			for(const r of (data || [])){
+				const studentName = String(r.student_name || '').trim();
+				if(!studentName) continue;
+				if(!byStudent.has(studentName)) byStudent.set(studentName, []);
+				byStudent.get(studentName).push(r);
+			}
+			const sessions = [];
+			for(const [studentName, rows] of byStudent){
+				const { sessions: paired, openAssigns, orphanClears } = pairAssignClearSessions(rows);
+				for(const s of paired){
+					sessions.push({
+						student_name: studentName,
+						room_name: s.room,
+						assign_at: s.assignAt,
+						clear_at: s.clearAt,
+						duration_sec: Math.max(0, Math.round(s.durationSec)),
+						sort_at: s.clearAt || s.assignAt
+					});
+				}
+				for(const o of openAssigns){
+					sessions.push({
+						student_name: studentName,
+						room_name: o.room,
+						assign_at: o.assignAt,
+						clear_at: '',
+						duration_sec: null,
+						sort_at: o.assignAt
+					});
+				}
+				for(const o of orphanClears){
+					sessions.push({
+						student_name: studentName,
+						room_name: o.room,
+						assign_at: '',
+						clear_at: o.clearAt,
+						duration_sec: null,
+						sort_at: o.clearAt
+					});
+				}
+			}
+			sessions.sort((a, b) => {
+				const diff = new Date(b.sort_at || 0).getTime() - new Date(a.sort_at || 0).getTime();
+				if(diff) return diff;
+				return String(a.student_name || '').localeCompare(String(b.student_name || ''), 'zh-CN');
+			});
+			return { sessions, truncated: (data || []).length >= limit };
 		}
 
 		/** 按琴房 FIFO：assign 与后续第一条 clear 配对，时间均取 created_at（无则回退 timestamp） */
@@ -1347,6 +1414,15 @@
 				<th style="width:140px;" title="登记+还卡配对为 1 次；时段内已登记、未在时段内还卡各计 1 次">该时段练琴次数</th>
 			</tr>`;
 		}
+		function plsTheadRoomHtml(){
+			return `<tr>
+				<th style="width:120px;">学生姓名</th>
+				<th style="width:100px;">琴房</th>
+				<th style="width:150px;">登记时间</th>
+				<th style="width:150px;">退出时间</th>
+				<th style="width:90px;">时长</th>
+			</tr>`;
+		}
 		function appendStudentSummaryRows(tbody, pairs){
 			tbody.innerHTML = '';
 			if(!pairs || !pairs.length){
@@ -1374,6 +1450,54 @@
 			});
 			tbody.appendChild(frag);
 			return Promise.resolve();
+		}
+		function buildRoomSessionRow(r){
+			const tr = document.createElement('tr');
+			const cols = [
+				r.student_name || '-',
+				r.room_name || '-',
+				r.assign_at ? fmtDate(r.assign_at) : '—',
+				r.clear_at ? fmtDate(r.clear_at) : '—',
+				r.duration_sec != null ? { duration: true, text: fmtDur(r.duration_sec) } : '—'
+			];
+			for(const c of cols){
+				const td = document.createElement('td');
+				if(c && typeof c === 'object' && c.duration){
+					const span = document.createElement('span');
+					span.className = 'pls-duration';
+					span.textContent = c.text;
+					td.appendChild(span);
+				}else{
+					td.textContent = c;
+				}
+				tr.appendChild(td);
+			}
+			return tr;
+		}
+		function appendRoomSessionRowsChunked(tbody, rows){
+			tbody.innerHTML = '';
+			if(!rows.length){
+				renderStatusRow(tbody, '最近没有找到这个琴房的登记/退出记录', 5);
+				return Promise.resolve();
+			}
+			let idx = 0;
+			return new Promise(resolve => {
+				const flush = () => {
+					const frag = document.createDocumentFragment();
+					const end = Math.min(idx + PLS_RENDER_BATCH, rows.length);
+					for(let i=idx;i<end;i++){
+						frag.appendChild(buildRoomSessionRow(rows[i]));
+					}
+					tbody.appendChild(frag);
+					idx = end;
+					if(idx < rows.length){
+						requestAnimationFrame(flush);
+					}else{
+						resolve();
+					}
+				};
+				requestAnimationFrame(flush);
+			});
 		}
 
 		function renderStudentSessionDetail(panel, studentName, startISO, endISO, pairResult){
@@ -1418,6 +1542,7 @@
 					<form class="pls-form" id="plsForm">
 						<div class="pls-mode-row">
 							<label><input type="radio" name="plsMode" value="student" checked /> 按学生查明细</label>
+							<label><input type="radio" name="plsMode" value="room" /> 按琴房查最近练琴</label>
 							<label><input type="radio" name="plsMode" value="range" /> 按时段查练琴学生</label>
 						</div>
 						<div class="pls-fields-student" id="plsFieldsStudent">
@@ -1436,6 +1561,26 @@
 									<option value="50">50</option>
 									<option value="100" selected>100</option>
 									<option value="200">200</option>
+								</select>
+							</label>
+						</div>
+						<div class="pls-fields-room" id="plsFieldsRoom">
+							<label>琴房名称<input name="roomName" type="text" placeholder="如: A101" autocomplete="off" /></label>
+							<label>时间范围
+								<select name="roomDays">
+									<option value="7">近 7 天</option>
+									<option value="30" selected>近 30 天</option>
+									<option value="90">近 90 天</option>
+									<option value="180">近 180 天</option>
+									<option value="365">近 365 天</option>
+								</select>
+							</label>
+							<label>最多拉取日志行数
+								<select name="roomLimit">
+									<option value="500">500</option>
+									<option value="1000">1000</option>
+									<option value="2000" selected>2000</option>
+									<option value="5000">5000</option>
 								</select>
 							</label>
 						</div>
@@ -1497,17 +1642,31 @@
 			let detailAbort = null;
 
 			function getPlsMode(){ return form.querySelector('input[name=plsMode]:checked')?.value || 'student'; }
+			function getColSpanByMode(mode){
+				if(mode === 'range') return 3;
+				if(mode === 'room') return 5;
+				return 4;
+			}
 
 			function syncModeUI(){
 				const m = getPlsMode();
 				backdrop.classList.toggle('pls-mode-range', m === 'range');
+				backdrop.classList.toggle('pls-mode-room', m === 'room');
 				const inp = form.querySelector('input[name=student]');
+				const roomInp = form.querySelector('input[name=roomName]');
 				if(inp){
-					if(m === 'range') inp.removeAttribute('required');
-					else inp.setAttribute('required', 'required');
+					if(m === 'student') inp.setAttribute('required', 'required');
+					else inp.removeAttribute('required');
+				}
+				if(roomInp){
+					if(m === 'room') roomInp.setAttribute('required', 'required');
+					else roomInp.removeAttribute('required');
 				}
 				if(m === 'range'){
 					thead.innerHTML = plsTheadRangeHtml();
+					btnMore.style.display = 'none';
+				}else if(m === 'room'){
+					thead.innerHTML = plsTheadRoomHtml();
 					btnMore.style.display = 'none';
 				}else{
 					thead.innerHTML = plsTheadStudentHtml();
@@ -1523,8 +1682,13 @@
 				if(detailAbort){ try{ detailAbort.abort(); }catch(_){} detailAbort = null; }
 				if(detailPanel){ detailPanel.style.display = 'none'; detailPanel.innerHTML = ''; }
 				if(rangeClickHint) rangeClickHint.style.display = 'none';
-				const cs = getPlsMode() === 'range' ? 3 : 4;
-				renderStatusRow(tbody, getPlsMode() === 'range' ? '选择开始/结束时间后点击查询' : '请输入学生姓名后查询', cs);
+				const mode = getPlsMode();
+				const tips = {
+					student: '请输入学生姓名后查询',
+					room: '请输入琴房名称后查询最近场次',
+					range: '选择开始/结束时间后点击查询'
+				};
+				renderStatusRow(tbody, tips[mode] || tips.student, getColSpanByMode(mode));
 			}));
 			syncModeUI();
 
@@ -1535,6 +1699,10 @@
 					const trunc = currentQuery.truncated ? ' <span style="color:#fbbf24;font-weight:600;">（已达拉取上限，结果可能不完整）</span>' : '';
 					meta.innerHTML = `时段：<b>${escHtml(fmtDate(currentQuery.startISO))}</b> ～ <b>${escHtml(fmtDate(currentQuery.endISO))}</b> · 共 <b>${allData.length}</b> 名学生 · 次数按「登记+还卡」配对计（与点击明细规则一致）` + trunc;
 					countEl.textContent = `共 ${allData.length} 人`;
+				}else if(currentQuery.mode === 'room'){
+					const trunc = currentQuery.truncated ? ' <span style="color:#fbbf24;font-weight:600;">（已达拉取上限，较早记录可能未统计）</span>' : '';
+					meta.innerHTML = `琴房：<b>${escHtml(currentQuery.roomName)}</b> · 时间范围：近 ${currentQuery.days} 天 · 共 <b>${allData.length}</b> 条场次 · 若登记或退出时间为空，表示另一端记录落在本次查询范围之外。` + trunc;
+					countEl.textContent = `共 ${allData.length} 条场次`;
 				}else{
 					meta.innerHTML=`学生：<b>${escHtml(currentQuery.name)}</b> · 时间范围：近 ${currentQuery.days} 天 · 已加载 <b>${allData.length}</b> 条`;
 					countEl.textContent=`共 ${allData.length} 条`;
@@ -1588,6 +1756,43 @@
 					}catch(e){
 						if(e?.name === 'AbortError') return;
 						renderStatusRow(tbody, '查询失败：' + (e.message || e), 3);
+					}
+					return;
+				}
+				if(mode === 'room'){
+					const roomName = (fd.get('roomName') || '').trim();
+					if(!roomName){ toast('请输入琴房名称'); return; }
+					const days = Number(fd.get('roomDays') || 30);
+					const roomLimit = Math.min(5000, Math.max(100, Number(fd.get('roomLimit') || 2000)));
+					if(activeAbortController) activeAbortController.abort();
+					activeAbortController = new AbortController();
+					thead.innerHTML = plsTheadRoomHtml();
+					currentQuery = { mode: 'room', roomName, days, roomLimit, truncated: false };
+					if(detailAbort){ try{ detailAbort.abort(); }catch(_){} detailAbort = null; }
+					if(detailPanel){ detailPanel.style.display = 'none'; detailPanel.innerHTML = ''; }
+					if(rangeClickHint) rangeClickHint.style.display = 'none';
+					renderStatusRow(tbody, '查询中...', 5);
+					actions.style.display = 'none';
+					btnMore.disabled = true;
+					btnExport.disabled = true;
+					allData = [];
+					latestMinTs = null;
+					paging = false;
+					moreHintEl.textContent = '';
+					try{
+						const { sessions, truncated } = await queryRoomPracticeSessions({ roomName, days, limit: roomLimit, signal: activeAbortController.signal });
+						currentQuery.truncated = !!truncated;
+						allData = sessions;
+						await appendRoomSessionRowsChunked(tbody, sessions);
+						wrap.style.display = 'block';
+						actions.style.display = 'flex';
+						btnMore.style.display = 'none';
+						moreHintEl.textContent = truncated ? '提示：已命中日志拉取上限，如需更早记录可调大上限或缩小时间范围' : '按最近登记/退出时间倒序显示';
+						updateMeta();
+						btnExport.disabled = !allData.length;
+					}catch(e){
+						if(e?.name === 'AbortError') return;
+						renderStatusRow(tbody, '查询失败：' + (e.message || e), 5);
 					}
 					return;
 				}
@@ -1651,7 +1856,7 @@
 				}
 			});
 
-			async function loadMore(){ if(!currentQuery || currentQuery.mode === 'range' || paging || !latestMinTs) return; paging=true; btnMore.disabled=true; btnMore.textContent='加载中...';
+			async function loadMore(){ if(!currentQuery || currentQuery.mode !== 'student' || paging || !latestMinTs) return; paging=true; btnMore.disabled=true; btnMore.textContent='加载中...';
 				try{ const rows=await queryPracticeLogs({ name: currentQuery.name, days: currentQuery.days, limit: currentQuery.limit, nextFrom: latestMinTs });
 					if(rows.length){
 						latestMinTs = rows[rows.length-1].timestamp || rows[rows.length-1].created_at;
@@ -1683,6 +1888,33 @@
 					const a = document.createElement('a');
 					a.href = URL.createObjectURL(blob);
 					a.download = `practice_students_${s}_${e}.csv`;
+					a.click();
+					setTimeout(() => URL.revokeObjectURL(a.href), 500);
+					return;
+				}
+				if(currentQuery && currentQuery.mode === 'room'){
+					const header = ['学生姓名','琴房','登记时间','退出时间','时长(分钟)'];
+					const lines = [header.map(esc).join(',')];
+					for(const r of allData){
+						let durMin = '';
+						if(r.duration_sec != null){
+							const m = r.duration_sec / 60;
+							durMin = (Math.round(m * 10) / 10).toString();
+							if(durMin.endsWith('.0')) durMin = durMin.slice(0, -2);
+						}
+						lines.push([
+							esc(r.student_name || ''),
+							esc(r.room_name || ''),
+							esc(r.assign_at ? fmtDate(r.assign_at) : ''),
+							esc(r.clear_at ? fmtDate(r.clear_at) : ''),
+							esc(durMin)
+						].join(','));
+					}
+					const safeRoomName = String(currentQuery.roomName || 'room').replace(/[\\/:*?"<>|]+/g, '_');
+					const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+					const a = document.createElement('a');
+					a.href = URL.createObjectURL(blob);
+					a.download = `practice_room_${safeRoomName}.csv`;
 					a.click();
 					setTimeout(() => URL.revokeObjectURL(a.href), 500);
 					return;
