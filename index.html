@@ -1791,6 +1791,39 @@
 		}));
 	}
 
+	function scheduleStudentReconnectSync(reason = 'reconnect') {
+		if (window.__studentReconnectSyncTimer || document.hidden || !window.supabaseReady) return;
+		const recentRealtimeMs = Date.now() - (window.__studentUpdateTimestamp || 0);
+		if (recentRealtimeMs < 8000) return;
+		
+		window.__studentReconnectSyncTimer = setTimeout(async () => {
+			window.__studentReconnectSyncTimer = null;
+			if (document.hidden || !window.supabaseReady) return;
+			
+			const staleMs = Date.now() - (window.__studentUpdateTimestamp || 0);
+			if (staleMs < 5000) return;
+			
+			try {
+				if (typeof fetchStudents === 'function') {
+					if (window.__studentLastSyncTime) {
+						await fetchStudents({
+							incremental: true,
+							since: window.__studentLastSyncTime
+						});
+					} else {
+						await fetchStudents({ forceFullSync: true });
+					}
+				}
+				
+				if (window.reconcileStudentsWithCloud) {
+					await window.reconcileStudentsWithCloud({ silent: true });
+				}
+			} catch (error) {
+				console.warn(`[StudentSync] ${reason} 对账失败:`, error.message);
+			}
+		}, 1500);
+	}
+
 	// 请求频率限制器
 	class RequestThrottler {
 		constructor() {
@@ -2485,6 +2518,7 @@
 		if (window.__roomsRealtimeReconnectTimer) clearTimeout(window.__roomsRealtimeReconnectTimer);
 		if (window.__studentsRealtimeReconnectTimer) clearTimeout(window.__studentsRealtimeReconnectTimer);
 		if (window.__roomMetaRealtimeReconnectTimer) clearTimeout(window.__roomMetaRealtimeReconnectTimer);
+		if (window.__studentReconnectSyncTimer) clearTimeout(window.__studentReconnectSyncTimer);
 		
 		// 清理realtime连接（统一注册表）
 		try { RealtimeRegistry.cleanupAll(supabaseClient); } catch(_) {}
@@ -5952,6 +5986,7 @@
 	 * 日志降噪开关（基础）
 	 *************************************************/
 	if(window.__LOG_NOISE_REDUCE===undefined){ window.__LOG_NOISE_REDUCE = true; }
+	if(window.__VERBOSE_RENDER_LOGS===undefined){ window.__VERBOSE_RENDER_LOGS = false; }
 	if(window.__LOG_NOISE_REDUCE){
 		const rawWarn = console.warn;
 		console.warn = function(...args){
@@ -7842,7 +7877,9 @@
 						window.__studentsInitialConnected = true;
 					}
 					window.__studentsRealtimeAttempts = 0;
-					if(window.loadFromCloud){ setTimeout(()=>{ try{ loadFromCloud(); }catch(_){ } }, 800); }
+					if (hadReconnectAttempts) {
+						scheduleStudentReconnectSync('students-realtime-resubscribed');
+					}
 				} else if (status === 'CHANNEL_ERROR' || status==='TIMED_OUT' || status==='CLOSED') {
 					if (realtimeMonitor.pageHidden) {
 						console.debug(`[RT][students] 页面隐藏中，静默处理连接状态 (${status})`);
@@ -9006,14 +9043,16 @@
 	
 	async function mergeStudents(list, skipCloudSync = false){
 		const newStudents = [];
+		const existingByName = new Map(Store.students.map(s => [s.name, s]));
 		
 		list.forEach(s=>{ 
 			if(!s||!s.name) return; 
-			let ex=Store.students.find(x=>x.name===s.name); 
+			const ex = existingByName.get(s.name);
 			if(ex){ 
 				Object.assign(ex,s); 
 			} else { 
 				Store.students.push(s);
+				existingByName.set(s.name, s);
 				newStudents.push(s);
 			} 
 		});
@@ -9609,6 +9648,8 @@
 	// 绑定内联编辑事件
 	function bindInlineEditEvents() {
 		const grid = document.getElementById('roomGrid');
+		if (!grid || grid.dataset.inlineEditBound === '1') return;
+		grid.dataset.inlineEditBound = '1';
 		
 		// 监听可编辑元素的输入事件
 		grid.addEventListener('blur', e => {
@@ -9840,40 +9881,83 @@
 	}
 	function rebuildStudentIndex(){ Store.studentIndex.clear(); Store.students.forEach(s=>Store.studentIndex.set(s.name,s)); }
 	function deriveFloor(location){ if(!location) return '未知'; const m=location.match(/[一二三四五六七八九0-9]+/); if(!m) return location; const map={一:1,二:2,三:3,四:4,五:5,六:6,七:7,八:8,九:9}; const raw=m[0]; return String(map[raw]||raw); }
-	function ensureFilters(){
-		const floorWrap=document.getElementById('floorFilters');
-		const typeWrap=document.getElementById('typeFilters');
-		
-		// 获取当前过滤条件下有房间的楼层
+	function getRoomTypeRank(room){
+		if(/三角/.test(room.pianoType)) return 0;
+		if(/立式|upright/i.test(room.pianoType)) return 1;
+		return 2;
+	}
+	function parseRoomNameAlphaNum(name){
+		const s = String(name||'').trim();
+		let m = s.match(/^\s*([A-Za-z]+)\s*[-_ ]*\s*(\d+)/);
+		if(m) return { alpha: m[1].toUpperCase(), num: parseInt(m[2],10), hasAlpha: true, hasNum: true };
+		m = s.match(/^\s*([A-Za-z]+)/);
+		if(m) return { alpha: m[1].toUpperCase(), num: null, hasAlpha: true, hasNum: false };
+		return { alpha: '', num: null, hasAlpha: false, hasNum: false };
+	}
+	function compareRoomsForDisplay(a, b){
+		const ta = getRoomTypeRank(a), tb = getRoomTypeRank(b);
+		if(ta !== tb) return ta - tb;
+		const pa = parseRoomNameAlphaNum(a.name);
+		const pb = parseRoomNameAlphaNum(b.name);
+		if(pa.alpha !== pb.alpha){
+			return pa.alpha.localeCompare(pb.alpha, 'en', { sensitivity: 'base' });
+		}
+		if(pa.hasNum && pb.hasNum && pa.num !== pb.num) return pa.num - pb.num;
+		if(pa.hasNum !== pb.hasNum) return pa.hasNum ? 1 : -1;
+		return a.name.localeCompare(b.name,'zh-Hans-CN',{numeric:true});
+	}
+	function roomMatchesTypeFilter(room, filterType = Store.filters.type){
+		if (filterType === 'ALL') return true;
+		const isGrand = /三角/.test(room.pianoType);
+		if (filterType === 'GRAND') return isGrand;
+		if (filterType === 'UPRIGHT') return !isGrand && !/无|电子/i.test(room.pianoType);
+		if (filterType === 'NONE') return !isGrand && !/立|upright|三角/.test(room.pianoType);
+		return true;
+	}
+	function getVisibleRoomsForGrid(){
+		return Store.rooms
+			.filter(roomFilter)
+			.slice()
+			.sort(compareRoomsForDisplay);
+	}
+	function buildFilterRenderState(){
 		const currentTypeFilter = Store.filters.type;
-		const availableRooms = Store.rooms.filter(r => {
-			// 应用类型过滤器，检查哪些房间在当前类型过滤下可见
-			if (currentTypeFilter === 'ALL') return true;
-			const isGrand = /三角/.test(r.pianoType);
-			if (currentTypeFilter === 'GRAND') return isGrand;
-			if (currentTypeFilter === 'UPRIGHT') return !isGrand && !/无|电子/i.test(r.pianoType);
-			if (currentTypeFilter === 'NONE') return !isGrand && !/立|upright|三角/.test(r.pianoType);
-			return true;
-		});
-		
-		// 构建当前可见房间的楼层集合
 		const activeFloorSet = new Set();
-		availableRooms.forEach(r => {
+		Store.rooms.forEach(r => {
+			if (!roomMatchesTypeFilter(r, currentTypeFilter)) return;
 			const floor = deriveFloor(r.location);
 			if (floor) activeFloorSet.add(floor);
 		});
-		
-		const floors=['ALL',...Array.from(activeFloorSet).sort((a,b)=>a.localeCompare(b,'zh-Hans-CN',{numeric:true}))];
-		logInfo(`楼层过滤器更新: 显示 ${floors.length-1} 个有房间的楼层`);
-		
-		// 如果当前选中的楼层在新的楼层列表中不存在，重置为ALL
+		const floors = ['ALL', ...Array.from(activeFloorSet).sort((a,b)=>a.localeCompare(b,'zh-Hans-CN',{numeric:true}))];
 		if (Store.filters.floor !== 'ALL' && !activeFloorSet.has(Store.filters.floor)) {
 			logInfo(`当前楼层 ${Store.filters.floor} 无房间，重置为全部`);
 			Store.filters.floor = 'ALL';
 		}
+		return { floors };
+	}
+	function buildFiltersSignature(state){
+		return JSON.stringify({
+			floor: Store.filters.floor,
+			type: Store.filters.type,
+			editMode: Store.editMode,
+			floors: state.floors
+		});
+	}
+	function renderRoomFilters(force = false){
+		const floorWrap=document.getElementById('floorFilters');
+		const typeWrap=document.getElementById('typeFilters');
+		if(!floorWrap || !typeWrap) return;
+		
+		const state = buildFilterRenderState();
+		const floors = state.floors;
+		logInfo(`楼层过滤器更新: 显示 ${floors.length-1} 个有房间的楼层`);
+		const nextSignature = buildFiltersSignature(state);
+		if (!force && window.__roomFiltersRenderSignature === nextSignature) {
+			return;
+		}
+		
 		let floorHTML = floors.map(f=>`<button data-floor="${f}" data-active="${Store.filters.floor===f?1:0}">${f==='ALL'?'全部楼层':f+'楼'}</button>`).join('');
 		
-		// 编辑模式下添加新增房间按钮
 		if (Store.editMode) {
 			floorHTML += `<button id="btnAddRoom" class="add-room-btn" title="新增琴房">🎹 新增琴房</button>`;
 		}
@@ -9883,16 +9967,26 @@
 		
 		floorWrap.querySelectorAll('button').forEach(b=>{
 			if(b.dataset.floor) {
-				b.onclick=()=>{Store.filters.floor=b.dataset.floor; renderRooms();};
+				b.onclick=()=>{
+					if (Store.filters.floor === b.dataset.floor) return;
+					Store.filters.floor=b.dataset.floor;
+					renderRooms({ forceGrid: true });
+				};
 			}
 		});
-		typeWrap.querySelectorAll('button').forEach(b=>b.onclick=()=>{Store.filters.type=b.dataset.type; renderRooms();});
+		typeWrap.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+			if (Store.filters.type === b.dataset.type) return;
+			Store.filters.type=b.dataset.type;
+			renderRooms({ forceFilters: true, forceGrid: true });
+		});
 		
-		// 绑定新增房间按钮
 		if (Store.editMode) {
 			bind('btnAddRoom', showAddRoomModal);
 		}
+		
+		window.__roomFiltersRenderSignature = nextSignature;
 	}
+	function ensureFilters(options = {}){ return renderRoomFilters(!!options.force); }
 	function labelType(t){ if(t==='ALL') return '全部类型'; if(t==='GRAND') return '三角'; if(t==='UPRIGHT') return '立式'; return '其它'; }
 	function roomFilter(r){
 		const floor=deriveFloor(r.location);
@@ -9903,76 +9997,62 @@
 		if(Store.filters.type==='NONE' && (isGrand || /立|upright|三角/.test(r.pianoType))) return false;
 		return true;
 	}
-	function renderRooms(){
-		ensureFilters();
+	function buildRoomGridSignature(list){
+		return JSON.stringify({
+			floor: Store.filters.floor,
+			type: Store.filters.type,
+			editMode: Store.editMode,
+			rooms: list.map(r => ({
+				name: r.name,
+				pianoType: r.pianoType || '',
+				location: r.location || '',
+				remark: r.remark || '',
+				occupant: r.occupant_student_name || '',
+				registerTime: r.registerTime || '',
+				version: r.version || 0
+			}))
+		});
+	}
+	function renderRoomGrid(force = false){
 		const grid=document.getElementById('roomGrid');
-		// 自定义排序：先按琴房类型(三角 > 立式 > 其它)，再按名称“字母优先、数字其次”
-		const typeRank = r => {
-			if(/三角/.test(r.pianoType)) return 0; // GRAND
-			if(/立式|upright/i.test(r.pianoType)) return 1; // UPRIGHT
-			return 2; // OTHER
-		};
-		// 解析名称：提取开头的字母前缀与其后的数字，例如 A12 -> {alpha:'A', num:12}
-		const parseAlphaNum = (name) => {
-			const s = String(name||'').trim();
-			// 模式1：字母 + 可选分隔符 + 数字
-			let m = s.match(/^\s*([A-Za-z]+)\s*[-_ ]*\s*(\d+)/);
-			if(m) return { alpha: m[1].toUpperCase(), num: parseInt(m[2],10), hasAlpha: true, hasNum: true };
-			// 模式2：仅字母前缀
-			m = s.match(/^\s*([A-Za-z]+)/);
-			if(m) return { alpha: m[1].toUpperCase(), num: null, hasAlpha: true, hasNum: false };
-			return { alpha: '', num: null, hasAlpha: false, hasNum: false };
-		};
-		const list=Store.rooms
-			.filter(roomFilter)
-			.slice() // 防止原数组被意外排序
-			.sort((a,b)=>{
-				const ta=typeRank(a), tb=typeRank(b);
-				if(ta!==tb) return ta-tb;
-				// 同类型：先比较字母前缀，再比较数字；都无规则时回退自然比较
-				const pa = parseAlphaNum(a.name);
-				const pb = parseAlphaNum(b.name);
-				if(pa.alpha !== pb.alpha){
-					// 字母前缀不同：按字母序（不区分大小写）
-					return pa.alpha.localeCompare(pb.alpha, 'en', { sensitivity: 'base' });
-				}
-				// 字母前缀相同：若都有数字则比较数字
-				if(pa.hasNum && pb.hasNum && pa.num !== pb.num) return pa.num - pb.num;
-				// 仅一方有数字：无数字的在前
-				if(pa.hasNum !== pb.hasNum) return pa.hasNum ? 1 : -1;
-				// 回退：中文/其它情况使用自然比较（含数字识别）
-				return a.name.localeCompare(b.name,'zh-Hans-CN',{numeric:true});
-			});
+		if(!grid) return;
+		const list = getVisibleRoomsForGrid();
+		const nextSignature = buildRoomGridSignature(list);
+		if (!force && window.__roomGridRenderSignature === nextSignature) {
+			updateUsageStats();
+			return;
+		}
 		logInfo(`已按类型与字母+数字排序: total ${list.length}`);
-		// 构建带分隔线的HTML
 		let htmlParts=[];
 		let lastType=-1;
 		const typeLabelMap={0:'三角钢琴',1:'立式钢琴',2:'其他类型'};
 		const typeClassMap={0:'grand',1:'upright',2:'other'};
 		for(const r of list){
-			const t=typeRank(r);
+			const t=getRoomTypeRank(r);
 			if(t!==lastType){
 				if(lastType!==-1) htmlParts.push(''); // 分组自然换行
-				// 如果过滤后只有一种类型则不显示分隔线：延后判断
 				htmlParts.push(`<div class="room-type-separator ${typeClassMap[t]}" data-type-sep="${t}"><div class="line"></div><div class="label">${typeLabelMap[t]}</div><div class="line"></div></div>`);
 				lastType=t;
 			}
 			htmlParts.push(roomCardHTML(r));
 		}
-		// 如果最终只有一个分隔线且其后只有房间，且没有出现第二种类型，则移除该分隔线（单一类型不需要）
 		const sepCount=htmlParts.filter(h=>/room-type-separator/.test(h)).length;
 		if(sepCount===1){
 			htmlParts=htmlParts.filter(h=>!/room-type-separator/.test(h));
 		}
 		grid.innerHTML=htmlParts.join('');
+		window.__roomGridRenderSignature = nextSignature;
 		
-		// 添加内联编辑事件监听
 		if (Store.editMode) {
 			bindInlineEditEvents();
 		}
 		
-		// 确保占用统计数据同步更新
 		updateUsageStats();
+	}
+	function renderRooms(options = {}){
+		const { forceFilters = false, forceGrid = false } = options;
+		renderRoomFilters(forceFilters);
+		renderRoomGrid(forceGrid);
 	}
 	// 🚀 优化后的房间卡片渲染 - 使用批量渲染队列
 	function renderRoomCard(name, priority = 'normal'){ 
@@ -9981,15 +10061,18 @@
 		// 添加到批量渲染队列
 		renderQueue.enqueue(name, priority);
 		
-		// 日志记录
-		logInfo(`房间 ${name} 已加入渲染队列 (优先级: ${priority})`);
+		if (window.__VERBOSE_RENDER_LOGS) {
+			logInfo(`房间 ${name} 已加入渲染队列 (优先级: ${priority})`);
+		}
 	}
 
 	// 💡 强制渲染房间卡片，跳过防重复检查（用于realtime元数据更新）
 	function renderRoomCardForced(name) {
 		// 🚀 使用高优先级批量渲染
 		renderQueue.enqueue(name, 'high');
-		logInfo(`房间 ${name} 已加入强制渲染队列`);
+		if (window.__VERBOSE_RENDER_LOGS) {
+			logInfo(`房间 ${name} 已加入强制渲染队列`);
+		}
 	}
 	function scheduleRoomsFullRender(reason){
 		if(window.__roomsFullRenderPending) return;
@@ -10285,8 +10368,10 @@
 			const roomsToRender = Array.from(this.queue);
 			this.queue.clear();
 			this.isScheduled = false;
-
-			logInfo(`🚀 批量渲染 ${roomsToRender.length} 个房间: ${roomsToRender.join(', ')}`);
+			const verboseLogs = !!window.__VERBOSE_RENDER_LOGS;
+			if (verboseLogs && roomsToRender.length > 0) {
+				logInfo(`🚀 批量渲染 ${roomsToRender.length} 个房间: ${roomsToRender.join(', ')}`);
+			}
 
 			// 批量状态计算
 			const statusMap = new Map();
@@ -10314,7 +10399,9 @@
 			});
 
 			const duration = performance.now() - startTime;
-			logInfo(`✅ 批量渲染完成: ${renderedCount}/${roomsToRender.length} 房间，用时 ${duration.toFixed(2)}ms`);
+			if (verboseLogs || duration > 12 || renderedCount >= 12) {
+				logInfo(`✅ 批量渲染完成: ${renderedCount}/${roomsToRender.length} 房间，用时 ${duration.toFixed(2)}ms`);
+			}
 
 			// 触发统计更新
 			if (renderedCount > 0) {
@@ -13893,9 +13980,13 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	let lastCloudLoadTime = 0;
 	const CLOUD_LOAD_COOLDOWN = 30000; // 30秒
 	let firstCloudLoadDone = false;
+	let cloudLoadPromise = null;
 	
 	// 从云端加载学生数据（智能合并，避免冲突实时同步）
-	async function loadFromCloud() {
+	async function loadFromCloud(options = {}) {
+		const { force = false } = options;
+		if (cloudLoadPromise) return cloudLoadPromise;
+		cloudLoadPromise = (async () => {
 		if (!window.supabaseClient || !window.supabaseReady) {
 			console.log('[StudentLibrary] Supabase 未就绪，跳过云端加载');
 			return false;
@@ -13903,7 +13994,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		
 		// 节流：首次强制加载，后续才进入冷却判断
 		const now = Date.now();
-		if(firstCloudLoadDone){
+		if(!force && firstCloudLoadDone){
 			if (now - lastCloudLoadTime < CLOUD_LOAD_COOLDOWN) {
 				console.log('[StudentLibrary] 云端加载冷却中，跳过本次加载');
 				return false;
@@ -13928,10 +14019,11 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				// 智能合并：不清空本地数据，而是基于名字合并
 				let mergedCount = 0;
 				let newCount = 0;
+				const localByName = new Map(store.items.map(s => [s.name, s]));
 				
 				cloudStudents.forEach(cloudStudent => {
 					// 查找本地是否已有同名学生
-					let localStudent = store.items.find(s => s.name === cloudStudent.name);
+					const localStudent = localByName.get(cloudStudent.name);
 					
 					if (localStudent) {
 						// 已存在，更新信息（以云端为准，但保留本地ID和备注）
@@ -13970,7 +14062,11 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		} catch (error) {
 			console.error('[StudentLibrary] 云端加载异常:', error);
 			return false;
+		} finally {
+			cloudLoadPromise = null;
 		}
+		})();
+		return cloudLoadPromise;
 	}
 
 	// 等待 supabaseReady 工具
@@ -14313,22 +14409,66 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	}
 
 	// 云端对账：用于处理偶发删除遗漏（网络抖动 / 事件丢失）
-	window.reconcileStudentsWithCloud = async function(){
+	window.reconcileStudentsWithCloud = async function(options = {}){
+		const { silent = false } = options;
 		if(!window.supabaseClient || !window.supabaseReady) return;
 		try{
-			const { data, error } = await supabaseClient.from('student_database').select('name,major,grade');
+			const { data, error } = await supabaseClient.from('student_database').select('name,major,grade,updated_at,created_at');
 			if(error){ console.warn('[StudentLibrary][reconcile] 拉取失败', error.message); return; }
-			const cloudNames = new Set((data||[]).map(r=>r.name));
-			const localNames = new Set(store.items.map(s=>s.name));
-			// 找出本地多余（应删除）
-			let removed=0;
-			for(const n of [...localNames]){
-				if(!cloudNames.has(n)){
-					const i = store.items.findIndex(s=>s.name===n);
+			const cloudRows = data || [];
+			const cloudMap = new Map(cloudRows.map(r => [r.name, r]));
+			const localMap = new Map(store.items.map(s => [s.name, s]));
+			let removed = 0;
+			let added = 0;
+			let updated = 0;
+			
+			for(const [name] of localMap){
+				if(!cloudMap.has(name)){
+					const i = store.items.findIndex(s=>s.name===name);
 					if(i>=0){ store.items.splice(i,1); removed++; }
 				}
 			}
-			if(removed>0){ save(); refreshUI(); refreshBTM(); console.log(`[StudentLibrary][reconcile] 清理本地多余 ${removed} 条`); }
+
+			for (const row of cloudRows) {
+				const local = localMap.get(row.name);
+				if (!local) {
+					store.items.push({
+						id: crypto.randomUUID ? crypto.randomUUID() : ('id_' + Math.random().toString(36).slice(2)),
+						name: row.name,
+						grade: row.grade || '',
+						major: row.major || '',
+						remark: '',
+						archived: false,
+						created_at: row.created_at ? new Date(row.created_at).getTime() : now(),
+						updated_at: row.updated_at ? new Date(row.updated_at).getTime() : now()
+					});
+					added++;
+					continue;
+				}
+				
+				let changed = false;
+				if (local.grade !== (row.grade || '')) {
+					local.grade = row.grade || '';
+					changed = true;
+				}
+				if (local.major !== (row.major || '')) {
+					local.major = row.major || '';
+					changed = true;
+				}
+				if (changed) {
+					local.updated_at = row.updated_at ? new Date(row.updated_at).getTime() : now();
+					updated++;
+				}
+			}
+			
+			if(removed > 0 || added > 0 || updated > 0){
+				save();
+				refreshUI();
+				refreshBTM();
+				if (!silent) {
+					console.log(`[StudentLibrary][reconcile] 新增 ${added} 条，更新 ${updated} 条，清理本地多余 ${removed} 条`);
+				}
+			}
 		}catch(e){ console.warn('[StudentLibrary][reconcile] 异常', e.message); }
 	};
 	function refreshBTM(){ /* BTM 模块已移除 */ }
@@ -14596,7 +14736,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				await new Promise(r=>setTimeout(r, 400*i));
 				if(!window.supabaseReady) continue;
 				try{
-					const ok = await loadFromCloud();
+					const ok = await loadFromCloud({ force: true });
 					if(ok && store.items.length>0){ console.log(`[StudentLibrary] 第 ${i} 次重试成功`); break; }
 				}catch(e){ console.warn('[StudentLibrary] 重试加载异常', e.message); }
 			}
@@ -14715,7 +14855,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					window.seedStudentLibraryFromRoomStore({ reason: 'studentLibrary-post-init' });
 				}
 				// 再次尝试云端加载
-				await loadFromCloud();
+				await loadFromCloud({ force: true });
 				refreshUI();
 			}
 		}, 1200);
