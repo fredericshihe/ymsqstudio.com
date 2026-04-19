@@ -573,10 +573,10 @@ tbody td.b{color:var(--t1);font-weight:700}
 <div class="mask hidden" id="msk">
   <div class="modal">
     <h2>🎹 连接 Supabase 数据库</h2>
-    <p class="sub">配置仅保存在本地浏览器，不会上传任何数据。</p>
+    <p class="sub">URL 仅保存在本地浏览器；自定义 Key 和 AI 口令仅保存在当前会话。</p>
     <div class="tip-banner">
-      建议使用 <strong>service_role</strong> Key（Supabase 控制台 → Settings → API），
-      可绕过 RLS 读取所有学生数据。
+      默认使用内置的 <strong>anon public key</strong>。
+      若切换环境，请填写对应项目的 anon key，不要在浏览器中使用 service_role。
     </div>
     <div class="fg">
       <label>Supabase 项目 URL</label>
@@ -586,7 +586,12 @@ tbody td.b{color:var(--t1);font-weight:700}
     <div class="fg">
       <label>API Key</label>
       <input type="password" id="cKey" placeholder="eyJ…">
-      <div class="hint">service_role 或 anon key</div>
+      <div class="hint">仅支持 anon public key；留空则继续使用当前默认值</div>
+    </div>
+    <div class="fg">
+      <label>AI 调用口令</label>
+      <input type="password" id="cBatchSecret" placeholder="输入部署在 Edge Function 的 BATCH_AI_SECRET">
+      <div class="hint">仅当前会话生效，不写入 localStorage；用于触发 AI 生成与深度诊断</div>
     </div>
     <div class="modal-foot">
       <button class="btn" id="cCancelBtn" onclick="closeCfg()">取消</button>
@@ -829,31 +834,59 @@ tbody td.b{color:var(--t1);font-weight:700}
 'use strict';
 // ── Config ────────────────────────────────────────
 const CKEY = 'piano_v2';
+const CKEY_SESSION = `${CKEY}_session`;
+const AI_SECRET_SESSION = `${CKEY}_batch_secret`;
 const DEFAULT_URL = 'https://waesizzoqodntrlvrwhw.supabase.co';
 const DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhZXNpenpvcW9kbnRybHZyd2h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc4MjIyOTYsImV4cCI6MjA3MzM5ODI5Nn0.kE5gSV68q1nLo4z2IqgwqfTBVqNOJw5qs08f6r0SQH0';
 let cfg = null;
 function loadCfg(){
-  try{cfg=JSON.parse(localStorage.getItem(CKEY))}catch{cfg=null}
-  // 没有保存过配置时，直接使用内置默认值
-  if(!cfg||!cfg.url||!cfg.key){
-    cfg={url:DEFAULT_URL,key:DEFAULT_KEY};
-    localStorage.setItem(CKEY,JSON.stringify(cfg));
+  let persisted=null;
+  let sessionCfg=null;
+  try{persisted=JSON.parse(localStorage.getItem(CKEY))}catch{persisted=null}
+  try{sessionCfg=JSON.parse(sessionStorage.getItem(CKEY_SESSION))}catch{sessionCfg=null}
+  const url=(persisted&&persisted.url)||DEFAULT_URL;
+  const key=(sessionCfg&&sessionCfg.key)||DEFAULT_KEY;
+  const batchSecret=sessionStorage.getItem(AI_SECRET_SESSION)||'';
+  cfg={url,key,batchSecret};
+  if(!persisted||persisted.url!==url||persisted.key){
+    localStorage.setItem(CKEY,JSON.stringify({url}));
   }
 }
-function saveCfgD(u,k){cfg={url:u.replace(/\/$/,''),key:k};localStorage.setItem(CKEY,JSON.stringify(cfg))}
+function saveCfgD(u,k,batchSecret){
+  const url=u.replace(/\/$/,'');
+  const key=(k||DEFAULT_KEY).trim()||DEFAULT_KEY;
+  cfg={url,key,batchSecret:batchSecret||''};
+  localStorage.setItem(CKEY,JSON.stringify({url}));
+  sessionStorage.setItem(CKEY_SESSION,JSON.stringify({key}));
+  if(batchSecret){
+    sessionStorage.setItem(AI_SECRET_SESSION,batchSecret);
+  }else{
+    sessionStorage.removeItem(AI_SECRET_SESSION);
+  }
+}
 function openCfg(){
   document.getElementById('msk').classList.remove('hidden');
-  if(cfg){document.getElementById('cUrl').value=cfg.url;document.getElementById('cKey').value=cfg.key}
+  if(cfg){
+    document.getElementById('cUrl').value=cfg.url;
+    document.getElementById('cKey').value=cfg.key===DEFAULT_KEY?'':cfg.key;
+    document.getElementById('cBatchSecret').value=cfg.batchSecret||'';
+  }
   document.getElementById('cCancelBtn').style.display=cfg?'':'none';
 }
 function closeCfg(){document.getElementById('msk').classList.add('hidden')}
 function saveCfg(){
   const u=document.getElementById('cUrl').value.trim();
   const k=document.getElementById('cKey').value.trim();
-  if(!u||!k){toast('请填写完整的 URL 和 Key','err');return}
-  saveCfgD(u,k);closeCfg();
+  const batchSecret=document.getElementById('cBatchSecret').value.trim();
+  if(!u){toast('请填写完整的 URL','err');return}
+  saveCfgD(u,k,batchSecret);closeCfg();
   setConn(true);document.getElementById('refBtn').disabled=false;
   loadAll();
+}
+
+function getBatchSecret(){
+  const secret=(cfg&&cfg.batchSecret)||sessionStorage.getItem(AI_SECRET_SESSION)||'';
+  return String(secret||'').trim();
 }
 
 // ── UI helpers ────────────────────────────────────
@@ -1046,7 +1079,6 @@ const S={students:[],filtered:[],health:null,
 // ── AI Analysis ────────────────────────────────
 // AI 分析统一由后端 batch-ai-analysis Edge Function 生成，前端只负责读缓存和触发
 const AI_CACHE_DAYS = 7;         // 缓存有效天数
-const BATCH_SECRET  = 'menuhin2026'; // 与 Edge Function BATCH_AI_SECRET 一致
 
 async function fetchAnalysisCache(name){
   try{
@@ -1437,13 +1469,17 @@ async function loadStudentAnalysis(s){
 async function doGenerateAnalysis(name){
   setAIUI('loading');
   try{
+    const batchSecret=getBatchSecret();
+    if(!batchSecret){
+      throw new Error('请先在右上角配置中填写 AI 调用口令');
+    }
     const res=await fetch(`${cfg.url}/functions/v1/batch-ai-analysis`,{
       method:'POST',
       headers:{
         apikey:cfg.key,
         Authorization:`Bearer ${cfg.key}`,
         'Content-Type':'application/json',
-        'x-batch-secret':BATCH_SECRET
+        'x-batch-secret':batchSecret
       },
       body:JSON.stringify({student_name:name})
     });
@@ -1491,13 +1527,18 @@ async function deepDiag(name){
   if(btn)btn.disabled=true;
 
   try{
+    const batchSecret=getBatchSecret();
+    if(!batchSecret){
+      throw new Error('请先在右上角配置中填写 AI 调用口令');
+    }
     const EDGE_URL=`${cfg.url}/functions/v1/batch-ai-analysis`;
     const res=await fetch(EDGE_URL,{
       method:'POST',
       headers:{
         'Content-Type':'application/json',
+        apikey:cfg.key,
         'Authorization':`Bearer ${cfg.key}`,
-        'x-batch-secret': BATCH_SECRET,
+        'x-batch-secret': batchSecret,
       },
       body:JSON.stringify({ student_name: name, diagnostic: true }),
     });

@@ -1778,8 +1778,302 @@
 				try { return c.removeChannel(ch); } catch(_) { return Promise.resolve(); }
 			}));
 		}
-	};
-	window.RealtimeRegistry = RealtimeRegistry;
+		};
+		window.RealtimeRegistry = RealtimeRegistry;
+
+		const RealtimeOrchestrator = {
+			modules: new Map(),
+			channelStates: new Map(),
+			reconnectTimer: null,
+			reconnectMeta: null,
+			connectInFlight: null,
+			pendingReconnect: null,
+
+			ensureChannelState(key) {
+				if (!this.channelStates.has(key)) {
+					this.channelStates.set(key, {
+						channel: null,
+						attempts: 0,
+						connected: false,
+						connecting: false,
+						lastStatus: 'idle'
+					});
+				}
+				return this.channelStates.get(key);
+			},
+
+			registerModule(key, def = {}) {
+				const prev = this.modules.get(key) || {};
+				const next = {
+					active: false,
+					order: 100,
+					channelKeys: [],
+					...prev,
+					...def
+				};
+				next.channelKeys.forEach(channelKey => this.ensureChannelState(channelKey));
+				this.modules.set(key, next);
+				this.syncLegacyGlobals();
+				return next;
+			},
+
+			getModule(key) {
+				return this.modules.get(key);
+			},
+
+			prepareChannelStates(keys = []) {
+				keys.forEach(key => {
+					const state = this.ensureChannelState(key);
+					state.connecting = true;
+					state.connected = false;
+					state.lastStatus = 'CONNECTING';
+				});
+				this.syncLegacyGlobals();
+			},
+
+			setChannel(key, channel) {
+				const state = this.ensureChannelState(key);
+				state.channel = channel || null;
+				if (!channel) {
+					state.connected = false;
+					state.connecting = false;
+				}
+				this.syncLegacyGlobals();
+				return channel;
+			},
+
+			markConnected(key) {
+				const state = this.ensureChannelState(key);
+				const hadReconnectAttempts = state.attempts > 0;
+				state.connected = true;
+				state.connecting = false;
+				state.lastStatus = 'SUBSCRIBED';
+				state.attempts = 0;
+				this.syncLegacyGlobals();
+				return { hadReconnectAttempts, state };
+			},
+
+			markDisconnected(key, status) {
+				const state = this.ensureChannelState(key);
+				state.connected = false;
+				state.connecting = false;
+				state.lastStatus = status || state.lastStatus;
+				this.syncLegacyGlobals();
+				return state;
+			},
+
+			async cleanupChannelKey(key) {
+				const state = this.ensureChannelState(key);
+				const existing = state.channel;
+				state.channel = null;
+				state.connected = false;
+				state.connecting = false;
+				if (existing) {
+					try {
+						if (window.RealtimeRegistry) {
+							window.RealtimeRegistry.unregister(key);
+						} else if (supabaseClient?.removeChannel) {
+							await supabaseClient.removeChannel(existing);
+						}
+					} catch (_) {}
+				}
+			},
+
+			async cleanupModuleChannels(moduleKey) {
+				const moduleDef = this.modules.get(moduleKey);
+				if (!moduleDef) return;
+				for (const channelKey of moduleDef.channelKeys || []) {
+					await this.cleanupChannelKey(channelKey);
+				}
+				if (moduleKey === 'core' && supabaseClient) {
+					await Promise.all([
+						cleanupRealtimeTopic('realtime-rooms', supabaseClient),
+						cleanupRealtimeTopic('realtime-students', supabaseClient),
+						cleanupRealtimeTopic('room_metadata_sync', supabaseClient)
+					]);
+				}
+				this.syncLegacyGlobals();
+			},
+
+			async cleanupModules(moduleKeys = []) {
+				for (const moduleKey of moduleKeys) {
+					await this.cleanupModuleChannels(moduleKey);
+				}
+			},
+
+			clearReconnectTimer() {
+				if (this.reconnectTimer) {
+					clearTimeout(this.reconnectTimer);
+					this.reconnectTimer = null;
+					this.reconnectMeta = null;
+					this.syncLegacyGlobals();
+				}
+			},
+
+			syncLegacyGlobals() {
+				const roomsState = this.ensureChannelState('rooms');
+				const studentsState = this.ensureChannelState('students');
+				const roomMetaState = this.ensureChannelState('room_meta');
+				const practiceAlertsState = this.ensureChannelState('practice_alerts');
+
+				realtimeChannel = roomsState.channel || null;
+				window.studentRealtimeChannel = studentsState.channel || null;
+				window.roomMetaRealtimeChannel = roomMetaState.channel || null;
+
+				window.__roomsRealtimeAttempts = roomsState.attempts || 0;
+				window.__studentsRealtimeAttempts = studentsState.attempts || 0;
+				window.__roomMetaRealtimeAttempts = roomMetaState.attempts || 0;
+
+				window.__roomsRealtimeInit = !!roomsState.channel;
+				window.__studentsRealtimeInit = !!studentsState.channel;
+				window.__roomMetaRealtimeInit = !!roomMetaState.channel;
+				window.__roomMetaRealtimeConnected = !!roomMetaState.connected;
+
+				const coreReconnectPending = (!!this.reconnectTimer || !!this.connectInFlight) && (
+					roomsState.connecting || studentsState.connecting || roomMetaState.connecting ||
+					roomsState.attempts > 0 || studentsState.attempts > 0 || roomMetaState.attempts > 0
+				);
+				window.__roomsRealtimeReconnecting = coreReconnectPending;
+				window.__studentsRealtimeReconnecting = coreReconnectPending;
+				window.__roomsRealtimeReconnectTimer = coreReconnectPending ? this.reconnectTimer : null;
+				window.__studentsRealtimeReconnectTimer = coreReconnectPending ? this.reconnectTimer : null;
+				window.__roomMetaRealtimeReconnectTimer = coreReconnectPending ? this.reconnectTimer : null;
+
+				if (typeof AlertStore !== 'undefined' && AlertStore) {
+					const practiceReconnectPending = (!!this.reconnectTimer || !!this.connectInFlight) && (
+						practiceAlertsState.connecting || practiceAlertsState.attempts > 0
+					);
+					AlertStore._rtRetry = practiceAlertsState.attempts || 0;
+					AlertStore._rtConnecting = practiceAlertsState.connecting || false;
+					AlertStore._rtTimer = practiceReconnectPending ? this.reconnectTimer : null;
+					AlertStore._rtChannel = practiceAlertsState.channel || null;
+				}
+				if (window.PracticeAlerts) {
+					const practiceReconnectPending = (!!this.reconnectTimer || !!this.connectInFlight) && (
+						practiceAlertsState.connecting || practiceAlertsState.attempts > 0
+					);
+					window.PracticeAlerts._rtRetry = practiceAlertsState.attempts || 0;
+					window.PracticeAlerts._rtConnecting = practiceAlertsState.connecting || false;
+					window.PracticeAlerts._rtTimer = practiceReconnectPending ? this.reconnectTimer : null;
+				}
+			},
+
+			async ensureModuleConnected(moduleKey, reason = 'manual', options = {}) {
+				const moduleDef = this.modules.get(moduleKey);
+				if (!moduleDef) return;
+				moduleDef.active = true;
+				const needsConnect = !!options.force || (moduleDef.channelKeys || []).some(channelKey => !this.ensureChannelState(channelKey).channel);
+				this.syncLegacyGlobals();
+				if (!needsConnect) return;
+				return this.connectModule(moduleKey, reason);
+			},
+
+			async connectModule(moduleKey, reason = 'manual') {
+				const moduleDef = this.modules.get(moduleKey);
+				if (!moduleDef || moduleDef.active === false) return;
+				if (document.hidden || emergencyBrake.isEngaged()) return;
+				if (!supabaseReady || !supabaseClient) {
+					logWarn(`[RealtimeOrchestrator] 模块 ${moduleKey} 连接跳过：Supabase 未就绪`);
+					return;
+				}
+				if (this.connectInFlight) return this.connectInFlight;
+
+				this.clearReconnectTimer();
+				const runner = (async () => {
+					try {
+						await this.cleanupModuleChannels(moduleKey);
+						await moduleDef.connect(reason);
+					} finally {
+						this.connectInFlight = null;
+						this.syncLegacyGlobals();
+						if (this.pendingReconnect) {
+							const pending = this.pendingReconnect;
+							this.pendingReconnect = null;
+							this.requestReconnect(pending.key, pending.status, pending.options);
+						}
+					}
+				})();
+				this.connectInFlight = runner;
+				return runner;
+			},
+
+			async reconnectAll(reason = 'reconnect') {
+				const activeEntries = Array.from(this.modules.entries())
+					.filter(([, def]) => def.active)
+					.sort((a, b) => (a[1].order || 100) - (b[1].order || 100));
+				if (!activeEntries.length) return;
+				if (document.hidden || emergencyBrake.isEngaged()) return;
+				if (!supabaseReady || !supabaseClient) {
+					logWarn(`[RealtimeOrchestrator] 全量重连跳过：Supabase 未就绪 (${reason})`);
+					return;
+				}
+				if (this.connectInFlight) return this.connectInFlight;
+
+				this.clearReconnectTimer();
+				const runner = (async () => {
+					try {
+						await Promise.race([
+							this.cleanupModules(activeEntries.map(([moduleKey]) => moduleKey)),
+							new Promise(resolve => setTimeout(resolve, 2500))
+						]);
+						await new Promise(resolve => setTimeout(resolve, 300));
+						for (const [moduleKey, moduleDef] of activeEntries) {
+							await moduleDef.connect(reason);
+						}
+					} finally {
+						this.connectInFlight = null;
+						this.syncLegacyGlobals();
+						if (this.pendingReconnect) {
+							const pending = this.pendingReconnect;
+							this.pendingReconnect = null;
+							this.requestReconnect(pending.key, pending.status, pending.options);
+						}
+					}
+				})();
+				this.connectInFlight = runner;
+				return runner;
+			},
+
+			requestReconnect(key, status, options = {}) {
+				const state = this.ensureChannelState(key);
+				this.markDisconnected(key, status);
+
+				if (this.connectInFlight) {
+					this.pendingReconnect = { key, status, options };
+					return null;
+				}
+				if (!realtimeMonitor.shouldAttemptReconnect(status)) {
+					return null;
+				}
+				if (this.reconnectTimer) {
+					return null;
+				}
+
+				state.attempts = (state.attempts || 0) + 1;
+				const delay = Math.max(
+					options.minDelay || 0,
+					options.delay || realtimeMonitor.calculateReconnectDelay(state.attempts, status)
+				);
+				const label = options.label || `[RT][${key}]`;
+				if (options.log !== false) {
+					const logFn = options.logFn || (document.hidden || realtimeMonitor.silentMode ? console.debug : console.warn);
+					if (state.attempts <= 3 || state.attempts % 5 === 0) {
+						logFn(`${label} 状态=${status} 重连#${state.attempts} in ${Math.round(delay / 1000)}s`);
+					}
+				}
+
+				this.reconnectMeta = { key, status, delay };
+				this.reconnectTimer = setTimeout(async () => {
+					this.reconnectTimer = null;
+					this.reconnectMeta = null;
+					this.syncLegacyGlobals();
+					await this.reconnectAll(`${key}:${status}`);
+				}, delay);
+				this.syncLegacyGlobals();
+				return { attempts: state.attempts, delay };
+			}
+		};
+		window.RealtimeOrchestrator = RealtimeOrchestrator;
 
 	async function cleanupRealtimeTopic(topicName, client = supabaseClient){
 		if(!client || typeof client.getChannels !== 'function' || typeof client.removeChannel !== 'function') return;
@@ -2520,8 +2814,14 @@
 		if (window.__roomMetaRealtimeReconnectTimer) clearTimeout(window.__roomMetaRealtimeReconnectTimer);
 		if (window.__studentReconnectSyncTimer) clearTimeout(window.__studentReconnectSyncTimer);
 		
-		// 清理realtime连接（统一注册表）
-		try { RealtimeRegistry.cleanupAll(supabaseClient); } catch(_) {}
+		// 清理realtime连接（统一编排层）
+		try {
+			if (window.RealtimeOrchestrator) {
+				window.RealtimeOrchestrator.cleanupModules(Array.from(window.RealtimeOrchestrator.modules.keys()));
+			} else {
+				RealtimeRegistry.cleanupAll(supabaseClient);
+			}
+		} catch(_) {}
 		// 清理学生轮询
 		if (window.__studentPollingInterval) {
 			clearInterval(window.__studentPollingInterval);
@@ -2661,16 +2961,21 @@
 				window.__roomsRealtimeAttempts = 0;
 				window.__studentsRealtimeAttempts = 0;
 				
-				// 清理现有连接
-				try {
-					logInfo('清理现有 realtime 连接（统一注册表）');
-					await RealtimeRegistry.cleanupAll(supabaseClient);
-					realtimeChannel = null;
-					window.studentRealtimeChannel = null;
-					window.roomMetaRealtimeChannel = null;
-				} catch(e) {
-					logWarn('清理 realtime 连接失败:', e.message);
-				}
+					// 清理现有连接
+					try {
+						logInfo('清理现有 realtime 连接（统一编排层）');
+						if (window.RealtimeOrchestrator) {
+							window.RealtimeOrchestrator.clearReconnectTimer();
+							await window.RealtimeOrchestrator.cleanupModules(Array.from(window.RealtimeOrchestrator.modules.keys()));
+						} else {
+							await RealtimeRegistry.cleanupAll(supabaseClient);
+						}
+						realtimeChannel = null;
+						window.studentRealtimeChannel = null;
+						window.roomMetaRealtimeChannel = null;
+					} catch(e) {
+						logWarn('清理 realtime 连接失败:', e.message);
+					}
 				
 				// 等待一段时间让连接完全清理
 				await new Promise(resolve => setTimeout(resolve, 2000));
@@ -2834,27 +3139,25 @@
 			}, 3000); // 等待连接稳定后再同步数据
 		}
 		
-		clearReconnectTimers() {
-			// 清理房间重连计时器
-			if (window.__roomsRealtimeReconnectTimer) {
-				clearTimeout(window.__roomsRealtimeReconnectTimer);
-				window.__roomsRealtimeReconnectTimer = null;
-				logInfo('已清理房间重连计时器');
+			clearReconnectTimers() {
+				if (window.RealtimeOrchestrator) {
+					window.RealtimeOrchestrator.clearReconnectTimer();
+					logInfo('已清理统一 realtime 重连计时器');
+					return;
+				}
+				if (window.__roomsRealtimeReconnectTimer) {
+					clearTimeout(window.__roomsRealtimeReconnectTimer);
+					window.__roomsRealtimeReconnectTimer = null;
+				}
+				if (window.__studentsRealtimeReconnectTimer) {
+					clearTimeout(window.__studentsRealtimeReconnectTimer);
+					window.__studentsRealtimeReconnectTimer = null;
+				}
+				if (window.__roomMetaRealtimeReconnectTimer) {
+					clearTimeout(window.__roomMetaRealtimeReconnectTimer);
+					window.__roomMetaRealtimeReconnectTimer = null;
+				}
 			}
-			
-			// 清理学生重连计时器
-			if (window.__studentsRealtimeReconnectTimer) {
-				clearTimeout(window.__studentsRealtimeReconnectTimer);
-				window.__studentsRealtimeReconnectTimer = null;
-				logInfo('已清理学生重连计时器');
-			}
-
-			if (window.__roomMetaRealtimeReconnectTimer) {
-				clearTimeout(window.__roomMetaRealtimeReconnectTimer);
-				window.__roomMetaRealtimeReconnectTimer = null;
-				logInfo('已清理房间元数据重连计时器');
-			}
-		}
 		
 		cleanupConnectionsForBackground() {
 			logInfo('执行后台连接清理...');
@@ -2866,19 +3169,22 @@
 					logInfo('已断开Supabase Realtime连接');
 				}
 				
-				// 重置连接状态标志
-				window.__roomsRealtimeInit = false;
-				window.__studentsRealtimeInit = false;
-				window.__roomsRealtimeReconnecting = false;
-				window.__studentsRealtimeReconnecting = false;
-				
-				// 清理所有重连计时器
-				this.clearReconnectTimers();
-				
-			} catch (error) {
-				logErr('后台连接清理失败:', error.message);
+					// 重置连接状态标志
+					window.__roomsRealtimeInit = false;
+					window.__studentsRealtimeInit = false;
+					window.__roomsRealtimeReconnecting = false;
+					window.__studentsRealtimeReconnecting = false;
+					
+					// 清理所有重连计时器
+					this.clearReconnectTimers();
+					if (window.RealtimeOrchestrator) {
+						window.RealtimeOrchestrator.cleanupModules(Array.from(window.RealtimeOrchestrator.modules.keys()));
+					}
+					
+				} catch (error) {
+					logErr('后台连接清理失败:', error.message);
+				}
 			}
-		}
 		
 		async forceFullReconnect() {
 			logInfo('执行完整连接重建...');
@@ -2902,36 +3208,17 @@
 			}
 		}
 		
-		async initializeConnections() {
-			try {
-				// 重置连接管理器状态
-				if (window.ConnectionManager && window.ConnectionManager.resetAllConnections) {
-					window.ConnectionManager.resetAllConnections(true);
-				}
-				
-				// 等待状态重置完成
-				await new Promise(resolve => setTimeout(resolve, 1000));
-				
-				// 重新初始化房间连接
-				if (window.initRoomsRealtimeUpdates && typeof window.initRoomsRealtimeUpdates === 'function') {
-					logInfo('重新初始化房间连接...');
-					await window.initRoomsRealtimeUpdates();
-				}
-				
-				// 重新初始化学生连接
-				if (window.initStudentsRealtimeUpdates && typeof window.initStudentsRealtimeUpdates === 'function') {
-					logInfo('重新初始化学生连接...');
-					await window.initStudentsRealtimeUpdates();
-				}
-				
-				// 重新初始化练习提醒连接
-				if (window.PracticeAlerts && window.PracticeAlerts.init) {
-					logInfo('重新初始化练习提醒连接...');
-					window.PracticeAlerts.init();
-				}
-				
-				// 重置活动时间
-				this.recordActivity();
+			async initializeConnections() {
+				try {
+					if (window.RealtimeOrchestrator) {
+						logInfo('通过统一编排层重新初始化所有 realtime 连接...');
+						await window.RealtimeOrchestrator.reconnectAll('monitor-initialize');
+					} else {
+						await setupRealtime();
+					}
+					
+					// 重置活动时间
+					this.recordActivity();
 				
 				logInfo('所有连接重新初始化完成');
 				
@@ -3893,8 +4180,15 @@
 				// 停止所有定时器
 				timerManager.clearAllTimers();
 				
-				// 断开realtime连接以减少服务器压力
-				try { RealtimeRegistry.cleanupAll(supabaseClient); } catch(_) {}
+					// 断开realtime连接以减少服务器压力
+					try {
+						if (window.RealtimeOrchestrator) {
+							window.RealtimeOrchestrator.clearReconnectTimer();
+							window.RealtimeOrchestrator.cleanupModules(Array.from(window.RealtimeOrchestrator.modules.keys()));
+						} else {
+							RealtimeRegistry.cleanupAll(supabaseClient);
+						}
+					} catch(_) {}
 				realtimeChannel = null;
 				window.studentRealtimeChannel = null;
 				window.roomMetaRealtimeChannel = null;
@@ -4059,13 +4353,17 @@
 			window.__studentsRealtimeAttempts = 0;
 			
 			// 清除重连计时器
-			if (window.__roomsRealtimeReconnectTimer) {
-				clearTimeout(window.__roomsRealtimeReconnectTimer);
-				window.__roomsRealtimeReconnectTimer = null;
-			}
-			if (window.__studentsRealtimeReconnectTimer) {
-				clearTimeout(window.__studentsRealtimeReconnectTimer);
-				window.__studentsRealtimeReconnectTimer = null;
+			if (window.RealtimeOrchestrator) {
+				window.RealtimeOrchestrator.clearReconnectTimer();
+			} else {
+				if (window.__roomsRealtimeReconnectTimer) {
+					clearTimeout(window.__roomsRealtimeReconnectTimer);
+					window.__roomsRealtimeReconnectTimer = null;
+				}
+				if (window.__studentsRealtimeReconnectTimer) {
+					clearTimeout(window.__studentsRealtimeReconnectTimer);
+					window.__studentsRealtimeReconnectTimer = null;
+				}
 			}
 			
 			// 重置连接问题计数
@@ -7649,316 +7947,124 @@
 		
 		logInfo(`已清理房间 ${roomName} 的所有状态`);
 	}
-	async function setupRealtime(){
-		if (window.__setupRealtimePromise) {
-			return window.__setupRealtimePromise;
-		}
-		window.__setupRealtimePromise = (async () => {
-			// 检查页面可见性
-			if (document.hidden) {
-				logInfo('页面隐藏中，跳过realtime初始化');
-				return;
-			}
-			
-			// 检查紧急刹车状态
-			if (emergencyBrake.isEngaged()) {
-				logWarn('紧急刹车激活中，跳过realtime初始化');
-				return;
-			}
-			
-			if(!supabaseReady) {
-				logWarn('Supabase 未就绪，跳过实时订阅');
-				updateSyncStatus('error', '未连接');
-				return;
-			}
-			
-			// 🔧 修复：检查 supabaseClient 是否存在且有效
-			if (!supabaseClient || !supabaseClient.channel) {
-				logErr('❌ Supabase 客户端无效，无法建立 Realtime 连接');
-				updateSyncStatus('error', '客户端无效');
-				// 尝试重新初始化 Supabase
-				setTimeout(() => {
-					logInfo('尝试重新初始化 Supabase...');
-					supabaseReady = false;
-					window.__roomsRealtimeInit = false;
-					initSupabase().then(() => {
-						if (supabaseReady) {
-							setupRealtime();
-						}
-					});
-				}, 3000);
-				return;
-			}
-			
-			// 避免重复初始化（标签页多次触发）
-			if(window.__roomsRealtimeInit && !window.__roomsRealtimeReconnecting){
-				logInfo('setupRealtime 已初始化，跳过');
-				return;
-			}
-			window.__roomsRealtimeInit = true;
-			
-			updateSyncStatus('connecting', '订阅中...');
-			realtimeMonitor.clearReconnectTimers();
-			
-			// 清理旧连接（统一通过 RealtimeRegistry）
-			try{
-				await Promise.race([
-					RealtimeRegistry.cleanupAll(supabaseClient),
-					new Promise(resolve => setTimeout(resolve, 2500))
-				]);
-				await Promise.all([
-					cleanupRealtimeTopic('realtime-rooms', supabaseClient),
-					cleanupRealtimeTopic('realtime-students', supabaseClient),
-					cleanupRealtimeTopic('room_metadata_sync', supabaseClient)
-				]);
-				realtimeChannel = null;
-				window.studentRealtimeChannel = null;
-				window.roomMetaRealtimeChannel = null;
-				window.__roomMetaRealtimeInit = false;
-				window.__roomMetaRealtimeConnected = false;
-				window.__roomMetaRealtimeAttempts = 0;
-				logInfo('旧 realtime 连接清理完成');
-				await new Promise(resolve => setTimeout(resolve, 300));
-			}catch(e){
-				logWarn('旧 realtime 连接清理异常（继续）:', e.message);
-			}
-			
-			// 创建新的实时频道（房间）
-			window.__roomsRealtimeReconnecting = true;
-			const roomsChannel = supabaseClient.channel('realtime-rooms');
-			roomsChannel.on('postgres_changes', {
-				event: '*',
-				schema: 'public',
-				table: 'rooms'
-			}, (payload) => {
-				const roomName = payload.new?.name || payload.old?.name;
-				logInfo(`🔔 [ROOMS表] 收到实时事件: ${payload.eventType} - ${roomName}`);
-				
-				// 💡 特别标记删除事件
-				if(payload.eventType === 'DELETE'){
-					logInfo(`🗑️ [ROOMS表] DELETE事件详情:`, payload);
-				}
-				
-				// 记录数据更新时间和活动
-				window.__lastRealtimeDataUpdate = Date.now();
-				realtimeMonitor.recordActivity(); // 记录realtime活动
-				requestStats.record('realtimeEvents'); // 记录realtime事件统计
-				handleRealtimeRoom(payload);
-			});
-			realtimeChannel = RealtimeRegistry.register('rooms', roomsChannel);
-			realtimeChannel.subscribe((status) => {
-				if (status === 'SUBSCRIBED') {
-					// 只在首次连接或重连成功时显示详细信息
-					const hadReconnectAttempts = window.__roomsRealtimeAttempts > 0;
-					if (hadReconnectAttempts) {
-						logInfo('✅ 房间实时同步重连成功');
-						toast('实时同步已恢复');
-					} else if (!window.__roomsInitialConnected) {
-						logInfo('✅ 房间实时同步已连接');
-						toast('实时同步已启用');
-						window.__roomsInitialConnected = true;
+	function registerCoreRealtimeModule(){
+		if (window.__coreRealtimeModuleRegistered) return;
+		window.__coreRealtimeModuleRegistered = true;
+		RealtimeOrchestrator.registerModule('core', {
+			order: 10,
+			channelKeys: ['rooms', 'students', 'room_meta'],
+			connect: async () => {
+				updateSyncStatus('connecting', '订阅中...');
+				realtimeMonitor.clearReconnectTimers();
+				RealtimeOrchestrator.prepareChannelStates(['rooms', 'students', 'room_meta']);
+
+				const roomsChannel = supabaseClient.channel('realtime-rooms');
+				roomsChannel.on('postgres_changes', {
+					event: '*',
+					schema: 'public',
+					table: 'rooms'
+				}, (payload) => {
+					const roomName = payload.new?.name || payload.old?.name;
+					logInfo(`🔔 [ROOMS表] 收到实时事件: ${payload.eventType} - ${roomName}`);
+					if(payload.eventType === 'DELETE'){
+						logInfo(`🗑️ [ROOMS表] DELETE事件详情:`, payload);
 					}
-					updateSyncStatus('connected', '实时同步');
-					window.__roomsRealtimeReconnecting = false;
-					window.__roomsRealtimeAttempts = 0;
-				} else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status==='CLOSED') {
-					// 📱 页面隐藏时的智能处理
-					if (realtimeMonitor.pageHidden) {
-						// 页面隐藏时静默处理，不记录日志
-						console.debug(`[RT][rooms] 页面隐藏中，静默处理连接状态 (${status})`);
+					window.__lastRealtimeDataUpdate = Date.now();
+					realtimeMonitor.recordActivity();
+					requestStats.record('realtimeEvents');
+					handleRealtimeRoom(payload);
+				});
+				realtimeChannel = RealtimeOrchestrator.setChannel('rooms', RealtimeRegistry.register('rooms', roomsChannel));
+				realtimeChannel.subscribe((status) => {
+					if (status === 'SUBSCRIBED') {
+						const { hadReconnectAttempts } = RealtimeOrchestrator.markConnected('rooms');
+						if (hadReconnectAttempts) {
+							logInfo('✅ 房间实时同步重连成功');
+							toast('实时同步已恢复');
+						} else if (!window.__roomsInitialConnected) {
+							logInfo('✅ 房间实时同步已连接');
+							toast('实时同步已启用');
+							window.__roomsInitialConnected = true;
+						}
+						updateSyncStatus('connected', '实时同步');
 						return;
 					}
-					
-					// 刚从隐藏状态恢复，给连接一些恢复时间
-					if ((Date.now() - (window.__lastVisibilityChange || 0)) < 5000) {
-						console.debug(`[RT][rooms] 页面刚恢复可见，延迟处理 (status=${status})`);
+					if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+						const scheduled = RealtimeOrchestrator.requestReconnect('rooms', status, {
+							label: '[RT][rooms]'
+						});
+						if (!scheduled) return;
+						if (scheduled.attempts > 5) {
+							updateSyncStatus('error', `连接异常，${Math.round(scheduled.delay / 1000)}秒后重试`);
+						} else if (scheduled.attempts > 3) {
+							updateSyncStatus('error', `重连失败，${Math.round(scheduled.delay / 1000)}秒后重试`);
+						} else {
+							updateSyncStatus('error', '重连中');
+						}
 						return;
 					}
-					
-					// 🤖 使用智能重连策略
-					if (!realtimeMonitor.shouldAttemptReconnect(status)) {
-						console.debug(`[RT][rooms] 智能重连策略决定跳过重连 (${status})`);
-						return;
-					}
-					
-					// 防止重复触发重连
-					if (window.__roomsRealtimeReconnectTimer) {
-						logInfo(`[RT][rooms] 状态=${status} 已有重连计时器运行，跳过`);
-						return;
-					}
-					
-					const attempts = (window.__roomsRealtimeAttempts||0) + 1;
-					window.__roomsRealtimeAttempts = attempts;
-					
-					let baseDelay = 1000;
-					
-					if (status === 'CLOSED') {
-						baseDelay = 3000;
-						const now = Date.now();
-						const lastClosedTime = window.__lastClosedTime || 0;
-						if (now - lastClosedTime < 10000) {
-							baseDelay = Math.min(30000, baseDelay * attempts);
-						}
-						window.__lastClosedTime = now;
-					}
-					
-					const maxDelay = status === 'CLOSED' ? 180000 : 120000;
-					const delay = Math.min(maxDelay, Math.round(baseDelay * Math.pow(1.4, attempts-1) + Math.random()*1000));
-					
-					if (attempts > 5) {
-						const longDelay = Math.min(300000, delay * 2);
-						if(attempts === 6 || attempts % 10 === 0) {
-							logWarn(`[RT][rooms] 状态=${status} 重连#${attempts} 延长等待 ${Math.round(longDelay/1000)}秒 (频繁失败)`);
-						}
-						updateSyncStatus('error', `连接异常，${Math.round(longDelay/1000)}秒后重试`);
-						
-						window.__roomsRealtimeReconnectTimer = setTimeout(()=>{
-							window.__roomsRealtimeReconnectTimer = null;
-							window.__roomsRealtimeReconnecting = true;
-							setupRealtime();
-						}, longDelay);
-					} else if (attempts > 3) {
-						const mediumDelay = Math.min(180000, delay * 1.5);
-						if(attempts === 4 || attempts % 4 === 0) {
-							logWarn(`[RT][rooms] 状态=${status} 重连#${attempts} 延长等待 ${Math.round(mediumDelay/1000)}秒`);
-						}
-						updateSyncStatus('error', `重连失败，${Math.round(mediumDelay/1000)}秒后重试`);
-						
-						window.__roomsRealtimeReconnectTimer = setTimeout(()=>{
-							window.__roomsRealtimeReconnectTimer = null;
-							window.__roomsRealtimeReconnecting = true;
-							setupRealtime();
-						}, mediumDelay);
-					} else {
-						if(attempts <= 2 || attempts % 5 === 0) {
-							logWarn(`[RT][rooms] 状态=${status} 重连#${attempts} 预计 ${Math.round(delay/1000)}秒`);
-						}
-						updateSyncStatus('error', '重连中');
-						
-						window.__roomsRealtimeReconnectTimer = setTimeout(()=>{
-							window.__roomsRealtimeReconnectTimer = null;
-							window.__roomsRealtimeReconnecting = true;
-							setupRealtime();
-						}, delay);
-					}
-				} else {
 					logInfo('[RT][rooms] 状态=', status);
-				}
-			});
-			
-			// 创建学生数据库实时频道
-			const studentsChannel = supabaseClient.channel('realtime-students');
-			studentsChannel.on('postgres_changes', {
-				event: '*',
-				schema: 'public',
-				table: 'student_database'
-			}, (payload) => {
-				if(!window.__studentRealtimeSeq) window.__studentRealtimeSeq=0;
-				window.__studentRealtimeSeq++;
-				const seq=window.__studentRealtimeSeq;
-				const name = payload.new?.name || payload.old?.name;
-				const src = (payload.subscription && payload.subscription.socket) ? 'ws' : 'unknown';
-				console.log(`[RT][students][${seq}] event=${payload.eventType} name=${name} origin=${src}`, payload);
-				
-				window.__lastRealtimeDataUpdate = Date.now();
-				realtimeMonitor.recordActivity();
-				requestStats.record('realtimeEvents');
-				try{ handleRealtimeStudent(payload); }catch(e){ console.warn('[RT] 处理学生事件异常', e); }
-			});
-			window.studentRealtimeChannel = RealtimeRegistry.register('students', studentsChannel);
-			window.studentRealtimeChannel.subscribe((status) => {
-				const nowTs=new Date().toISOString();
-				if (status === 'SUBSCRIBED') {
-					const hadReconnectAttempts = window.__studentsRealtimeAttempts > 0;
-					if (hadReconnectAttempts) {
-						console.log(`[RT][students] ✅ 重连成功 @${nowTs}`);
-					} else if (!window.__studentsInitialConnected) {
-						console.log(`[RT][students] ✅ 初次连接成功 @${nowTs}`);
-						window.__studentsInitialConnected = true;
-					}
-					window.__studentsRealtimeAttempts = 0;
-					if (hadReconnectAttempts) {
-						scheduleStudentReconnectSync('students-realtime-resubscribed');
-					}
-				} else if (status === 'CHANNEL_ERROR' || status==='TIMED_OUT' || status==='CLOSED') {
-					if (realtimeMonitor.pageHidden) {
-						console.debug(`[RT][students] 页面隐藏中，静默处理连接状态 (${status})`);
+				});
+
+				const studentsChannel = supabaseClient.channel('realtime-students');
+				studentsChannel.on('postgres_changes', {
+					event: '*',
+					schema: 'public',
+					table: 'student_database'
+				}, (payload) => {
+					if(!window.__studentRealtimeSeq) window.__studentRealtimeSeq=0;
+					window.__studentRealtimeSeq++;
+					const seq=window.__studentRealtimeSeq;
+					const name = payload.new?.name || payload.old?.name;
+					const src = (payload.subscription && payload.subscription.socket) ? 'ws' : 'unknown';
+					console.log(`[RT][students][${seq}] event=${payload.eventType} name=${name} origin=${src}`, payload);
+
+					window.__lastRealtimeDataUpdate = Date.now();
+					realtimeMonitor.recordActivity();
+					requestStats.record('realtimeEvents');
+					try{ handleRealtimeStudent(payload); }catch(e){ console.warn('[RT] 处理学生事件异常', e); }
+				});
+				window.studentRealtimeChannel = RealtimeOrchestrator.setChannel('students', RealtimeRegistry.register('students', studentsChannel));
+				window.studentRealtimeChannel.subscribe((status) => {
+					const nowTs=new Date().toISOString();
+					if (status === 'SUBSCRIBED') {
+						const { hadReconnectAttempts } = RealtimeOrchestrator.markConnected('students');
+						if (hadReconnectAttempts) {
+							console.log(`[RT][students] ✅ 重连成功 @${nowTs}`);
+							scheduleStudentReconnectSync('students-realtime-resubscribed');
+						} else if (!window.__studentsInitialConnected) {
+							console.log(`[RT][students] ✅ 初次连接成功 @${nowTs}`);
+							window.__studentsInitialConnected = true;
+						}
 						return;
 					}
-					
-					if ((Date.now() - (window.__lastVisibilityChange || 0)) < 5000) {
-						console.debug(`[RT][students] 页面刚恢复可见，延迟处理 (status=${status})`);
-						return;
-					}
-					
-					if (status === 'CLOSED') {
-						if (realtimeMonitor.checkClosedEventFrequency()) {
-							console.warn(`[RT][students] 频繁的 CLOSED 事件，暂停重连 10 分钟`);
-							setTimeout(() => {
-								realtimeMonitor.closedEvents = [];
-								console.log(`[RT][students] CLOSED 事件计数器已重置`);
-							}, 600000);
+					if (status === 'CHANNEL_ERROR' || status==='TIMED_OUT' || status==='CLOSED') {
+						let minDelay = 0;
+						if (status === 'CLOSED' && realtimeMonitor.checkClosedEventFrequency()) {
+							console.warn('[RT][students] 频繁的 CLOSED 事件，暂停自动重连');
 							return;
 						}
-						
-						const timeSinceActivity = Date.now() - realtimeMonitor.lastActivity;
-						if (timeSinceActivity < 300000) {
-							console.log(`[RT][students] CLOSED状态但最近有活动(${Math.round(timeSinceActivity/60000)}分钟前)，延迟重连`);
-							setTimeout(() => {
-								if (!document.hidden && !realtimeMonitor.isReconnecting && !window.studentRealtimeChannel) {
-									console.log(`[RT][students] 延迟检查后确认需要重连`);
-									setupRealtime();
-								}
-							}, 15000);
-							return;
+						if (status === 'CLOSED') {
+							const timeSinceActivity = Date.now() - realtimeMonitor.lastActivity;
+							if (timeSinceActivity < 300000) {
+								console.log(`[RT][students] CLOSED状态但最近有活动(${Math.round(timeSinceActivity/60000)}分钟前)，延迟统一重连`);
+								minDelay = 15000;
+							}
 						}
-					}
-					
-					if (window.RealtimeConnectionManager && !window.RealtimeConnectionManager.checkNetworkStatus()) {
-						console.log(`[RT][students] 网络离线，跳过重连`);
+						const logLevel = document.hidden || realtimeMonitor.silentMode ? 'debug' : 'warn';
+						const logFunc = logLevel === 'debug' ? console.debug : console.warn;
+						RealtimeOrchestrator.requestReconnect('students', status, {
+							label: '[RT][students]',
+							minDelay,
+							logFn: logFunc
+						});
 						return;
 					}
-					
-					if (realtimeMonitor.isReconnecting) {
-						console.log(`[RT][students] 强制重连进行中，跳过自动重连 (status=${status})`);
-						return;
-					}
-					
-					if (window.__studentsRealtimeReconnectTimer) {
-						console.log(`[RT][students] 状态=${status} 已有重连计时器运行，跳过`);
-						return;
-					}
-					
-					if (!realtimeMonitor.shouldAttemptReconnect(status)) {
-						console.debug(`[RT][students] 智能重连策略决定跳过重连 (${status})`);
-						return;
-					}
-					
-					const attempts = (window.__studentsRealtimeAttempts||0)+1;
-					window.__studentsRealtimeAttempts = attempts;
-					const delay = realtimeMonitor.calculateReconnectDelay(attempts, status);
-					const logLevel = document.hidden || realtimeMonitor.silentMode ? 'debug' : 'warn';
-					const logFunc = logLevel === 'debug' ? console.debug : console.warn;
-					
-					if (attempts <= 2 || attempts % 5 === 0) {
-						logFunc(`[RT][students] 状态=${status} 重连#${attempts} in ${Math.round(delay/1000)}s`);
-					}
-					
-					window.__studentsRealtimeReconnectTimer=setTimeout(()=>{
-						window.__studentsRealtimeReconnectTimer=null;
-						setupRealtime();
-					}, delay);
-				} else {
 					const logFunc = document.hidden || realtimeMonitor.silentMode ? console.debug : console.log;
 					logFunc(`[RT][students] 状态=${status} @${nowTs}`);
-				}
-			});
-			
-			// 💡 添加房间元数据实时订阅，确保备注等信息的多设备同步
-			if (!window.__roomMetaRealtimeInit) {
-				window.__roomMetaRealtimeInit = true;
+				});
+
 				logInfo('初始化房间元数据实时订阅...');
-				
 				const roomMetaChannel = supabaseClient.channel('room_metadata_sync');
 				roomMetaChannel.on('postgres_changes', {
 					event: '*',
@@ -7967,98 +8073,102 @@
 				}, (payload) => {
 					const roomName = payload.new?.name || payload.old?.name;
 					logInfo(`🔔 [ROOM_DATABASE表] 收到实时事件: ${payload.eventType} - ${roomName}`);
-					
 					if(payload.eventType === 'DELETE'){
 						logInfo(`🗑️ [ROOM_DATABASE表] DELETE事件详情:`, payload);
 					}
-					
 					realtimeMonitor.recordActivity();
 					requestStats.record('realtimeEvents');
 					handleRealtimeRoomMeta(payload);
 				});
-				window.roomMetaRealtimeChannel = RealtimeRegistry.register('room_meta', roomMetaChannel);
+				window.roomMetaRealtimeChannel = RealtimeOrchestrator.setChannel('room_meta', RealtimeRegistry.register('room_meta', roomMetaChannel));
 				window.roomMetaRealtimeChannel.subscribe((status) => {
 					if (status === 'SUBSCRIBED') {
+						RealtimeOrchestrator.markConnected('room_meta');
 						logInfo('✅ 房间元数据实时同步已连接');
-						window.__roomMetaRealtimeConnected = true;
-						window.__roomMetaRealtimeAttempts = 0;
-					} else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-						const logFunc = document.hidden || realtimeMonitor.silentMode ? console.debug : console.warn;
-						logFunc(`[RT][room-meta] 订阅状态: ${status}`);
-						
-						window.__roomMetaRealtimeConnected = false;
-						
-						if (!realtimeMonitor.shouldAttemptReconnect(status)) {
-							console.debug(`[RT][room-meta] 智能重连策略决定跳过重连 (${status})`);
-							return;
-						}
-						
-						if (window.__roomMetaRealtimeReconnectTimer) {
-							return;
-						}
-						
-						const attempts = (window.__roomMetaRealtimeAttempts || 0) + 1;
-						window.__roomMetaRealtimeAttempts = attempts;
-						const delay = realtimeMonitor.calculateReconnectDelay(attempts, status);
-						
-						window.__roomMetaRealtimeReconnectTimer = setTimeout(() => {
-							window.__roomMetaRealtimeReconnectTimer = null;
-							if (!document.hidden) {
-								const logFunc2 = document.hidden || realtimeMonitor.silentMode ? console.debug : console.info;
-								logFunc2('🔄 重新初始化房间元数据订阅...');
-								window.__roomMetaRealtimeInit = false;
-								setupRealtime();
-							}
-						}, delay);
-					} else {
-						logInfo(`📡 房间元数据订阅状态: ${status}`);
-					}
-				});
-			}
-
-			// 💡 重新评估心跳检测的必要性
-			// 在有realtime的情况下，心跳主要是冗余机制
-			const HEARTBEAT_ENABLED = false; // 🔧 可配置开关，默认关闭
-			const HEARTBEAT_INTERVAL = 600000; // 10分钟（如果启用的话）
-			
-			if (HEARTBEAT_ENABLED && !window.__heartbeatInterval) {
-				logInfo(`启用心跳检测，间隔${HEARTBEAT_INTERVAL/60000}分钟`);
-				window.__heartbeatInterval = setInterval(async () => {
-				try {
-					// 检查紧急刹车和连接状态
-					if (emergencyBrake.isEngaged() || !supabaseReady || !supabaseClient) return;
-					
-					// 只在realtime连接异常时才发送心跳
-					const timeSinceActivity = Date.now() - realtimeMonitor.lastActivity;
-					if (timeSinceActivity < 300000) { // 5分钟内有realtime活动就跳过心跳
-						logInfo('Realtime连接正常，跳过心跳');
 						return;
 					}
-					
-					// 使用请求限流器检查是否可以执行心跳
-					if (!requestThrottler.canExecute('heartbeat')) return;
-					
-					const occupiedRooms = Store.rooms.filter(r => r.occupant_student_name && r.registerTime);
-					if (occupiedRooms.length === 0) return; // 没有占用房间时不发送心跳
-					
-					// 批量更新心跳，减少请求数量
-					const nowIso = new Date().toISOString();
-					const roomNames = occupiedRooms.map(r => r.name);
-					
-					await supabaseClient.from('rooms')
-						.update({ heartbeat_at: nowIso })
-						.in('name', roomNames);
-					
-					requestStats.record('heartbeat');
-					logInfo(`备用心跳更新: ${roomNames.length} 个房间（realtime异常时）`);
-				} catch (error) {
-					logWarn('心跳更新失败:', error.message);
+					if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+						const logFn = document.hidden || realtimeMonitor.silentMode ? console.debug : console.warn;
+						logFn(`[RT][room-meta] 订阅状态: ${status}`);
+						RealtimeOrchestrator.requestReconnect('room_meta', status, {
+							label: '[RT][room-meta]',
+							log: false
+						});
+						return;
+					}
+					logInfo(`📡 房间元数据订阅状态: ${status}`);
+				});
+
+				const HEARTBEAT_ENABLED = false;
+				const HEARTBEAT_INTERVAL = 600000;
+				if (HEARTBEAT_ENABLED && !window.__heartbeatInterval) {
+					logInfo(`启用心跳检测，间隔${HEARTBEAT_INTERVAL/60000}分钟`);
+					window.__heartbeatInterval = setInterval(async () => {
+						try {
+							if (emergencyBrake.isEngaged() || !supabaseReady || !supabaseClient) return;
+							const timeSinceActivity = Date.now() - realtimeMonitor.lastActivity;
+							if (timeSinceActivity < 300000) {
+								logInfo('Realtime连接正常，跳过心跳');
+								return;
+							}
+							if (!requestThrottler.canExecute('heartbeat')) return;
+							const occupiedRooms = Store.rooms.filter(r => r.occupant_student_name && r.registerTime);
+							if (occupiedRooms.length === 0) return;
+							const nowIso = new Date().toISOString();
+							const roomNames = occupiedRooms.map(r => r.name);
+							await supabaseClient.from('rooms')
+								.update({ heartbeat_at: nowIso })
+								.in('name', roomNames);
+							requestStats.record('heartbeat');
+							logInfo(`备用心跳更新: ${roomNames.length} 个房间（realtime异常时）`);
+						} catch (error) {
+							logWarn('心跳更新失败:', error.message);
+						}
+					}, HEARTBEAT_INTERVAL);
+				} else {
+					logInfo('心跳检测已禁用，完全依赖realtime机制');
 				}
-			}, HEARTBEAT_INTERVAL);
-		} else {
-			logInfo('心跳检测已禁用，完全依赖realtime机制');
+			}
+		});
+	}
+
+	async function connectCoreRealtimeChannels(reason = 'manual'){
+		if (document.hidden) {
+			logInfo('页面隐藏中，跳过realtime初始化');
+			return;
 		}
-		})();
+		if (emergencyBrake.isEngaged()) {
+			logWarn('紧急刹车激活中，跳过realtime初始化');
+			return;
+		}
+		if(!supabaseReady) {
+			logWarn('Supabase 未就绪，跳过实时订阅');
+			updateSyncStatus('error', '未连接');
+			return;
+		}
+		if (!supabaseClient || !supabaseClient.channel) {
+			logErr('❌ Supabase 客户端无效，无法建立 Realtime 连接');
+			updateSyncStatus('error', '客户端无效');
+			setTimeout(() => {
+				logInfo('尝试重新初始化 Supabase...');
+				supabaseReady = false;
+				initSupabase().then(() => {
+					if (supabaseReady) {
+						setupRealtime();
+					}
+				});
+			}, 3000);
+			return;
+		}
+		registerCoreRealtimeModule();
+		return RealtimeOrchestrator.ensureModuleConnected('core', reason, { force: true });
+	}
+
+	async function setupRealtime(){
+		if (window.__setupRealtimePromise) {
+			return window.__setupRealtimePromise;
+		}
+		window.__setupRealtimePromise = connectCoreRealtimeChannels('setupRealtime');
 		try {
 			return await window.__setupRealtimePromise;
 		} finally {
@@ -15686,149 +15796,118 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			}
 			return '';
 		}
-		function setupRealtime(){ 
-			if(!window.supabaseClient) return; 
-			// 防抖：已有连接在进行中就不重复
-			if(AlertStore._rtConnecting) return; 
-			AlertStore._rtConnecting = true;
-			const MAX_RETRIES = 12;
-			AlertStore._rtRetry = AlertStore._rtRetry || 0;
-			try{ 
-				if(AlertStore._rtChannel){
-					try{
-						if(window.RealtimeRegistry){ window.RealtimeRegistry.unregister('practice_alerts'); }
-						else { supabaseClient.removeChannel(AlertStore._rtChannel); }
-					}catch(_e){}
-				}
-				const channel=(window.RealtimeRegistry
-					? window.RealtimeRegistry.register('practice_alerts', supabaseClient.channel('realtime-practice-alerts', { config: { broadcast: { self: false } } }))
-					: supabaseClient.channel('realtime-practice-alerts', { config: { broadcast: { self: false } } }));
-				AlertStore._rtChannel = channel;
-				channel.on('broadcast', {event: 'ignore'}, payload => {
-					const id = payload.payload?.id;
-					console.log('[PracticeAlerts][BC][ignore] 收到广播 id=', id);
-					if(id!=null){ removeAlertLocal(id); scheduleRenderAlerts(); }
-				});
-				channel
-					.on('postgres_changes',{event:'INSERT',schema:'public',table:'practice_alerts'}, payload=>{ 
-						const rec=payload.new; 
-						console.log('[PracticeAlerts][RT][INSERT]', rec.id, rec.type, 'ignored=', rec.ignored);
-						window.__lastRealtimeDataUpdate = Date.now(); // 记录数据更新时间
-						
-						// 如果是忽略的记录，直接设置静默状态，不显示
-						if(rec.ignored) {
-							try {
-								const slot = rec.slot_start && rec.slot_end ? 
-									{start_time: rec.slot_start, end_time: rec.slot_end} : null;
-								setSilenced(rec.student_name, rec.type, slot);
-								console.log('[PracticeAlerts][RT][INSERT] 已忽略记录，设置静默状态');
-							} catch(e) {
-								console.warn('[PracticeAlerts][RT][INSERT] 设置静默状态失败', e);
-							}
-							return;
-						}
-						
-						rec.slot={start_time:rec.slot_start,end_time:rec.slot_end}; 
-						if(!AlertStore.byId.has(String(rec.id))){ 
-							AlertStore.list.unshift(rec); 
-							AlertStore.byId.set(String(rec.id),rec); 
-							scheduleRenderAlerts(); 
-						}
-					})
-					.on('postgres_changes',{event:'DELETE',schema:'public',table:'practice_alerts'}, payload=>{
-						const rec=payload.old; 
-						console.log('[PracticeAlerts][RT][DELETE]', rec?.id);
-						window.__lastRealtimeDataUpdate = Date.now(); // 记录数据更新时间
-						if(rec?.id!=null){ removeAlertLocal(rec.id); scheduleRenderAlerts(); }
-					})
-					.on('postgres_changes',{event:'UPDATE',schema:'public',table:'practice_alerts'}, payload=>{ 
-						const rec=payload.new; 
-						console.log('[PracticeAlerts][RT][UPDATE]', rec.id, 'ignored=', rec.ignored);
-						window.__lastRealtimeDataUpdate = Date.now(); // 记录数据更新时间
-						// 若被标记忽略，直接本地移除
-						if(rec.ignored){ removeAlertLocal(rec.id); return scheduleRenderAlerts(); }
-						const exist=AlertStore.byId.get(String(rec.id)); 
-						if(exist){ 
-							Object.assign(exist,rec); 
-							exist.slot={start_time:rec.slot_start,end_time:rec.slot_end}; 
-							scheduleRenderAlerts(); 
-						} else {
-							rec.slot={start_time:rec.slot_start,end_time:rec.slot_end};
-							AlertStore.list.unshift(rec);
-							AlertStore.byId.set(String(rec.id), rec);
-							scheduleRenderAlerts();
-						}
-					})
-					.subscribe(status=>{ 
-						if(status==='SUBSCRIBED'){
-							AlertStore._rtRetry = 0;
-							AlertStore._rtConnecting=false;
-							AlertStore._lastSuccessConnect = Date.now();
-							// 只在首次连接或重连成功时输出日志
-							if(AlertStore._rtRetry > 0 || !AlertStore._lastSuccessConnect) {
-								console.log('[PracticeAlerts][RT] ✅ 已连接');
-							}
-							return;
-						}
-						if(status==='CHANNEL_ERROR' || status==='TIMED_OUT' || status==='CLOSED'){
-							AlertStore._rtConnecting=false;
-							
-							// 检查是否刚连接成功不久，避免频繁重连
-							const timeSinceLastSuccess = Date.now() - (AlertStore._lastSuccessConnect || 0);
-							if(timeSinceLastSuccess < 5000) { // 5秒内不重连
+		function registerPracticeAlertsRealtimeModule(){
+			if(window.__practiceAlertsRealtimeModuleRegistered) return;
+			window.__practiceAlertsRealtimeModuleRegistered = true;
+			RealtimeOrchestrator.registerModule('practice_alerts', {
+				order: 20,
+				channelKeys: ['practice_alerts'],
+				connect: async () => {
+					if(!window.supabaseClient) return;
+					RealtimeOrchestrator.prepareChannelStates(['practice_alerts']);
+					const channel=(window.RealtimeRegistry
+						? window.RealtimeRegistry.register('practice_alerts', supabaseClient.channel('realtime-practice-alerts', { config: { broadcast: { self: false } } }))
+						: supabaseClient.channel('realtime-practice-alerts', { config: { broadcast: { self: false } } }));
+					AlertStore._rtChannel = channel;
+					RealtimeOrchestrator.setChannel('practice_alerts', channel);
+					channel.on('broadcast', {event: 'ignore'}, payload => {
+						const id = payload.payload?.id;
+						console.log('[PracticeAlerts][BC][ignore] 收到广播 id=', id);
+						if(id!=null){ removeAlertLocal(id); scheduleRenderAlerts(); }
+					});
+					channel
+						.on('postgres_changes',{event:'INSERT',schema:'public',table:'practice_alerts'}, payload=>{ 
+							const rec=payload.new; 
+							console.log('[PracticeAlerts][RT][INSERT]', rec.id, rec.type, 'ignored=', rec.ignored);
+							window.__lastRealtimeDataUpdate = Date.now();
+							if(rec.ignored) {
+								try {
+									const slot = rec.slot_start && rec.slot_end ? 
+										{start_time: rec.slot_start, end_time: rec.slot_end} : null;
+									setSilenced(rec.student_name, rec.type, slot);
+									console.log('[PracticeAlerts][RT][INSERT] 已忽略记录，设置静默状态');
+								} catch(e) {
+									console.warn('[PracticeAlerts][RT][INSERT] 设置静默状态失败', e);
+								}
 								return;
 							}
-							
-							const MAX_RETRIES = 6; // 减少重试次数
-							if(AlertStore._rtRetry < MAX_RETRIES){
-								AlertStore._rtRetry++;
-								// 更平缓的退避算法：2秒起步，最多30秒
-								const base = 2000; 
-								const delay = Math.min(30000, Math.round(base * Math.pow(1.8, AlertStore._rtRetry-1) + Math.random()*1000));
-								
-								// 减少日志频率：只在前3次或每5次输出一次
-								if(AlertStore._rtRetry <= 3 || AlertStore._rtRetry % 5 === 0) {
-									console.warn(`[PracticeAlerts][RT] 状态=${status} 重连#${AlertStore._rtRetry} in ${Math.round(delay/1000)}s`);
-								}
-								
-								if(!AlertStore._rtTimer){
-									AlertStore._rtTimer = setTimeout(()=>{ 
-										AlertStore._rtTimer=null; 
-										setupRealtime(); 
-									}, delay);
-								}
-							}else{
-								console.error('[PracticeAlerts][RT] 达到最大重试次数，停止重连');
-								AlertStore._rtRetry = 0; // 重置计数器，允许后续手动重试
+							rec.slot={start_time:rec.slot_start,end_time:rec.slot_end}; 
+							if(!AlertStore.byId.has(String(rec.id))){ 
+								AlertStore.list.unshift(rec); 
+								AlertStore.byId.set(String(rec.id),rec); 
+								scheduleRenderAlerts(); 
 							}
-						}
-					}); 
-			}catch(e){ 
-				AlertStore._rtConnecting=false;
-				console.error('realtime alerts subscribe fail', e); 
-			}
-	}
+						})
+						.on('postgres_changes',{event:'DELETE',schema:'public',table:'practice_alerts'}, payload=>{
+							const rec=payload.old; 
+							console.log('[PracticeAlerts][RT][DELETE]', rec?.id);
+							window.__lastRealtimeDataUpdate = Date.now();
+							if(rec?.id!=null){ removeAlertLocal(rec.id); scheduleRenderAlerts(); }
+						})
+						.on('postgres_changes',{event:'UPDATE',schema:'public',table:'practice_alerts'}, payload=>{ 
+							const rec=payload.new; 
+							console.log('[PracticeAlerts][RT][UPDATE]', rec.id, 'ignored=', rec.ignored);
+							window.__lastRealtimeDataUpdate = Date.now();
+							if(rec.ignored){ removeAlertLocal(rec.id); return scheduleRenderAlerts(); }
+							const exist=AlertStore.byId.get(String(rec.id)); 
+							if(exist){ 
+								Object.assign(exist,rec); 
+								exist.slot={start_time:rec.slot_start,end_time:rec.slot_end}; 
+								scheduleRenderAlerts(); 
+							} else {
+								rec.slot={start_time:rec.slot_start,end_time:rec.slot_end};
+								AlertStore.list.unshift(rec);
+								AlertStore.byId.set(String(rec.id), rec);
+								scheduleRenderAlerts();
+							}
+						})
+						.subscribe(status=>{ 
+							if(status==='SUBSCRIBED'){
+								const { hadReconnectAttempts } = RealtimeOrchestrator.markConnected('practice_alerts');
+								AlertStore._lastSuccessConnect = Date.now();
+								if(hadReconnectAttempts) {
+									console.log('[PracticeAlerts][RT] ✅ 已连接');
+								}
+								return;
+							}
+							if(status==='CHANNEL_ERROR' || status==='TIMED_OUT' || status==='CLOSED'){
+								const timeSinceLastSuccess = Date.now() - (AlertStore._lastSuccessConnect || 0);
+								if(timeSinceLastSuccess < 5000) {
+									return;
+								}
+								const logFn = document.hidden || realtimeMonitor.silentMode ? console.debug : console.warn;
+								RealtimeOrchestrator.requestReconnect('practice_alerts', status, {
+									label: '[PracticeAlerts][RT]',
+									logFn,
+									minDelay: 2000
+								});
+							}
+						}); 
+				}
+			});
+		}
+
+		function setupRealtime(){ 
+			registerPracticeAlertsRealtimeModule();
+			if(!window.supabaseClient) return; 
+			return RealtimeOrchestrator.ensureModuleConnected('practice_alerts', 'practice-alerts-init', { force: true });
+		}
 	
 	// 手动重置连接状态并重新连接
 	function resetConnection() {
 		console.log('[PracticeAlerts] 手动重置连接');
-		if(AlertStore._rtTimer) {
-			clearTimeout(AlertStore._rtTimer);
-			AlertStore._rtTimer = null;
-		}
 		AlertStore._rtRetry = 0;
 		AlertStore._rtConnecting = false;
 		AlertStore._lastSuccessConnect = null;
-		
-		if(AlertStore._rtChannel) {
-			try{
-				if(window.RealtimeRegistry){ window.RealtimeRegistry.unregister('practice_alerts'); }
-				else { supabaseClient.removeChannel(AlertStore._rtChannel); }
-			}catch(_e){}
-			AlertStore._rtChannel = null;
+		if(window.RealtimeOrchestrator){
+			const state = window.RealtimeOrchestrator.ensureChannelState('practice_alerts');
+			state.attempts = 0;
+			state.connected = false;
+			state.connecting = false;
+			window.RealtimeOrchestrator.clearReconnectTimer();
+			window.RealtimeOrchestrator.reconnectAll('practice-alerts-manual-reset');
+			return;
 		}
-		
-		// 延迟重连，避免立即重连
 		setTimeout(() => setupRealtime(), 1000);
 	}
 		async function initAlerts(){ 
@@ -15836,7 +15915,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			await fetchExistingAlerts(); 
 			await ensureSlotsLoaded(); 
 			startTimer(); 
-			setupRealtime(); 
+			await setupRealtime(); 
 			detectionTick(); 
 				// 💡 周期对账频率优化 - 从30秒延长到5分钟
 				if(!AlertStore._reconcileInterval){ 
@@ -16179,6 +16258,10 @@ window.RealtimeConnectionManager = {
 	// 暂停所有重连
 	pauseAllReconnections: function() {
 		console.log('[连接管理] 暂停所有自动重连');
+		if (window.RealtimeOrchestrator) {
+			window.RealtimeOrchestrator.clearReconnectTimer();
+			return;
+		}
 		
 		if(window.__roomsRealtimeReconnectTimer) {
 			clearTimeout(window.__roomsRealtimeReconnectTimer);
@@ -16213,8 +16296,9 @@ window.RealtimeConnectionManager = {
 			return;
 		}
 		
-		// 重置 rooms 连接状态
-		if(window.__roomsRealtimeReconnectTimer) {
+		if (window.RealtimeOrchestrator) {
+			window.RealtimeOrchestrator.clearReconnectTimer();
+		} else if(window.__roomsRealtimeReconnectTimer) {
 			clearTimeout(window.__roomsRealtimeReconnectTimer);
 			window.__roomsRealtimeReconnectTimer = null;
 		}
@@ -16223,7 +16307,7 @@ window.RealtimeConnectionManager = {
 		window.__roomsInitialConnected = false;
 		
 		// 重置 students 连接状态
-		if(window.__studentsRealtimeReconnectTimer) {
+		if(!window.RealtimeOrchestrator && window.__studentsRealtimeReconnectTimer) {
 			clearTimeout(window.__studentsRealtimeReconnectTimer);
 			window.__studentsRealtimeReconnectTimer = null;
 		}
@@ -16231,7 +16315,9 @@ window.RealtimeConnectionManager = {
 		window.__studentsInitialConnected = false;
 		
 		// 重置 PracticeAlerts 连接状态
-		if(window.PracticeAlerts && window.PracticeAlerts.resetConnection) {
+		if(window.RealtimeOrchestrator) {
+			window.RealtimeOrchestrator.reconnectAll(force ? 'connection-manager-force' : 'connection-manager-reset');
+		} else if(window.PracticeAlerts && window.PracticeAlerts.resetConnection) {
 			window.PracticeAlerts.resetConnection();
 		}
 		

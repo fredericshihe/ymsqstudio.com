@@ -25,7 +25,8 @@
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const BATCH_SECRET          = Deno.env.get("BATCH_AI_SECRET") ?? "";
+const BATCH_SECRET_RAW      = Deno.env.get("BATCH_AI_SECRET") ?? "";
+const BATCH_SECRET          = BATCH_SECRET_RAW.trim();
 const AI_FN_NAME            = "deepseek-chat";  // 已部署的 AI Edge Function 名称
 const DELAY_MS              = 200;   // 每个并发批次结束后的等待时间（毫秒）
 const CONCURRENCY           = 8;    // 每批并发处理学生数（同时发起 AI 请求）
@@ -808,12 +809,17 @@ Deno.serve(async (req: Request) => {
   let body: Record<string, any> = {};
   try { body = await req.json(); } catch { /* 空 body 或非 JSON 均视为 {} */ }
 
+  // 强制要求部署时配置口令，避免函数在漏配时处于裸奔状态
+  if (!BATCH_SECRET) {
+    return json({
+      error: "Server misconfigured: BATCH_AI_SECRET is not set",
+    }, 500);
+  }
+
   // 密钥校验（防止外部随意触发）
-  if (BATCH_SECRET) {
-    const incoming = req.headers.get("x-batch-secret") ?? "";
-    if (incoming !== BATCH_SECRET) {
-      return json({ error: "Unauthorized" }, 401);
-    }
+  const incoming = (req.headers.get("x-batch-secret") ?? "").trim();
+  if (incoming !== BATCH_SECRET) {
+    return json({ error: "Unauthorized" }, 401);
   }
 
   // 周末自动批处理保护：
