@@ -1,4 +1,3 @@
-[functions.batch-ai-analysis]
-verify_jwt = false         # pg_cron 调用时无法携带 JWT，改由 x-batch-secret 做鉴权
-# 注意：config.toml 无法直接设置超时，需在 Supabase Dashboard 设置：
-# Dashboard → Edge Functions → batch-ai-analysis → Settings → Max Duration → 400s
+# Deprecated:
+# Supabase CLI/Deploy 读取的是 supabase/config.toml。
+# 实际生效的函数配置已迁移到 ../../config.toml。

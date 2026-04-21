@@ -3,10 +3,10 @@
  *
  * 触发方式：pg_cron 定时调用（建议仅工作日）/ 或手动 HTTP POST 触发
  *
- * 分批调用方式（300+ 学生必须拆成多批，每批 ≤100 人）：
- *   { offset: 0,   limit: 100 }  → 第 1 批（第 1～100 名）
- *   { offset: 100, limit: 100 }  → 第 2 批（第 101～200 名）
- *   { offset: 200, limit: 100 }  → 第 3 批（第 201～300 名）
+ * 分批调用方式（按综合榜从高到低分页，而不是按姓名）：
+ *   { offset: 0,   limit: 50 }   → 综合榜前 1～50 名
+ *   { offset: 50,  limit: 50 }   → 综合榜第 51～100 名
+ *   { offset: 100, limit: 50 }   → 综合榜第 101～150 名
  *   不传 offset/limit → 默认 offset=0, limit=MAX_STUDENTS_PER_CALL
  *
  * 单学生模式（前端点击"重新生成"时使用）：
@@ -1118,16 +1118,19 @@ ${rawSessions.slice(0, 15).map((r: any) => {
     }
   }
 
-  // 分页参数（支持将全量学生拆成多批调用）
+  // 分页参数（按综合榜从高到低分页）
   const pageLimit  = typeof body.limit  === "number" ? body.limit  : MAX_STUDENTS_PER_CALL;
   const pageOffset = typeof body.offset === "number" ? body.offset : 0;
 
   try {
-    // 1. 按分页获取学生（分页必须使用稳定排序键，否则分数波动会导致 offset 分页漏人/重复）
+    // 1. 按综合榜分页获取学生：
+    //    - 先按 composite_score 倒序
+    //    - 再按 student_name 升序作为稳定次排序键
+    //    这样自动触发与手动补跑都只会沿“综合榜”翻页，而不是按姓名扫全量。
     const students = await dbGet(
-      `student_baseline?select=student_name,composite_score,raw_score,baseline_score,trend_score,momentum_score,accum_score,mean_duration,record_count,is_cold_start,weeks_improving,personal_best,short_session_rate,student_major,student_grade&order=student_name.asc&limit=${pageLimit}&offset=${pageOffset}`
+      `student_baseline?select=student_name,composite_score,raw_score,baseline_score,trend_score,momentum_score,accum_score,mean_duration,record_count,is_cold_start,weeks_improving,personal_best,short_session_rate,student_major,student_grade&order=composite_score.desc.nullslast,student_name.asc&limit=${pageLimit}&offset=${pageOffset}`
     );
-    log.push(`分页 offset=${pageOffset} limit=${pageLimit}，获取到 ${students.length} 名学生`);
+    log.push(`综合榜分页 offset=${pageOffset} limit=${pageLimit}，获取到 ${students.length} 名学生`);
 
     // 2. 一次性获取所有学生的 AI 缓存时间
     const cacheRows = await dbGet(
