@@ -1,0 +1,436 @@
+[      58ms] [LOG] [VSM] initialized @ http://127.0.0.1:8000/index.html:8135
+[      58ms] [LOG] 🎯 房间操作CAS版本冲突优化已完成 @ http://127.0.0.1:8000/index.html:8456
+[      58ms] [LOG]  @ http://127.0.0.1:8000/index.html:8457
+[      58ms] [LOG] ✅ 已优化的操作函数: @ http://127.0.0.1:8000/index.html:8458
+[      58ms] [LOG]   - assignRoom: 登记房间 @ http://127.0.0.1:8000/index.html:8459
+[      58ms] [LOG]   - clearRoom: 清空房间 @ http://127.0.0.1:8000/index.html:8460
+[      58ms] [LOG]   - transferStudent: 转移学生 @ http://127.0.0.1:8000/index.html:8461
+[      58ms] [LOG]   - renewRoom: 续约房间 @ http://127.0.0.1:8000/index.html:8462
+[      58ms] [LOG]  @ http://127.0.0.1:8000/index.html:8463
+[      58ms] [LOG] 🛡️ 三重保护机制: @ http://127.0.0.1:8000/index.html:8464
+[      58ms] [LOG]   1. 操作间隔检测: 连续操作时等待Realtime同步 @ http://127.0.0.1:8000/index.html:8465
+[      58ms] [LOG]   2. 优化错误提示: 用户友好的提示信息 @ http://127.0.0.1:8000/index.html:8466
+[      58ms] [LOG]   3. 自动重试机制: 版本冲突时自动重试 @ http://127.0.0.1:8000/index.html:8467
+[      58ms] [LOG]  @ http://127.0.0.1:8000/index.html:8468
+[      58ms] [LOG] 🔧 使用 testCASOptimizations() 查看测试工具 @ http://127.0.0.1:8000/index.html:8469
+[      62ms] [LOG] APP_PASS_HASH(unsalted)= de56c5599331cc023ea5d1b16c45945c3cba65e349ec671293f3df3651987ec4 @ http://127.0.0.1:8000/index.html:16290
+[      96ms] [LOG] [PracticeAlerts] IIFE 开始执行 @ http://127.0.0.1:8000/index.html:17708
+[      98ms] [LOG] [PracticeAlerts] DOMContentLoaded 触发 @ http://127.0.0.1:8000/index.html:18610
+[      98ms] [LOG] [PracticeAlerts] window.supabaseClient: false @ http://127.0.0.1:8000/index.html:18611
+[      98ms] [LOG] [PracticeAlerts] supabaseClient 不存在，等待中... @ http://127.0.0.1:8000/index.html:18618
+[      98ms] [LOG] [BIND] 成功绑定按钮: btnEditRooms @ http://127.0.0.1:8000/index.html:18777
+[      98ms] [LOG] [INIT] 按钮绑定完成 @ http://127.0.0.1:8000/index.html:18790
+[     103ms] [VERBOSE] [DOM] Password forms should have (optionally hidden) username fields for accessibility: (More info: https://goo.gl/9p2vKq) %o @ http://127.0.0.1:8000/index.html:0
+[     104ms] TypeError: Cannot read properties of null (reading 'style')
+    at showLogin (http://127.0.0.1:8000/index.html:16252:62)
+    at tryAuto (http://127.0.0.1:8000/index.html:16259:4)
+[     115ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://127.0.0.1:8000/favicon.ico:0
+[    2098ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[    4099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[    6099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[    6152ms] [LOG] [StudentLibrary] Supabase 未就绪，跳过云端加载 @ http://127.0.0.1:8000/index.html:16771
+[    6152ms] [LOG] [StudentLibrary] 首次云端未加载成功，尝试本地/迁移 @ http://127.0.0.1:8000/index.html:17498
+[    6152ms] [LOG] [StudentLibrary] 首次列表为空，启动重试加载 @ http://127.0.0.1:8000/index.html:17505
+[    8099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   10099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   12099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   13363ms] [LOG] [StudentLibrary] 延迟检查：学生库仍为空，再次尝试填充 @ http://127.0.0.1:8000/index.html:17616
+[   14100ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   16100ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   18099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   20098ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   22100ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   24099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   26099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   28099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   30099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   32099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   34099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   36099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   38099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   38724ms] [LOG] [INFO] 已清理房间 __DELETE_SAFE_1776731625859_28o3 的本地状态 @ http://127.0.0.1:8000/index.html:16010
+[   38731ms] [LOG] [INFO] 🗑️ 本地删除完成，开始云端同步: __DELETE_SAFE_1776731625859_28o3 @ http://127.0.0.1:8000/index.html:16010
+[   38731ms] [LOG] [INFO] 🎉 房间删除完成(本地+云端): __DELETE_SAFE_1776731625859_28o3 @ http://127.0.0.1:8000/index.html:16010
+[   38731ms] [LOG] [TEST] 删除回滚隔离测试结果: {roomName: __DELETE_SAFE_1776731625859_28o3, mode: network, isolated: true, result: Object, before: Object} @ http://127.0.0.1:8000/index.html:6176
+[   38733ms] TypeError: Cannot read properties of undefined (reading 'delete')
+    at http://127.0.0.1:8000/index.html:12698:27
+[   38733ms] [LOG] [INFO] 🏷️ 删除标记已清除: __DELETE_SAFE_1776731625859_28o3 @ http://127.0.0.1:8000/index.html:16010
+[   40098ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   42099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   44098ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   46099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   48099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   50098ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   52099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   54099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   56099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   58099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   60098ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   62099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   64099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   66099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   68099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   70097ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   72099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   74099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   76099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   78098ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   80097ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   82098ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   84099ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   86098ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18620
+[   87996ms] [LOG] [INFO] 已清理所有定时器 @ http://127.0.0.1:8000/index.html:16010
+[   88018ms] [LOG] [VSM] initialized @ http://127.0.0.1:8000/index.html:8146
+[   88018ms] [LOG] 🎯 房间操作CAS版本冲突优化已完成 @ http://127.0.0.1:8000/index.html:8467
+[   88018ms] [LOG]  @ http://127.0.0.1:8000/index.html:8468
+[   88018ms] [LOG] ✅ 已优化的操作函数: @ http://127.0.0.1:8000/index.html:8469
+[   88018ms] [LOG]   - assignRoom: 登记房间 @ http://127.0.0.1:8000/index.html:8470
+[   88018ms] [LOG]   - clearRoom: 清空房间 @ http://127.0.0.1:8000/index.html:8471
+[   88018ms] [LOG]   - transferStudent: 转移学生 @ http://127.0.0.1:8000/index.html:8472
+[   88018ms] [LOG]   - renewRoom: 续约房间 @ http://127.0.0.1:8000/index.html:8473
+[   88018ms] [LOG]  @ http://127.0.0.1:8000/index.html:8474
+[   88018ms] [LOG] 🛡️ 三重保护机制: @ http://127.0.0.1:8000/index.html:8475
+[   88018ms] [LOG]   1. 操作间隔检测: 连续操作时等待Realtime同步 @ http://127.0.0.1:8000/index.html:8476
+[   88018ms] [LOG]   2. 优化错误提示: 用户友好的提示信息 @ http://127.0.0.1:8000/index.html:8477
+[   88018ms] [LOG]   3. 自动重试机制: 版本冲突时自动重试 @ http://127.0.0.1:8000/index.html:8478
+[   88018ms] [LOG]  @ http://127.0.0.1:8000/index.html:8479
+[   88018ms] [LOG] 🔧 使用 testCASOptimizations() 查看测试工具 @ http://127.0.0.1:8000/index.html:8480
+[   88019ms] [LOG] APP_PASS_HASH(unsalted)= de56c5599331cc023ea5d1b16c45945c3cba65e349ec671293f3df3651987ec4 @ http://127.0.0.1:8000/index.html:16301
+[   88026ms] [LOG] [PracticeAlerts] IIFE 开始执行 @ http://127.0.0.1:8000/index.html:17719
+[   88028ms] [LOG] [PracticeAlerts] DOMContentLoaded 触发 @ http://127.0.0.1:8000/index.html:18621
+[   88028ms] [LOG] [PracticeAlerts] window.supabaseClient: false @ http://127.0.0.1:8000/index.html:18622
+[   88028ms] [LOG] [PracticeAlerts] supabaseClient 不存在，等待中... @ http://127.0.0.1:8000/index.html:18629
+[   88028ms] [LOG] [BIND] 成功绑定按钮: btnEditRooms @ http://127.0.0.1:8000/index.html:18788
+[   88028ms] [LOG] [INIT] 按钮绑定完成 @ http://127.0.0.1:8000/index.html:18801
+[   88029ms] [VERBOSE] [DOM] Password forms should have (optionally hidden) username fields for accessibility: (More info: https://goo.gl/9p2vKq) %o @ http://127.0.0.1:8000/index.html:0
+[   88029ms] TypeError: Cannot read properties of null (reading 'style')
+    at showLogin (http://127.0.0.1:8000/index.html:16263:62)
+    at tryAuto (http://127.0.0.1:8000/index.html:16270:4)
+[   90029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[   92029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[   94029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[   94084ms] [LOG] [StudentLibrary] Supabase 未就绪，跳过云端加载 @ http://127.0.0.1:8000/index.html:16782
+[   94084ms] [LOG] [StudentLibrary] 首次云端未加载成功，尝试本地/迁移 @ http://127.0.0.1:8000/index.html:17509
+[   94084ms] [LOG] [StudentLibrary] 首次列表为空，启动重试加载 @ http://127.0.0.1:8000/index.html:17516
+[   96029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[   96746ms] [LOG] [INFO] 已清理房间 __DELETE_SAFE_1776731683881_j1tt 的本地状态 @ http://127.0.0.1:8000/index.html:16021
+[   96746ms] [LOG] [INFO] 🗑️ 本地删除完成，开始云端同步: __DELETE_SAFE_1776731683881_j1tt @ http://127.0.0.1:8000/index.html:16021
+[   96746ms] [ERROR] [ERR] ❌ 云端删除失败: __DELETE_SAFE_1776731683881_j1tt [isolated] network timeout while deleting __DELETE_SAFE_1776731683881_j1tt @ http://127.0.0.1:8000/index.html:16023
+[   96746ms] [LOG] [INFO] ↩️ 已恢复房间删除快照: __DELETE_SAFE_1776731683881_j1tt (delete-recover-uncertain) @ http://127.0.0.1:8000/index.html:16021
+[   96747ms] [LOG] [TEST] 删除回滚隔离测试结果: {roomName: __DELETE_SAFE_1776731683881_j1tt, mode: network, isolated: true, result: Object, before: Object} @ http://127.0.0.1:8000/index.html:6185
+[   96748ms] TypeError: Cannot read properties of undefined (reading 'delete')
+    at http://127.0.0.1:8000/index.html:12709:27
+[   96748ms] [LOG] [INFO] 🏷️ 删除标记已清除: __DELETE_SAFE_1776731683881_j1tt @ http://127.0.0.1:8000/index.html:16021
+[   98029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  100029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  101294ms] [LOG] [StudentLibrary] 延迟检查：学生库仍为空，再次尝试填充 @ http://127.0.0.1:8000/index.html:17627
+[  102029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  104029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  106029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  108028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  110029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  112029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  114029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  116029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  116954ms] [LOG] [INFO] 已清理房间 __DELETE_SAFE_1776731704089_ithe 的本地状态 @ http://127.0.0.1:8000/index.html:16021
+[  116954ms] [LOG] [INFO] 🗑️ 本地删除完成，开始云端同步: __DELETE_SAFE_1776731704089_ithe @ http://127.0.0.1:8000/index.html:16021
+[  116954ms] [ERROR] [ERR] ❌ 云端删除失败: __DELETE_SAFE_1776731704089_ithe [isolated] permission denied while deleting __DELETE_SAFE_1776731704089_ithe @ http://127.0.0.1:8000/index.html:16023
+[  116954ms] [LOG] [INFO] ↩️ 已恢复房间删除快照: __DELETE_SAFE_1776731704089_ithe (delete-recover-confirmed) @ http://127.0.0.1:8000/index.html:16021
+[  116954ms] [LOG] [TEST] 删除回滚隔离测试结果: {roomName: __DELETE_SAFE_1776731704089_ithe, mode: db, isolated: true, result: Object, before: Object} @ http://127.0.0.1:8000/index.html:6185
+[  116955ms] [LOG] [INFO] 已清理房间 __DELETE_SAFE_1776731704090_fwwl 的本地状态 @ http://127.0.0.1:8000/index.html:16021
+[  116955ms] [LOG] [INFO] 🗑️ 本地删除完成，开始云端同步: __DELETE_SAFE_1776731704090_fwwl @ http://127.0.0.1:8000/index.html:16021
+[  116955ms] [ERROR] [ERR] ❌ 云端删除失败: __DELETE_SAFE_1776731704090_fwwl [isolated] network timeout while deleting __DELETE_SAFE_1776731704090_fwwl @ http://127.0.0.1:8000/index.html:16023
+[  116955ms] [LOG] [INFO] ↩️ 已恢复房间删除快照: __DELETE_SAFE_1776731704090_fwwl (delete-recover-uncertain) @ http://127.0.0.1:8000/index.html:16021
+[  116955ms] [LOG] [TEST] 占用房间删除回滚隔离测试结果: {roomName: __DELETE_SAFE_1776731704090_fwwl, mode: network, isolated: true, result: Object, before: Object} @ http://127.0.0.1:8000/index.html:6201
+[  116955ms] [LOG] [INFO] 已清理房间 __DELETE_SAFE_1776731704090_380o 的本地状态 @ http://127.0.0.1:8000/index.html:16021
+[  116955ms] [LOG] [INFO] 🗑️ 本地删除完成，开始云端同步: __DELETE_SAFE_1776731704090_380o @ http://127.0.0.1:8000/index.html:16021
+[  116955ms] [ERROR] [ERR] ❌ 云端删除失败: __DELETE_SAFE_1776731704090_380o [isolated] permission denied while deleting __DELETE_SAFE_1776731704090_380o @ http://127.0.0.1:8000/index.html:16023
+[  116955ms] [LOG] [INFO] ↩️ 已恢复房间删除快照: __DELETE_SAFE_1776731704090_380o (delete-recover-confirmed) @ http://127.0.0.1:8000/index.html:16021
+[  116955ms] [LOG] [TEST] 占用房间删除回滚隔离测试结果: {roomName: __DELETE_SAFE_1776731704090_380o, mode: db, isolated: true, result: Object, before: Object} @ http://127.0.0.1:8000/index.html:6201
+[  116956ms] TypeError: Cannot read properties of undefined (reading 'delete')
+    at http://127.0.0.1:8000/index.html:12709:27
+[  116956ms] [LOG] [INFO] 🏷️ 删除标记已清除: __DELETE_SAFE_1776731704089_ithe @ http://127.0.0.1:8000/index.html:16021
+[  116956ms] TypeError: Cannot read properties of undefined (reading 'delete')
+    at http://127.0.0.1:8000/index.html:12709:27
+[  116956ms] [LOG] [INFO] 🏷️ 删除标记已清除: __DELETE_SAFE_1776731704090_fwwl @ http://127.0.0.1:8000/index.html:16021
+[  116956ms] TypeError: Cannot read properties of undefined (reading 'delete')
+    at http://127.0.0.1:8000/index.html:12709:27
+[  116956ms] [LOG] [INFO] 🏷️ 删除标记已清除: __DELETE_SAFE_1776731704090_380o @ http://127.0.0.1:8000/index.html:16021
+[  118028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  120029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  122029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  124029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  126029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  128028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  130029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  132028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  134029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  136029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  138028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  140028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  142029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  144029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  146029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  148028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  150028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  152029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  154028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  156028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  158028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  160029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  162028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  164028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  166028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  168028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  170028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  172028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  174028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  176028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  178027ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  178046ms] [LOG] [INFO] 已清理房间 __DELETE_SAFE_1776731765182_pbi0 的本地状态 @ http://127.0.0.1:8000/index.html:16021
+[  178047ms] [LOG] [INFO] 🗑️ 本地删除完成，开始云端同步: __DELETE_SAFE_1776731765182_pbi0 @ http://127.0.0.1:8000/index.html:16021
+[  178047ms] [ERROR] [ERR] ❌ 云端删除失败: __DELETE_SAFE_1776731765182_pbi0 [isolated] network timeout while deleting __DELETE_SAFE_1776731765182_pbi0 @ http://127.0.0.1:8000/index.html:16023
+[  178047ms] [ERROR] [ERR] 删除失败恢复流程异常: __DELETE_SAFE_1776731765182_pbi0 isolated restore crash @ http://127.0.0.1:8000/index.html:16023
+[  178047ms] TypeError: Cannot read properties of undefined (reading 'delete')
+    at http://127.0.0.1:8000/index.html:12709:27
+[  178048ms] [LOG] [INFO] 🏷️ 删除标记已清除: __DELETE_SAFE_1776731765182_pbi0 @ http://127.0.0.1:8000/index.html:16021
+[  180028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  182028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  184028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  186029ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  188028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  190028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  192028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  194028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  196028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  198028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  200028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  202028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  204028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  206028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  208027ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  210028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  212028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  214028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  216027ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  218027ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  220028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  222028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  224028ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  226027ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18631
+[  226419ms] [LOG] [INFO] 已清理所有定时器 @ http://127.0.0.1:8000/index.html:16021
+[  226434ms] [LOG] [VSM] initialized @ http://127.0.0.1:8000/index.html:8146
+[  226434ms] [LOG] 🎯 房间操作CAS版本冲突优化已完成 @ http://127.0.0.1:8000/index.html:8467
+[  226434ms] [LOG]  @ http://127.0.0.1:8000/index.html:8468
+[  226434ms] [LOG] ✅ 已优化的操作函数: @ http://127.0.0.1:8000/index.html:8469
+[  226434ms] [LOG]   - assignRoom: 登记房间 @ http://127.0.0.1:8000/index.html:8470
+[  226434ms] [LOG]   - clearRoom: 清空房间 @ http://127.0.0.1:8000/index.html:8471
+[  226434ms] [LOG]   - transferStudent: 转移学生 @ http://127.0.0.1:8000/index.html:8472
+[  226434ms] [LOG]   - renewRoom: 续约房间 @ http://127.0.0.1:8000/index.html:8473
+[  226434ms] [LOG]  @ http://127.0.0.1:8000/index.html:8474
+[  226434ms] [LOG] 🛡️ 三重保护机制: @ http://127.0.0.1:8000/index.html:8475
+[  226434ms] [LOG]   1. 操作间隔检测: 连续操作时等待Realtime同步 @ http://127.0.0.1:8000/index.html:8476
+[  226434ms] [LOG]   2. 优化错误提示: 用户友好的提示信息 @ http://127.0.0.1:8000/index.html:8477
+[  226434ms] [LOG]   3. 自动重试机制: 版本冲突时自动重试 @ http://127.0.0.1:8000/index.html:8478
+[  226434ms] [LOG]  @ http://127.0.0.1:8000/index.html:8479
+[  226434ms] [LOG] 🔧 使用 testCASOptimizations() 查看测试工具 @ http://127.0.0.1:8000/index.html:8480
+[  226435ms] [LOG] APP_PASS_HASH(unsalted)= de56c5599331cc023ea5d1b16c45945c3cba65e349ec671293f3df3651987ec4 @ http://127.0.0.1:8000/index.html:16311
+[  226437ms] [LOG] [PracticeAlerts] IIFE 开始执行 @ http://127.0.0.1:8000/index.html:17729
+[  226440ms] [LOG] [PracticeAlerts] DOMContentLoaded 触发 @ http://127.0.0.1:8000/index.html:18631
+[  226440ms] [LOG] [PracticeAlerts] window.supabaseClient: false @ http://127.0.0.1:8000/index.html:18632
+[  226440ms] [LOG] [PracticeAlerts] supabaseClient 不存在，等待中... @ http://127.0.0.1:8000/index.html:18639
+[  226441ms] [LOG] [BIND] 成功绑定按钮: btnEditRooms @ http://127.0.0.1:8000/index.html:18798
+[  226441ms] [LOG] [INIT] 按钮绑定完成 @ http://127.0.0.1:8000/index.html:18811
+[  226444ms] [VERBOSE] [DOM] Password forms should have (optionally hidden) username fields for accessibility: (More info: https://goo.gl/9p2vKq) %o @ http://127.0.0.1:8000/index.html:0
+[  228442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  230441ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  232441ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  232498ms] [LOG] [StudentLibrary] Supabase 未就绪，跳过云端加载 @ http://127.0.0.1:8000/index.html:16792
+[  232498ms] [LOG] [StudentLibrary] 首次云端未加载成功，尝试本地/迁移 @ http://127.0.0.1:8000/index.html:17519
+[  232498ms] [LOG] [StudentLibrary] 首次列表为空，启动重试加载 @ http://127.0.0.1:8000/index.html:17526
+[  234442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  236442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  238442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  239598ms] [LOG] [INFO] 已清理房间 __DELETE_SAFE_1776731826733_hjll 的本地状态 @ http://127.0.0.1:8000/index.html:16031
+[  239598ms] [LOG] [INFO] 🗑️ 本地删除完成，开始云端同步: __DELETE_SAFE_1776731826733_hjll @ http://127.0.0.1:8000/index.html:16031
+[  239599ms] [ERROR] [ERR] ❌ 云端删除失败: __DELETE_SAFE_1776731826733_hjll [isolated] network timeout while deleting __DELETE_SAFE_1776731826733_hjll @ http://127.0.0.1:8000/index.html:16033
+[  239599ms] [ERROR] [ERR] 恢复房间删除快照异常: __DELETE_SAFE_1776731826733_hjll (delete-recover-uncertain) isolated restore crash @ http://127.0.0.1:8000/index.html:16033
+[  239599ms] [WARNING] [WARN] 删除失败后无法恢复房间快照: __DELETE_SAFE_1776731826733_hjll @ http://127.0.0.1:8000/index.html:8445
+[  239599ms] [LOG] [TEST] 操作审计日志: [Object, Object, Object] @ http://127.0.0.1:8000/index.html:6227
+[  239600ms] TypeError: Cannot read properties of undefined (reading 'delete')
+    at http://127.0.0.1:8000/index.html:12719:27
+[  239600ms] [LOG] [INFO] 🏷️ 删除标记已清除: __DELETE_SAFE_1776731826733_hjll @ http://127.0.0.1:8000/index.html:16031
+[  239708ms] [LOG] [StudentLibrary] 延迟检查：学生库仍为空，再次尝试填充 @ http://127.0.0.1:8000/index.html:17637
+[  240442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  242442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  244442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  246442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  248441ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  250442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  252442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  254441ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  256442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  258442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  260442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  262442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  263595ms] [LOG] [INFO] 已清理房间 __DELETE_SAFE_1776731850731_mm7b 的本地状态 @ http://127.0.0.1:8000/index.html:16031
+[  263596ms] [ERROR] [ERR] 恢复房间删除快照异常: __DELETE_SAFE_1776731850731_mm7b (delete-exception) isolated ensureFilters crash @ http://127.0.0.1:8000/index.html:16033
+[  263596ms] [ERROR] [ERR] 删除琴房失败: isolated ensureFilters crash @ http://127.0.0.1:8000/index.html:16033
+[  263596ms] [LOG] [TEST] 操作审计日志: [Object, Object, Object] @ http://127.0.0.1:8000/index.html:6227
+[  263596ms] TypeError: Cannot read properties of undefined (reading 'delete')
+    at http://127.0.0.1:8000/index.html:12719:27
+[  263597ms] [LOG] [INFO] 🏷️ 删除标记已清除: __DELETE_SAFE_1776731850731_mm7b @ http://127.0.0.1:8000/index.html:16031
+[  264442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  266441ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  268442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  270442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  272442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  274441ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  276441ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  278440ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  280442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  282441ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  284442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  286441ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  288441ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  290441ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  292441ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  294442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  296440ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  298442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  300441ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  302441ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  304442ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  306441ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  308441ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  310441ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  312441ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  314441ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  316441ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18641
+[  317646ms] [LOG] [INFO] 已清理所有定时器 @ http://127.0.0.1:8000/index.html:16031
+[  317662ms] [LOG] [VSM] initialized @ http://127.0.0.1:8000/index.html:8146
+[  317662ms] [LOG] 🎯 房间操作CAS版本冲突优化已完成 @ http://127.0.0.1:8000/index.html:8467
+[  317662ms] [LOG]  @ http://127.0.0.1:8000/index.html:8468
+[  317662ms] [LOG] ✅ 已优化的操作函数: @ http://127.0.0.1:8000/index.html:8469
+[  317662ms] [LOG]   - assignRoom: 登记房间 @ http://127.0.0.1:8000/index.html:8470
+[  317662ms] [LOG]   - clearRoom: 清空房间 @ http://127.0.0.1:8000/index.html:8471
+[  317662ms] [LOG]   - transferStudent: 转移学生 @ http://127.0.0.1:8000/index.html:8472
+[  317662ms] [LOG]   - renewRoom: 续约房间 @ http://127.0.0.1:8000/index.html:8473
+[  317662ms] [LOG]  @ http://127.0.0.1:8000/index.html:8474
+[  317662ms] [LOG] 🛡️ 三重保护机制: @ http://127.0.0.1:8000/index.html:8475
+[  317662ms] [LOG]   1. 操作间隔检测: 连续操作时等待Realtime同步 @ http://127.0.0.1:8000/index.html:8476
+[  317662ms] [LOG]   2. 优化错误提示: 用户友好的提示信息 @ http://127.0.0.1:8000/index.html:8477
+[  317662ms] [LOG]   3. 自动重试机制: 版本冲突时自动重试 @ http://127.0.0.1:8000/index.html:8478
+[  317662ms] [LOG]  @ http://127.0.0.1:8000/index.html:8479
+[  317662ms] [LOG] 🔧 使用 testCASOptimizations() 查看测试工具 @ http://127.0.0.1:8000/index.html:8480
+[  317663ms] [LOG] APP_PASS_HASH(unsalted)= de56c5599331cc023ea5d1b16c45945c3cba65e349ec671293f3df3651987ec4 @ http://127.0.0.1:8000/index.html:16327
+[  317665ms] [LOG] [PracticeAlerts] IIFE 开始执行 @ http://127.0.0.1:8000/index.html:17745
+[  317669ms] [LOG] [PracticeAlerts] DOMContentLoaded 触发 @ http://127.0.0.1:8000/index.html:18647
+[  317669ms] [LOG] [PracticeAlerts] window.supabaseClient: false @ http://127.0.0.1:8000/index.html:18648
+[  317669ms] [LOG] [PracticeAlerts] supabaseClient 不存在，等待中... @ http://127.0.0.1:8000/index.html:18655
+[  317669ms] [LOG] [BIND] 成功绑定按钮: btnEditRooms @ http://127.0.0.1:8000/index.html:18814
+[  317669ms] [LOG] [INIT] 按钮绑定完成 @ http://127.0.0.1:8000/index.html:18827
+[  317670ms] [VERBOSE] [DOM] Password forms should have (optionally hidden) username fields for accessibility: (More info: https://goo.gl/9p2vKq) %o @ http://127.0.0.1:8000/index.html:0
+[  319670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  321670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  323670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  323724ms] [LOG] [StudentLibrary] Supabase 未就绪，跳过云端加载 @ http://127.0.0.1:8000/index.html:16808
+[  323724ms] [LOG] [StudentLibrary] 首次云端未加载成功，尝试本地/迁移 @ http://127.0.0.1:8000/index.html:17535
+[  323724ms] [LOG] [StudentLibrary] 首次列表为空，启动重试加载 @ http://127.0.0.1:8000/index.html:17542
+[  325670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  327670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  329670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  330932ms] [LOG] [StudentLibrary] 延迟检查：学生库仍为空，再次尝试填充 @ http://127.0.0.1:8000/index.html:17653
+[  331064ms] [LOG] [INFO] 已清理房间 __DELETE_SAFE_1776731918199_2jui 的本地状态 @ http://127.0.0.1:8000/index.html:16047
+[  331064ms] [WARNING] [WARN] 恢复房间删除快照后刷新筛选失败(__DELETE_SAFE_1776731918199_2jui): isolated ensureFilters crash @ http://127.0.0.1:8000/index.html:8445
+[  331064ms] [LOG] [INFO] ↩️ 已恢复房间删除快照: __DELETE_SAFE_1776731918199_2jui (delete-exception) @ http://127.0.0.1:8000/index.html:16047
+[  331064ms] [ERROR] [ERR] 删除琴房失败: isolated ensureFilters crash @ http://127.0.0.1:8000/index.html:16049
+[  331064ms] [LOG] [TEST] 操作审计日志: [Object, Object, Object] @ http://127.0.0.1:8000/index.html:6227
+[  331065ms] TypeError: Cannot read properties of undefined (reading 'delete')
+    at http://127.0.0.1:8000/index.html:12735:27
+[  331065ms] [LOG] [INFO] 🏷️ 删除标记已清除: __DELETE_SAFE_1776731918199_2jui @ http://127.0.0.1:8000/index.html:16047
+[  331670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  333670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  335670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  337670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  339670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  341670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  343670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  345670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  347670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  349670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  351670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  353670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  355670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  355716ms] [LOG] [INFO] 已清理房间 __DELETE_SAFE_1776731942852_jpt9 的本地状态 @ http://127.0.0.1:8000/index.html:16047
+[  355717ms] [LOG] [INFO] 🗑️ 本地删除完成，开始云端同步: __DELETE_SAFE_1776731942852_jpt9 @ http://127.0.0.1:8000/index.html:16047
+[  355717ms] [ERROR] [ERR] ❌ 云端删除失败: __DELETE_SAFE_1776731942852_jpt9 [isolated] network timeout while deleting __DELETE_SAFE_1776731942852_jpt9 @ http://127.0.0.1:8000/index.html:16049
+[  355717ms] [LOG] [INFO] ↩️ 已恢复房间删除快照: __DELETE_SAFE_1776731942852_jpt9 (delete-recover-uncertain) @ http://127.0.0.1:8000/index.html:16047
+[  355717ms] [LOG] [TEST] 删除回滚隔离测试结果: {roomName: __DELETE_SAFE_1776731942852_jpt9, mode: network, isolated: true, result: Object, before: Object} @ http://127.0.0.1:8000/index.html:6185
+[  355717ms] [LOG] [INFO] 已清理房间 __DELETE_SAFE_1776731942853_z1wx 的本地状态 @ http://127.0.0.1:8000/index.html:16047
+[  355717ms] [LOG] [INFO] 🗑️ 本地删除完成，开始云端同步: __DELETE_SAFE_1776731942853_z1wx @ http://127.0.0.1:8000/index.html:16047
+[  355717ms] [ERROR] [ERR] ❌ 云端删除失败: __DELETE_SAFE_1776731942853_z1wx [isolated] permission denied while deleting __DELETE_SAFE_1776731942853_z1wx @ http://127.0.0.1:8000/index.html:16049
+[  355717ms] [LOG] [INFO] ↩️ 已恢复房间删除快照: __DELETE_SAFE_1776731942853_z1wx (delete-recover-confirmed) @ http://127.0.0.1:8000/index.html:16047
+[  355717ms] [LOG] [TEST] 删除回滚隔离测试结果: {roomName: __DELETE_SAFE_1776731942853_z1wx, mode: db, isolated: true, result: Object, before: Object} @ http://127.0.0.1:8000/index.html:6185
+[  355717ms] [LOG] [INFO] 已清理房间 __DELETE_SAFE_1776731942853_dwor 的本地状态 @ http://127.0.0.1:8000/index.html:16047
+[  355717ms] [LOG] [INFO] 🗑️ 本地删除完成，开始云端同步: __DELETE_SAFE_1776731942853_dwor @ http://127.0.0.1:8000/index.html:16047
+[  355717ms] [ERROR] [ERR] ❌ 云端删除失败: __DELETE_SAFE_1776731942853_dwor [isolated] network timeout while deleting __DELETE_SAFE_1776731942853_dwor @ http://127.0.0.1:8000/index.html:16049
+[  355718ms] [LOG] [INFO] ↩️ 已恢复房间删除快照: __DELETE_SAFE_1776731942853_dwor (delete-recover-uncertain) @ http://127.0.0.1:8000/index.html:16047
+[  355718ms] [LOG] [TEST] 占用房间删除回滚隔离测试结果: {roomName: __DELETE_SAFE_1776731942853_dwor, mode: network, isolated: true, result: Object, before: Object} @ http://127.0.0.1:8000/index.html:6201
+[  355718ms] [LOG] [INFO] 已清理房间 __DELETE_SAFE_1776731942853_5fqj 的本地状态 @ http://127.0.0.1:8000/index.html:16047
+[  355718ms] [LOG] [INFO] 🗑️ 本地删除完成，开始云端同步: __DELETE_SAFE_1776731942853_5fqj @ http://127.0.0.1:8000/index.html:16047
+[  355718ms] [ERROR] [ERR] ❌ 云端删除失败: __DELETE_SAFE_1776731942853_5fqj [isolated] permission denied while deleting __DELETE_SAFE_1776731942853_5fqj @ http://127.0.0.1:8000/index.html:16049
+[  355718ms] [LOG] [INFO] ↩️ 已恢复房间删除快照: __DELETE_SAFE_1776731942853_5fqj (delete-recover-confirmed) @ http://127.0.0.1:8000/index.html:16047
+[  355718ms] [LOG] [TEST] 占用房间删除回滚隔离测试结果: {roomName: __DELETE_SAFE_1776731942853_5fqj, mode: db, isolated: true, result: Object, before: Object} @ http://127.0.0.1:8000/index.html:6201
+[  355719ms] TypeError: Cannot read properties of undefined (reading 'delete')
+    at http://127.0.0.1:8000/index.html:12735:27
+[  355719ms] [LOG] [INFO] 🏷️ 删除标记已清除: __DELETE_SAFE_1776731942852_jpt9 @ http://127.0.0.1:8000/index.html:16047
+[  355719ms] TypeError: Cannot read properties of undefined (reading 'delete')
+    at http://127.0.0.1:8000/index.html:12735:27
+[  355719ms] [LOG] [INFO] 🏷️ 删除标记已清除: __DELETE_SAFE_1776731942853_z1wx @ http://127.0.0.1:8000/index.html:16047
+[  355719ms] TypeError: Cannot read properties of undefined (reading 'delete')
+    at http://127.0.0.1:8000/index.html:12735:27
+[  355719ms] [LOG] [INFO] 🏷️ 删除标记已清除: __DELETE_SAFE_1776731942853_dwor @ http://127.0.0.1:8000/index.html:16047
+[  355719ms] TypeError: Cannot read properties of undefined (reading 'delete')
+    at http://127.0.0.1:8000/index.html:12735:27
+[  355719ms] [LOG] [INFO] 🏷️ 删除标记已清除: __DELETE_SAFE_1776731942853_5fqj @ http://127.0.0.1:8000/index.html:16047
+[  357670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  359670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  361670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  363670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  365670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  367669ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  369670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  371670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  373670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  375669ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  377670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  379670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  381669ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  383670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  385670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  387669ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  389670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  391670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  393669ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  395670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  397669ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  399669ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  401669ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  403669ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  405669ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  407669ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  409669ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  411669ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  413669ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  415669ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  417669ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  419669ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  421670ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  423669ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  425669ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  427668ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  429668ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  431669ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  433669ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657
+[  435668ms] [LOG] [PracticeAlerts] 检查 supabaseClient: false @ http://127.0.0.1:8000/index.html:18657

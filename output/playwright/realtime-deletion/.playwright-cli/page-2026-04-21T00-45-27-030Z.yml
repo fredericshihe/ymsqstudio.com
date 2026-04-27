@@ -1,0 +1,55 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - generic "青岛耶胡迪梅纽因学校 琴房管理系统" [ref=e4]:
+        - generic [ref=e5]: 青岛耶胡迪梅纽因学校
+        - generic [ref=e6]: ·
+        - generic [ref=e7]: 琴房管理系统
+      - generic [ref=e8]:
+        - generic [ref=e9]: v2
+        - generic [ref=e10]: 实时同步启用
+    - generic [ref=e11]:
+      - img [ref=e12]
+      - searchbox "搜索学生 / 琴房 (支持拼音首字母)" [ref=e15]
+    - generic [ref=e16]:
+      - generic [ref=e19]: 离线
+      - button "📊 练琴分析" [ref=e20] [cursor=pointer]
+      - button "🎵 音符币" [ref=e21] [cursor=pointer]
+      - 'button "时段检测: 开" [ref=e22] [cursor=pointer]'
+      - button "查练琴记录" [ref=e23] [cursor=pointer]
+  - main [ref=e24]:
+    - generic [ref=e25]:
+      - generic [ref=e26]:
+        - heading "琴房列表" [level=2] [ref=e27]
+        - generic [ref=e28]: 加载中...
+      - button "编辑" [ref=e31] [cursor=pointer]
+      - separator [ref=e32]
+    - generic [ref=e33]:
+      - paragraph [ref=e35]: 运行状态
+      - paragraph [ref=e38]:
+        - generic [ref=e39]: 重要提醒
+        - generic [ref=e40]:
+          - generic [ref=e41]:
+            - button "全部" [ref=e42] [cursor=pointer]
+            - button "缺勤" [ref=e43] [cursor=pointer]
+          - button "一键忽略" [ref=e44] [cursor=pointer]
+  - contentinfo [ref=e46]:
+    - text: © 2025 青岛耶胡迪梅纽因学校 琴房管理系统 · Demo 版本 ·
+    - link "Supabase" [ref=e47] [cursor=pointer]:
+      - /url: https://supabase.com
+  - text: 🎹
+  - generic [ref=e49]:
+    - generic [ref=e50]:
+      - generic [ref=e51]:
+        - generic [ref=e52]: 🎹
+        - generic [ref=e53]:
+          - heading "琴房管理系统" [level=1] [ref=e54]
+          - generic [ref=e55]: Yehudi Menuhin School
+      - generic [ref=e56]:
+        - generic [ref=e57]:
+          - generic [ref=e58]: 密码
+          - textbox "密码" [ref=e59]:
+            - /placeholder: 输入访问密码
+        - button "进入系统" [ref=e60] [cursor=pointer]
+        - generic [ref=e62]: 内部专用平台 • 未授权请勿传播
+    - generic [ref=e63]: © 2026 YMS Practice Rooms
