@@ -18,16 +18,25 @@
  *   ③ 上次分析之后无新练琴记录                       → 跳过
  *
  * 环境变量（在 Supabase Dashboard > Edge Functions > Secrets 中配置）：
- *   SUPABASE_URL              — 项目 URL（自动注入，无需手动设置）
- *   SUPABASE_SERVICE_ROLE_KEY — service_role 密钥（需手动添加）
- *   BATCH_AI_SECRET           — 调用本函数时需携带的密钥（防止外部随意触发）
+ *   SUPABASE_URL                 — 项目 URL（自动注入，无需手动设置）
+ *   SUPABASE_SERVICE_ROLE_KEY    — service_role 密钥（需手动添加）
+ *   BATCH_AI_SECRET              — 调用本函数时需携带的密钥（防止外部随意触发）
+ *   DEEPSEEK_API_KEY             — DeepSeek 官方 API Key（必填）
+ *   DEEPSEEK_MODEL               — 官方模型名；默认 deepseek-v4-flash，可切 deepseek-v4-pro
+ *   DEEPSEEK_BASE_URL            — 官方兼容接口根地址；默认 https://api.deepseek.com
+ *   DEEPSEEK_THINKING_TYPE       — thinking.type；默认 disabled，可切 enabled
+ *   DEEPSEEK_REASONING_EFFORT    — 开启 thinking 后可选：low / medium / high
  */
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const BATCH_SECRET_RAW      = Deno.env.get("BATCH_AI_SECRET") ?? "";
 const BATCH_SECRET          = BATCH_SECRET_RAW.trim();
-const AI_FN_NAME            = "deepseek-chat";  // 已部署的 AI Edge Function 名称
+const DEEPSEEK_API_BASE_URL = (Deno.env.get("DEEPSEEK_BASE_URL") ?? "https://api.deepseek.com").trim().replace(/\/+$/, "");
+const DEEPSEEK_API_KEY      = (Deno.env.get("DEEPSEEK_API_KEY") ?? "").trim();
+const DEEPSEEK_MODEL        = (Deno.env.get("DEEPSEEK_MODEL") ?? "deepseek-v4-flash").trim();
+const DEEPSEEK_THINKING_TYPE= (Deno.env.get("DEEPSEEK_THINKING_TYPE") ?? "disabled").trim().toLowerCase();
+const DEEPSEEK_REASONING_EFFORT = (Deno.env.get("DEEPSEEK_REASONING_EFFORT") ?? "").trim().toLowerCase();
 const DELAY_MS              = 200;   // 每个并发批次结束后的等待时间（毫秒）
 const CONCURRENCY           = 8;    // 每批并发处理学生数（同时发起 AI 请求）
 // 免费套餐超时上限 150s，50人×8并发≈7批×10s=70s，留足余量
@@ -193,21 +202,36 @@ async function dbUpsert(table: string, body: object): Promise<void> {
   }
 }
 
-/** 调用内部 deepseek-chat Edge Function */
+/** 调用 DeepSeek 官方 OpenAI 兼容接口 */
 async function callAI(systemPrompt: string, userPrompt: string): Promise<{ text: string; source: string }> {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/${AI_FN_NAME}`, {
+  if (!DEEPSEEK_API_KEY) {
+    throw new Error("缺少 DEEPSEEK_API_KEY，无法调用 DeepSeek 官方接口");
+  }
+
+  const thinkingEnabled = DEEPSEEK_THINKING_TYPE === "enabled";
+  const body: Record<string, unknown> = {
+    model: DEEPSEEK_MODEL,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    temperature: 0.70,
+    max_tokens: 320,
+    stream: false,
+    thinking: { type: thinkingEnabled ? "enabled" : "disabled" },
+  };
+
+  if (thinkingEnabled && DEEPSEEK_REASONING_EFFORT) {
+    body.reasoning_effort = DEEPSEEK_REASONING_EFFORT;
+  }
+
+  const res = await fetch(`${DEEPSEEK_API_BASE_URL}/chat/completions`, {
     method: "POST",
     headers: {
-      apikey: SERVICE_KEY,
-      Authorization: `Bearer ${SERVICE_KEY}`,
+      Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      system_prompt: systemPrompt,
-      user_prompt: userPrompt,
-      temperature: 0.70,
-      max_tokens: 320,
-    }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const t = await res.text();
@@ -216,7 +240,7 @@ async function callAI(systemPrompt: string, userPrompt: string): Promise<{ text:
   const data = await res.json();
   if (data.error) throw new Error(data.error);
   const text = (data.choices?.[0]?.message?.content ?? "").trim();
-  return { text: text || "生成失败", source: data._source ?? "unknown" };
+  return { text: text || "生成失败", source: "deepseek" };
 }
 
 /** 休眠 ms 毫秒 */

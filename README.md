@@ -71,7 +71,7 @@
    `adjust_student_coins / reward_weekly_coins / start_new_semester -> student_coins / coin_transactions`
 
 4. **AI 分析链**  
-   `supabase/functions/batch-ai-analysis/index.ts` 读取学生快照与历史，输出个体化分析文案
+   `supabase/functions/batch-ai-analysis/index.ts` 读取学生快照与历史，直连 DeepSeek 官方 OpenAI 兼容接口输出个体化分析文案
 
 当前系统的核心目标是：
 
