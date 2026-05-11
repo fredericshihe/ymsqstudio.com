@@ -2231,6 +2231,11 @@
     color: var(--text-1);
     letter-spacing: -0.01em;
   }
+  .wlb-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
   .wlb-updated {
     font-size: 11px;
     color: var(--text-3);
@@ -2446,6 +2451,21 @@
         color: var(--text-on-accent);
         border-color: var(--brand-600);
       }
+      .ranking-update-btn {
+        border: none;
+        background: none;
+        padding: 0;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--brand-600);
+        cursor: pointer;
+        line-height: 1;
+        flex-shrink: 0;
+      }
+      .ranking-update-btn:hover {
+        color: var(--brand-700);
+        text-decoration: underline;
+      }
 
       /* 弹窗遮罩 */
       .ranking-info-modal {
@@ -2612,6 +2632,51 @@
         font-size: 12px; color: var(--text-3); line-height: 1.6;
         text-align: center; padding: 4px 0;
       }
+      .ranking-update-dialog {
+        width: min(440px, 100%);
+      }
+      .ru-body {
+        padding: 16px 18px 18px;
+      }
+      .ru-intro {
+        margin: 0 0 14px;
+        color: var(--text-2);
+        font-size: 13px;
+        line-height: 1.75;
+      }
+      .ru-section {
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: var(--surface-0);
+        padding: 12px 13px;
+        margin-bottom: 10px;
+      }
+      .ru-label {
+        display: inline-flex;
+        align-items: center;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        color: var(--brand-600);
+        margin-bottom: 6px;
+      }
+      .ru-text {
+        font-size: 12.5px;
+        line-height: 1.75;
+        color: var(--text-2);
+      }
+      .ru-highlight {
+        margin-top: 4px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(59,130,246,.08);
+        border: 1px solid rgba(59,130,246,.14);
+        color: var(--text-1);
+        font-size: 12.5px;
+        font-weight: 700;
+        line-height: 1.7;
+      }
 
       /* 滚动条美化 */
     </style>
@@ -2703,8 +2768,9 @@
       <div id="wlbSection" class="wlb-section" style="display:none;">
         <div class="wlb-header">
           <span class="wlb-title">🏅 本周排行榜</span>
-          <div style="display:flex;align-items:center;gap:8px;">
+          <div class="wlb-actions">
             <span class="wlb-updated" id="wlbUpdated"></span>
+            <button type="button" class="ranking-update-btn" title="查看本次榜单更新说明">更新</button>
             <button type="button" class="ranking-info-btn" title="榜单规则说明">?</button>
           </div>
         </div>
@@ -2741,35 +2807,35 @@
 
           <!-- Tab 1：上榜规则 -->
           <div class="ri-panel active" id="riPanel0">
-            <p class="ri-intro">每次练完归还琴房卡后，系统<strong>自动实时更新</strong>排行榜。<strong>本周有练琴</strong>才能参与排名。</p>
+            <p class="ri-intro">每次练完归还琴房卡后，系统会<strong>自动实时更新</strong>排行榜。<strong>本周有练琴</strong>且满足对应榜单条件，才会参与本周排名。</p>
 
             <div class="ri-dims">
               <div class="ri-dim">
                 <span class="ri-dim-label" style="background:rgba(59,130,246,.14);color:#3b82f6">综合榜</span>
                 <div class="ri-dim-content">
                   <div class="ri-dim-title">本周综合排名分 Top 10</div>
-                  <div class="ri-dim-desc">排名分由 5 项合成：本周练琴量达标（权重最高）、近期进步趋势、和上周相比是否进步、练琴持续动力、与同专业同学相比的整体底盘。每次还卡后几分钟内刷新。<strong>综合榜前 10 名不再进入下面三个分类榜</strong>，专项荣誉留给更多同学。</div>
+                  <div class="ri-dim-desc">排名分由 5 项合成，但新版更看重“目标达成、近期稳定、长期底盘”。达到个人周目标后，继续超量练琴仍有帮助，但额外收益会明显变小，不再是谁无限加时长谁就一直更占优。每次还卡后几分钟内刷新。<strong>综合榜前 10 名不再进入下面三个分类榜</strong>，专项荣誉留给更多同学。</div>
                 </div>
               </div>
               <div class="ri-dim">
                 <span class="ri-dim-label" style="background:rgba(16,185,129,.14);color:#059669">进步榜</span>
                 <div class="ri-dim-content">
                   <div class="ri-dim-title">本周综合分绝对涨分最大 Top 6</div>
-                  <div class="ri-dim-desc">用「本周综合分 − 近期最佳历史周综合分」计算<strong>绝对涨分</strong>，谁真正练得更多谁排前。要求：本周练琴 ≥ 2 次，涨分 ≥ 1.0 分，近 10 条记录 ≥ 4 条，近 10 条异常率 ≤ 45%。</div>
+                  <div class="ri-dim-desc">用「本周综合分 − 近期最佳历史周综合分」计算<strong>绝对涨分</strong>。它看的是你这周是不是比自己最近的最好状态更进一步，不是单看谁总时长更夸张。要求：本周工作日练琴 ≥ 2 次，涨分 ≥ 1.0 分，近 10 条工作日记录 ≥ 4 条，近 10 条异常率 ≤ 45%。</div>
                 </div>
               </div>
               <div class="ri-dim">
                 <span class="ri-dim-label" style="background:rgba(139,92,246,.14);color:#7c3aed">稳定榜</span>
                 <div class="ri-dim-content">
                   <div class="ri-dim-title">练琴模式最可预测 Top 6</div>
-                  <div class="ri-dim-desc"><strong>α（基线可信度）越高</strong>代表练琴越规律稳定，排名越前；同等 α 时近10次均时更长者优先。要求：α ≥ 0.60，近 12 周有效记录 ≥ 8 条，近 10 条均时 ≥ 30 分钟，近 10 条异常率 ≤ 35%。</div>
+                  <div class="ri-dim-desc"><strong>α（基线可信度）越高</strong>代表练琴越规律稳定，排名越前；同等 α 时近 10 次工作日均时更长者优先。要求：α ≥ 0.60，近 10 条工作日记录 ≥ 8 条，近 10 条均时 ≥ 30 分钟，近 10 条异常率 ≤ 35%。</div>
                 </div>
               </div>
               <div class="ri-dim">
                 <span class="ri-dim-label" style="background:rgba(6,182,212,.14);color:#0891b2">守则榜</span>
                 <div class="ri-dim-content">
                   <div class="ri-dim-title">最遵守练琴规范 Top 6</div>
-                  <div class="ri-dim-desc">近 10 条练琴中<strong>异常率最低</strong>者排前。要求：本周练琴 ≥ 3 次，近 10 条记录 ≥ 5 条，近 10 条均时 ≥ 30 分钟，异常率 ≤ 40%，α ≥ 0.60。</div>
+                  <div class="ri-dim-desc">近 10 条工作日练琴中<strong>异常率最低</strong>者排前。要求：本周工作日练琴 ≥ 3 次，近 10 条工作日记录 ≥ 5 条，近 10 条均时 ≥ 30 分钟，异常率 ≤ 40%，α ≥ 0.60。</div>
                 </div>
               </div>
             </div>
@@ -2781,8 +2847,12 @@
             <div class="ri-tips">
               <div class="ri-tips-title">💡 想上榜？这几点最关键</div>
               <div class="ri-tip-item">
+                <span class="ri-tip-icon">🎯</span>
+                <div><strong>先完成个人周目标</strong> — 综合榜现在更看重稳定达标。达到目标后继续多练也有帮助，但不会再因为无限加量就一直拉开差距。</div>
+              </div>
+              <div class="ri-tip-item">
                 <span class="ri-tip-icon">📅</span>
-                <div><strong>本周至少练两次</strong> — 本周没练琴或只练一次，进步榜和分类榜都不参与排名。</div>
+                <div><strong>本周至少练两次</strong> — 本周没练琴或只练一次，进步榜和多数分类榜都不参与排名。</div>
               </div>
               <div class="ri-tip-item">
                 <span class="ri-tip-icon">🃏</span>
@@ -2859,6 +2929,35 @@
               <div>• 每周五结算后即可在个人页面查看余额</div>
               <div>• ⚠️ 前台管理员对存在<strong>违规练琴记录</strong>的学生有权<strong>扣除</strong>音符币</div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ranking-info-modal" id="rankingUpdateModal">
+        <div class="ranking-info-dialog ranking-update-dialog">
+          <div class="ri-header">
+            <span class="ri-title">排行榜更新</span>
+            <button type="button" class="ri-close">✕</button>
+          </div>
+          <div class="ru-body">
+            <p class="ru-intro">这次更新主要是把综合榜改得更公平，让认真、持续、规律练琴的同学，不会因为“不去无限堆时长”而吃亏。</p>
+
+            <div class="ru-section">
+              <div class="ru-label">解决了什么</div>
+              <div class="ru-text">以前容易让人误会成“想保住排名，就要一直往上加更多练琴时长”。这次更新专门收掉了这种倾向。</div>
+            </div>
+
+            <div class="ru-section">
+              <div class="ru-label">会有哪些变化</div>
+              <div class="ru-text">达到个人周目标后，继续超量练琴仍然有帮助，但额外加分会明显变小。系统会更看重你有没有稳定完成目标、近期有没有回落、长期是不是一直认真练琴。</div>
+            </div>
+
+            <div class="ru-section">
+              <div class="ru-label">重点和目的</div>
+              <div class="ru-text">重点是：<strong>先稳定达标，再追求额外加量。</strong> 目的就是让认真、持续、规律练琴的同学得到更公平的排名，而不是谁无限加时长谁就天然更占优。</div>
+            </div>
+
+            <div class="ru-highlight">如果你已经能比较稳定地完成自己的周目标，现在更重要的是守住节奏、减少异常、别突然回落。</div>
           </div>
         </div>
       </div>
@@ -5149,10 +5248,12 @@
 
     function hasOpenModalLikeUI() {
       const rankingInfoModal = document.getElementById('rankingInfoModal');
+      const rankingUpdateModal = document.getElementById('rankingUpdateModal');
       const coinHistoryModal = document.getElementById('coinHistoryModal');
       return !!(
         document.querySelector('.lb-modal') ||
         (rankingInfoModal && rankingInfoModal.classList.contains('active')) ||
+        (rankingUpdateModal && rankingUpdateModal.classList.contains('active')) ||
         (coinHistoryModal && coinHistoryModal.classList.contains('show'))
       );
     }
@@ -5187,9 +5288,24 @@
       releaseModalScrollLock();
     }
 
+    function openRankingUpdateModal() {
+      const modal = document.getElementById('rankingUpdateModal');
+      if (!modal || modal.classList.contains('active')) return;
+      modal.classList.add('active');
+      acquireModalScrollLock();
+    }
+
+    function closeRankingUpdateModal() {
+      const modal = document.getElementById('rankingUpdateModal');
+      if (!modal || !modal.classList.contains('active')) return;
+      modal.classList.remove('active');
+      releaseModalScrollLock();
+    }
+
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
       closeRankingInfoModal();
+      closeRankingUpdateModal();
       closeCoinHistory();
     });
 
@@ -6115,6 +6231,14 @@
         btn.__staticUiBound = true;
       });
 
+      document.querySelectorAll('.ranking-update-btn').forEach(btn => {
+        if (btn.__staticUiBound) return;
+        btn.addEventListener('click', () => {
+          openRankingUpdateModal();
+        });
+        btn.__staticUiBound = true;
+      });
+
       const wlbTabs = document.querySelector('.wlb-tabs');
       if (wlbTabs && !wlbTabs.__staticUiBound) {
         const switchTabFromTarget = (target) => {
@@ -6163,6 +6287,23 @@
         });
 
         rankingInfoModal.__staticUiBound = true;
+      }
+
+      const rankingUpdateModal = document.getElementById('rankingUpdateModal');
+      if (rankingUpdateModal && !rankingUpdateModal.__staticUiBound) {
+        rankingUpdateModal.addEventListener('click', (e) => {
+          if (e.target === rankingUpdateModal) {
+            closeRankingUpdateModal();
+            return;
+          }
+
+          const closeBtn = e.target.closest('.ri-close');
+          if (closeBtn && rankingUpdateModal.contains(closeBtn)) {
+            closeRankingUpdateModal();
+          }
+        });
+
+        rankingUpdateModal.__staticUiBound = true;
       }
 
       const coinBadge = document.getElementById('studentCoinBadge');
@@ -11123,10 +11264,10 @@
     const WLB_BOARD_ORDER = ['综合榜', '稳定榜', '守则榜', '进步榜'];
 
     const WLB_SUBTITLES = {
-      '综合榜': '本周综合排名分 Top 10 · 仅含本周有练琴同学',
-      '进步榜': '本周综合分绝对涨分最大 · 本周 ≥2 次 · 异常率 ≤50%',
-      '稳定榜': 'α 可信度最高 · α ≥0.55 · 近10条 ≥8条 · 异常率 ≤40%',
-      '守则榜': '近10条异常率最低 · α ≥0.55 · 均时 >25min · 近10条 ≥4条 · 本周 ≥3次',
+      '综合榜': '本周综合排名分 Top 10 · 仅含本周有练琴同学 · 稳定达标优先',
+      '进步榜': '本周绝对涨分最大 · 涨分 ≥1.0 · 本周工作日 ≥2次 · 异常率 ≤45%',
+      '稳定榜': 'α 最高 · α ≥0.60 · 近10条工作日记录 ≥8 · 均时 ≥30min · 异常率 ≤35%',
+      '守则榜': '近10条异常率最低 · α ≥0.60 · 近10条 ≥5 · 均时 ≥30min · 本周工作日 ≥3次',
     };
 
     const WLB_MAJ_SHORT = m => {
