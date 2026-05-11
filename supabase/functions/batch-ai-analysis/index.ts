@@ -366,6 +366,7 @@ function buildPrompt(student: any, hist: any[], sessions: Session[]): string {
   const wRatio = (weeklyTarget > 0 && !noPracticeNow)
     ? thisWeekValidMin / weeklyTarget
     : -1; // -1 = 本周无练琴或无历史基准
+  const hasMetWeeklyTarget = weeklyTarget > 0 && wRatio >= 1;
 
   const wText = wRatio < 0
     ? (noPracticeNow ? "本周没有练琴记录" : "暂无历史日均数据，无法对比本周练琴量")
@@ -456,13 +457,21 @@ function buildPrompt(student: any, hist: any[], sessions: Session[]): string {
     actions.push("M维度（稳定达标）优先：连续 2 周做到“工作日至少 4 天有练琴、每次不少于 45 分钟”，先把不规律问题拉回稳定区");
   }
   if (!isCold && tScore < 0.45) {
-    actions.push("T维度（趋势）优先：未来 2 周的周总时长要比前 2 周至少提高约 15%，哪怕每天多 20~30 分钟也能明显改善趋势分");
+    actions.push(
+      hasMetWeeklyTarget
+        ? "T维度（趋势）优先：你现在不是练得不够，而是最近几周有回落。先把接下来 2 周稳定在个人周目标以上，别忽高忽低，趋势分会比单次猛加时长更稳。"
+        : "T维度（趋势）优先：未来 2 周的周总时长尽量比前 2 周更稳定地提高一些，哪怕每天多 20~30 分钟也能改善趋势分，但不需要无上限加量。"
+    );
   }
   if (!isCold && bScore < 0.45) {
-    actions.push("B维度（短期进步）优先：下一周总时长至少比本周多 1~2 次完整练琴（约 +90~120 分钟），让“本周对比上周”出现明确上升");
+    actions.push(
+      hasMetWeeklyTarget
+        ? "B维度（短期进步）优先：你的关键不是一味加时长，而是别让下一周比这一周明显回落。先守住当前周目标完成度，再把异常记录和断档周降下来。"
+        : "B维度（短期进步）优先：下一周比本周略微更稳一些就够了，可以多安排 1 次完整练琴或补齐缺口，但不需要靠无上限加时长来换分。"
+    );
   }
   if (!isCold && aScore < 0.30) {
-    actions.push("A维度（长期积累）优先：用 4 周为周期稳步加量，目标是每周都达成个人周目标的 100%，长期分才会持续爬升");
+    actions.push("A维度（长期积累）优先：用 4 周为周期把“周周达成个人周目标”先稳定下来，长期分更看重持续不断档，不是要求你每周都无限加量。");
   }
   if (outlierRate > 0.20) {
     actions.push("异常管理：每次结束后 1 分钟内还卡，优先消除超长未还卡/饭点占用，先止住异常扣分再谈冲榜效率");
@@ -679,7 +688,9 @@ function buildPrompt(student: any, hist: any[], sessions: Session[]): string {
       action: isCold
         ? "先连续两周稳定练琴，再看这项变化。"
         : bScore < 0.62
-          ? "下周比本周多安排 1 到 2 次完整练琴，周总时长至少多 90 到 120 分钟。"
+          ? hasMetWeeklyTarget
+            ? "先守住当前周目标完成度，别比这周明显回落；重点减少异常和断档，不需要为了这项一直往上加时长。"
+            : "下周比本周略微更稳一些就够了，可以多 1 次完整练琴或补齐缺口，但不需要无上限加量。"
           : "下周维持当前节奏，别让周总时长回落。",
     },
     {
@@ -696,7 +707,9 @@ function buildPrompt(student: any, hist: any[], sessions: Session[]): string {
       action: isCold
         ? "先把每周练琴保持住，等连续几周后再看趋势。"
         : tScore < 0.62
-          ? "未来 2 周每周总时长至少比前 2 周提高约 15%，哪怕每天多 20 到 30 分钟也有效。"
+          ? hasMetWeeklyTarget
+            ? "先把接下来 2 周稳定在个人周目标以上，少一点忽高忽低，趋势会比单次猛加时长更健康。"
+            : "未来 2 周把周总时长稳一点地往上拉即可，哪怕每天多 20 到 30 分钟也有效，但不需要无限加量。"
           : "继续把近两周的节奏延续下去，别只好一周。",
     },
     {
@@ -800,6 +813,7 @@ const SYSTEM_PROMPT = `你是一位亲切、诚实的练琴学习助理，帮助
 - 如果某项当前不是主要拖分项，也要交代一句“不是主要问题，继续保持什么”
 - 重点更详细地写优先级高、状态偏低的项
 - 总字数控制在 220～360 字
+- 如果学生已经达到或明显超过个人周目标，改法要优先强调“稳住节奏、减少异常、避免回落”，不要写成要求学生无限增加练琴时长
 
 【周一规则】
 若提示“今天是本周一，本周还没开始练琴”，不要评价本周，只基于历史数据说。
