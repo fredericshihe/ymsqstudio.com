@@ -216,7 +216,7 @@ async function callAI(systemPrompt: string, userPrompt: string): Promise<{ text:
       { role: "user", content: userPrompt },
     ],
     temperature: 0.70,
-    max_tokens: 320,
+    max_tokens: 520,
     stream: false,
     thinking: { type: thinkingEnabled ? "enabled" : "disabled" },
   };
