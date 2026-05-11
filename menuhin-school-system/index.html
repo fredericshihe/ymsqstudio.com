@@ -2937,9 +2937,21 @@
                 <span class="status-value" id="currentRoom">--</span>
               </div>
               <div class="status-item">
-                <span class="status-label">今日总计</span>
-                <span class="status-value" id="todayTotal">0分钟</span>
+                <span class="status-label">当前日目标达成</span>
+                <span class="status-value" id="todayTotal">0小时0分钟</span>
                 <button class="status-help-btn" id="todayTotalHelpBtn" title="查看时间计算说明">?</button>
+              </div>
+              <div class="status-item">
+                <span class="status-label">练琴日目标</span>
+                <span class="status-value" id="dailyTarget">--</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">周目标</span>
+                <span class="status-value" id="weeklyTarget">--</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">当前周目标达成</span>
+                <span class="status-value" id="weeklyTargetAchieved">--</span>
               </div>
             </div>
           </div>
@@ -3532,6 +3544,13 @@
         return mins > 0 ? `${hours}小时${mins}分钟` : `${hours}小时`;
       },
 
+      formatDurationHoursMinutes: (minutes) => {
+        const safeMinutes = Math.max(0, Math.round(Number(minutes) || 0));
+        const hours = Math.floor(safeMinutes / 60);
+        const mins = safeMinutes % 60;
+        return `${hours}小时${mins}分钟`;
+      },
+
       getDateKey: (timestamp) => {
         const date = new Date(timestamp);
         return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -3651,6 +3670,70 @@
         (data||[]).forEach(r => map.set(r.date, Number(r.total_minutes)||0));
         return map;
       } catch (e) { console.warn('fetchDailyPracticeSummaries exception:', e); return new Map(); }
+    }
+
+    function getCurrentWeekMondayDate(baseDate = new Date()) {
+      const d = new Date(baseDate);
+      const day = d.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      d.setDate(d.getDate() + diff);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+
+    async function fetchRuleV2WeekTargetContext(studentName) {
+      try {
+        if (!supabaseClient) return null;
+        const weekMonday = utils.toIsoDate(getCurrentWeekMondayDate());
+        const { data, error } = await supabaseClient.rpc('get_rule_v2_week_target_context', {
+          p_student_name: utils.normalizeStudentName(studentName),
+          p_week_monday: weekMonday
+        });
+        if (error) {
+          console.warn('fetchRuleV2WeekTargetContext error:', error);
+          return null;
+        }
+        return Array.isArray(data) ? (data[0] || null) : (data || null);
+      } catch (e) {
+        console.warn('fetchRuleV2WeekTargetContext exception:', e);
+        return null;
+      }
+    }
+
+    function getTodayTargetMinutes(studentName, date = new Date()) {
+      const weekday = utils.getWeekday(date);
+      const timeSlots = utils.getStudentTimeSlots(studentName);
+      const daySlots = Array.isArray(timeSlots[weekday]) ? timeSlots[weekday] : [];
+      return daySlots.reduce((sum, slot) => {
+        const startRaw = slot?.start_time ?? slot?.start;
+        const endRaw = slot?.end_time ?? slot?.end;
+        const start = typeof startRaw === 'number' ? startRaw : utils.parseTimeSlot(startRaw);
+        const end = typeof endRaw === 'number' ? endRaw : utils.parseTimeSlot(endRaw);
+        if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return sum;
+        return sum + (end - start);
+      }, 0);
+    }
+
+    async function getCurrentWeekAchievedMinutes(studentName, today = new Date()) {
+      const weekMonday = getCurrentWeekMondayDate(today);
+      let total = 0;
+      try {
+        const backendMap = await fetchDailyPracticeSummaries(studentName, weekMonday, today);
+        if (backendMap.size > 0) {
+          for (let d = new Date(weekMonday); d <= today; d.setDate(d.getDate() + 1)) {
+            total += Number(backendMap.get(utils.toIsoDate(d)) || 0);
+          }
+          return total;
+        }
+      } catch (e) {
+        console.warn('getCurrentWeekAchievedMinutes backend fallback:', e);
+      }
+
+      for (let d = new Date(weekMonday); d <= today; d.setDate(d.getDate() + 1)) {
+        const dayData = calculateDayData(studentName, new Date(d));
+        total += (Number(dayData.in) || 0) + (Number(dayData.out) || 0);
+      }
+      return total;
     }
 
     async function fetchDailyLeaderboardMap(date) {
@@ -6422,9 +6505,17 @@
       // 排名分：切换学生时重置为占位符，同学生刷新时保留旧值
       const rankValEl = document.getElementById('rankScoreValue');
       const rankMetaEl = document.getElementById('rankMeta');
+      const dailyTargetEl = document.getElementById('dailyTarget');
+      const weeklyTargetEl = document.getElementById('weeklyTarget');
+      const weeklyTargetAchievedEl = document.getElementById('weeklyTargetAchieved');
+      const todayTotalEl = document.getElementById('todayTotal');
       if (_isNewStudent) {
         if (rankValEl) rankValEl.textContent = '--';
         if (rankMetaEl) rankMetaEl.textContent = '加载中...';
+        if (dailyTargetEl) dailyTargetEl.textContent = '--';
+        if (weeklyTargetEl) weeklyTargetEl.textContent = '--';
+        if (weeklyTargetAchievedEl) weeklyTargetAchievedEl.textContent = '--';
+        if (todayTotalEl) todayTotalEl.textContent = '0小时0分钟';
       }
       
       document.getElementById('studentGrade').textContent = meta.grade || '未知年级';
@@ -6457,6 +6548,7 @@
       // 1. 优先更新当前状态（轻量）
       requestAnimationFrame(() => {
         updateCurrentStatus(student);
+        updateTargetProgress(studentName);
       });
       
       // 2. 稍后更新今日时间轴（中等）
@@ -6850,12 +6942,46 @@
       // 今日总计 - 使用与七天总结相同的计算逻辑
       const todayData = calculateDayData(student.name, new Date());
       const totalMinutes = todayData.in + todayData.out;
-      todayTotal.textContent = utils.formatDuration(totalMinutes);
+      todayTotal.textContent = utils.formatDurationHoursMinutes(totalMinutes);
       
       // 绑定今日总计说明按钮
       const todayTotalHelpBtn = document.getElementById('todayTotalHelpBtn');
       if (todayTotalHelpBtn) {
         todayTotalHelpBtn.onclick = () => showTodayTotalExplanation(student.name);
+      }
+    }
+
+    async function updateTargetProgress(studentName) {
+      const dailyTargetEl = document.getElementById('dailyTarget');
+      const weeklyTargetEl = document.getElementById('weeklyTarget');
+      const weeklyTargetAchievedEl = document.getElementById('weeklyTargetAchieved');
+      if (!dailyTargetEl || !weeklyTargetEl || !weeklyTargetAchievedEl) return;
+
+      const activeStudent = renderStudentDetail._lastStudent;
+      if (activeStudent !== studentName) return;
+
+      const today = new Date();
+      const dailyTargetMinutes = getTodayTargetMinutes(studentName, today);
+      dailyTargetEl.textContent = utils.formatDurationHoursMinutes(dailyTargetMinutes);
+
+      try {
+        const [targetContext, currentWeekAchievedMinutes] = await Promise.all([
+          fetchRuleV2WeekTargetContext(studentName),
+          getCurrentWeekAchievedMinutes(studentName, today)
+        ]);
+
+        if (renderStudentDetail._lastStudent !== studentName) return;
+
+        const weeklyTargetMinutes = Number(targetContext?.final_target_week);
+        weeklyTargetEl.textContent = Number.isFinite(weeklyTargetMinutes)
+          ? utils.formatDurationHoursMinutes(weeklyTargetMinutes)
+          : '--';
+        weeklyTargetAchievedEl.textContent = utils.formatDurationHoursMinutes(currentWeekAchievedMinutes);
+      } catch (e) {
+        console.error('更新目标进度失败:', e);
+        if (renderStudentDetail._lastStudent !== studentName) return;
+        weeklyTargetEl.textContent = '--';
+        weeklyTargetAchievedEl.textContent = '--';
       }
     }
 
