@@ -6,14 +6,14 @@
 --   1. 为 student_coins 新增 semester_earned 字段
 --      （本学期通过排行榜自动奖励获得的音符币，每学期重置）
 --   2. 移除梅纽因之星相关历史对象（表 + RPC）
---   3. start_new_semester(confirm)  — 开启新学期（重置 semester_earned）
+--   3. start_new_semester(confirm)  — 开启新学期（清空所有人音符币，并写入流水说明）
 --   4. 更新 adjust_student_coins()  — 同步累加 semester_earned
 --   5. 更新 vw_student_coin_balances 视图 — 暴露 semester_earned
 --
 -- 设计原则：
---   - balance（总余额）：可跨学期积累，用于兑换任意奖励
+--   - balance（总余额）：开启新学期时清空，并为每位学生写入流水记录
 --   - semester_earned：按交易类型更新（auto_reward / compensation 增加，deduction 减少，redemption 不变），每学期可重置
---   - 后台仅保留“学期累计排行 + 学期重置”，移除梅纽因之星功能
+--   - 后台仅保留“学期累计排行 + 新学期清零”，移除梅纽因之星功能
 -- ============================================================
 
 
@@ -24,7 +24,7 @@ ALTER TABLE public.student_coins
 ADD COLUMN IF NOT EXISTS semester_earned INTEGER NOT NULL DEFAULT 0;
 
 COMMENT ON COLUMN public.student_coins.semester_earned IS
-    '本学期累计获得的音符币（正向调整会累加，学期初可调用 start_new_semester() 重置为 0）。';
+    '本学期累计获得的音符币（正向调整会累加，学期初可调用 start_new_semester() 清零）。';
 
 
 -- ============================================================
@@ -35,7 +35,7 @@ DROP TABLE IF EXISTS public.meiyin_star_log;
 
 
 -- ============================================================
--- 3. 开启新学期（重置所有学生的 semester_earned）
+-- 3. 开启新学期（清空所有学生的 balance 和 semester_earned，并写入流水说明）
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.start_new_semester(p_confirm TEXT)
 RETURNS TEXT
@@ -44,17 +44,42 @@ SECURITY DEFINER
 AS $$
 DECLARE
     v_count INTEGER;
+    v_total_cleared INTEGER;
 BEGIN
     -- 安全确认，防止误触
     IF p_confirm <> 'CONFIRM_NEW_SEMESTER' THEN
         RETURN '❌ 安全确认失败。请传入字符串 "CONFIRM_NEW_SEMESTER" 方可执行。';
     END IF;
 
-    UPDATE public.student_coins SET semester_earned = 0;
+    INSERT INTO public.student_coins (student_name, balance, semester_earned)
+    SELECT sd.name, 0, 0
+    FROM public.student_database sd
+    ON CONFLICT (student_name) DO NOTHING;
+
+    INSERT INTO public.coin_transactions
+        (student_name, amount, balance_after, reason, transaction_type)
+    SELECT
+        sc.student_name,
+        -sc.balance,
+        0,
+        '开启新学期：清空音符币余额（原余额 ' || sc.balance || '，本学期累计 '
+            || sc.semester_earned || '）。',
+        'semester_reset'
+    FROM public.student_coins sc
+    ORDER BY sc.student_name;
     GET DIAGNOSTICS v_count = ROW_COUNT;
 
-    RETURN '✅ 新学期已开启，共重置 ' || v_count || ' 位学生的 semester_earned 为 0。'
-           || '（balance 总余额不变）';
+    SELECT COALESCE(SUM(GREATEST(balance, 0)), 0)
+    INTO v_total_cleared
+    FROM public.student_coins;
+
+    UPDATE public.student_coins
+    SET balance = 0,
+        semester_earned = 0,
+        updated_at = NOW();
+
+    RETURN '✅ 新学期已开启，共清空 ' || v_count || ' 位学生的音符币余额，合计清空 '
+           || v_total_cleared || ' 枚；已写入所有人的流水记录。';
 END;
 $$;
 
@@ -167,5 +192,5 @@ GRANT SELECT ON public.vw_student_coin_balances TO anon, authenticated;
 -- FROM public.student_coins
 -- ORDER BY semester_earned DESC;
 
--- 开启新学期（重置 semester_earned）：
+-- 开启新学期（清空 balance + semester_earned，并写入流水）：
 -- SELECT public.start_new_semester('CONFIRM_NEW_SEMESTER');

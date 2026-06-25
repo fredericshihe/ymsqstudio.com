@@ -18297,28 +18297,21 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			try{
 				function step(p,msg){ progBar.style.width=p+'%'; if(msg) progText.textContent=msg; }
 				const basePayload={ name:newName, grade:newGrade||'', major:newMajor||'' };
-				// 查询是否已存在该 name
-				let exists=false; try{ const { data:ex, error:exErr } = await supabaseClient.from('student_database').select('name').eq('name', newName).limit(1); if(!exErr && ex && ex.length) exists=true; }catch(_){ }
-				if(!exists){
-					// 直接插入，若违反 (name,major) 组合唯一则提示并终止
-					const ins=await supabaseClient.from('student_database').insert([basePayload]); if(ins.error){ throw new Error('学生插入失败: '+ins.error.message); }
+				if(newName!==oldName){
+					const rename = await supabaseClient
+						.from('student_database')
+						.update(basePayload)
+						.eq('name', oldName)
+						.select('name')
+						.maybeSingle();
+					if(rename.error){ throw new Error('学生改名失败: '+rename.error.message); }
+					if(!rename.data){ throw new Error('学生改名失败: 云端未找到旧学生记录'); }
+					step(70,'学生姓名与关联数据已同步');
 				}else{
-					// 更新 major/grade，不触碰 name
 					const upd=await supabaseClient.from('student_database').update({ major:basePayload.major, grade:basePayload.grade }).eq('name', newName);
 					if(upd.error){ throw new Error('学生更新失败: '+upd.error.message); }
+					step(70,'学生信息已同步');
 				}
-				step(40,'学生信息已同步');
-				if(newName!==oldName){
-					// 1) 更新所有时间段引用 (RPC 优先)
-					try{ const rpc=await supabaseClient.rpc('rename_student_slots',{ old_name:oldName, new_name:newName }); if(rpc.error) throw rpc.error; }
-					catch(e){ const upd=await supabaseClient.from('student_time_slots').update({ student_name:newName }).eq('student_name', oldName); if(upd.error) throw new Error('时间段重命名失败: '+upd.error.message); }
-					step(60,'时间段引用已更新');
-					// 2) 删除旧 student_database 记录（若存在）
-					const delOld=await supabaseClient.from('student_database').delete().eq('name', oldName); if(delOld.error){ console.warn('[StudentLibrary] 删除旧学生记录失败', delOld.error.message); }
-					step(70,'旧名称清理完成');
-				}
-				// 改为增量同步，避免每次编辑触发全量学生表写入
-				enqueue({ type:'upsert', payload:{ name:newName, major:newMajor||'', grade:newGrade||'' } });
 				step(92,'刷新界面...'); await new Promise(r=>requestAnimationFrame(r)); step(100,'完成'); setTimeout(()=>close(),500);
 				if(window.toast) toast('学生已同步','success');
 			}catch(err){ progBar.style.width='100%'; progBar.style.background='#dc2626'; progText.textContent=err.message||err; if(newName!==oldName){ // 回滚本地名称

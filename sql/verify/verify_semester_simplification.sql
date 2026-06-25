@@ -2,9 +2,10 @@
 -- 一键验证：学期管理精简是否生效
 -- 目标：
 -- 1) 梅纽因之星对象已移除（award_meiyin_star / meiyin_star_log）
--- 2) 学期重置函数仍可用（start_new_semester）
+-- 2) 新学期清零函数仍可用（start_new_semester）
 -- 3) 学期累计排行视图仍可用（vw_student_coin_balances 含 semester_earned）
--- 4) adjust_student_coins 仍包含正向金额累加 semester_earned 逻辑
+-- 4) adjust_student_coins 仍包含按交易类型更新 semester_earned 逻辑
+-- 5) start_new_semester 会清空余额并写入 semester_reset 流水
 -- ============================================================
 
 WITH checks AS (
@@ -74,11 +75,31 @@ WITH checks AS (
         WHERE n.nspname = 'public'
           AND p.proname = 'adjust_student_coins'
           AND pg_get_functiondef(p.oid) ILIKE '%semester_earned%'
-          AND pg_get_functiondef(p.oid) ILIKE '%WHEN p_amount > 0%'
+          AND pg_get_functiondef(p.oid) ILIKE '%WHEN p_type IN (''auto_reward'', ''compensation'')%'
+          AND pg_get_functiondef(p.oid) ILIKE '%WHEN p_type = ''deduction''%'
       ) THEN 'PASS'
       ELSE 'FAIL'
     END AS status,
-    'expect semester_earned += p_amount when p_amount > 0' AS detail
+    'expect adjust_student_coins to update semester_earned by transaction_type' AS detail
+
+  UNION ALL
+
+  SELECT
+    'function_logic::start_new_semester_clears_balance_and_writes_tx' AS check_item,
+    CASE
+      WHEN EXISTS (
+        SELECT 1
+        FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public'
+          AND p.proname = 'start_new_semester'
+          AND pg_get_functiondef(p.oid) ILIKE '%INSERT INTO public.coin_transactions%'
+          AND pg_get_functiondef(p.oid) ILIKE '%semester_reset%'
+          AND pg_get_functiondef(p.oid) ILIKE '%SET balance = 0%'
+      ) THEN 'PASS'
+      ELSE 'FAIL'
+    END AS status,
+    'expect start_new_semester to write semester_reset tx and clear balance' AS detail
 
   UNION ALL
 
@@ -168,7 +189,26 @@ WITH checks AS (
         WHERE n.nspname = 'public'
           AND p.proname = 'adjust_student_coins'
           AND pg_get_functiondef(p.oid) ILIKE '%semester_earned%'
-          AND pg_get_functiondef(p.oid) ILIKE '%WHEN p_amount > 0%'
+          AND pg_get_functiondef(p.oid) ILIKE '%WHEN p_type IN (''auto_reward'', ''compensation'')%'
+          AND pg_get_functiondef(p.oid) ILIKE '%WHEN p_type = ''deduction''%'
+      ) THEN 'PASS'
+      ELSE 'FAIL'
+    END AS status
+
+  UNION ALL
+
+  SELECT
+    'function_logic::start_new_semester_clears_balance_and_writes_tx' AS check_item,
+    CASE
+      WHEN EXISTS (
+        SELECT 1
+        FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public'
+          AND p.proname = 'start_new_semester'
+          AND pg_get_functiondef(p.oid) ILIKE '%INSERT INTO public.coin_transactions%'
+          AND pg_get_functiondef(p.oid) ILIKE '%semester_reset%'
+          AND pg_get_functiondef(p.oid) ILIKE '%SET balance = 0%'
       ) THEN 'PASS'
       ELSE 'FAIL'
     END AS status
@@ -205,4 +245,3 @@ SELECT
     ELSE '❌ 存在失败项，请按 check_item 排查'
   END AS verdict
 FROM summary;
-

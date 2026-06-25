@@ -84,9 +84,11 @@
     .hi-tag.compensation { background: rgba(16, 185, 129, 0.15); color: var(--green); }
     .hi-tag.deduction { background: rgba(239, 68, 68, 0.15); color: var(--red); }
     .hi-tag.redemption { background: rgba(245, 158, 11, 0.15); color: var(--yellow); }
+    .hi-tag.semester-reset { background: rgba(59, 130, 246, 0.15); color: var(--blue); }
     .hi-amount { font-size: 1.1rem; font-weight: 800; }
     .hi-amount.pos { color: var(--green); }
     .hi-amount.neg { color: var(--red); }
+    .hi-amount.zero { color: var(--t3); }
     .hi-empty { text-align: center; color: var(--t3); padding: 20px 0; font-size: 0.9rem; }
 
     /* 学期管理卡片 */
@@ -217,10 +219,10 @@
         <div>
           <div class="sem-input-row">
             <input type="text" id="semesterInput" class="sem-input" placeholder="学期标识，如：2026春">
-            <button class="btn" onclick="confirmNewSemester()" id="newSemBtn" style="border-color:var(--red);color:var(--red)">开启新学期</button>
+            <button class="btn" onclick="confirmNewSemester()" id="newSemBtn" style="border-color:var(--red);color:var(--red)">清空全员音符币</button>
           </div>
           <div style="font-size:0.72rem;color:var(--t3);margin-top:4px;text-align:right">
-            开启新学期会将所有人本学期累积清零（总余额不变）
+            清空所有人的音符币余额，并写入每个人的流水记录
           </div>
         </div>
       </div>
@@ -655,8 +657,9 @@
 
         listEl.innerHTML = data.map(tx => {
           const isPos = tx.amount > 0;
+          const isZero = tx.amount === 0;
           const sign = isPos ? '+' : '';
-          const cls = isPos ? 'pos' : 'neg';
+          const cls = isZero ? 'zero' : (isPos ? 'pos' : 'neg');
           const date = new Date(tx.created_at).toLocaleString('zh-CN', {
             month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
           });
@@ -664,7 +667,8 @@
             auto_reward: '<span class="hi-tag auto">系统结算</span>',
             compensation: '<span class="hi-tag compensation">补偿</span>',
             deduction: '<span class="hi-tag deduction">扣除</span>',
-            redemption: '<span class="hi-tag redemption">兑换</span>'
+            redemption: '<span class="hi-tag redemption">兑换</span>',
+            semester_reset: '<span class="hi-tag semester-reset">新学期清零</span>'
           };
           const typeTag = typeTagMap[tx.transaction_type] || '<span class="hi-tag">手动操作</span>';
 
@@ -746,11 +750,11 @@
     async function confirmNewSemester() {
       const semester = document.getElementById('semesterInput').value.trim();
       const hint = semester ? `（即将开启「${semester}」）` : '';
-      if (!confirm(`⚠️ 开启新学期${hint}\n\n所有学生的「本学期已获得」将归零（总余额 balance 不变）。\n\n此操作不可撤销。`)) return;
-      if (!confirm('二次确认：确定要重置全员 semester_earned 为 0？')) return;
+      if (!confirm(`⚠️ 清空全员音符币${hint}\n\n所有学生当前音符币余额将清零，「本学期已获得」也会归零，并且每个人都会新增一条流水说明。\n\n此操作不可撤销。`)) return;
+      if (!confirm('二次确认：确定要清空全员音符币余额，并写入流水记录？')) return;
 
       const btn = document.getElementById('newSemBtn');
-      btn.disabled = true; btn.textContent = '重置中...';
+      btn.disabled = true; btn.textContent = '清空中...';
       try {
         const { data, error } = await supabaseClient.rpc('start_new_semester', {
           p_confirm: 'CONFIRM_NEW_SEMESTER'
@@ -759,9 +763,9 @@
         showToast(data);
         await Promise.all([loadData(), loadSemesterData()]);
       } catch (err) {
-        showToast('重置失败：' + err.message, true);
+        showToast('清空失败：' + err.message, true);
       } finally {
-        btn.disabled = false; btn.textContent = '开启新学期';
+        btn.disabled = false; btn.textContent = '清空全员音符币';
       }
     }
 

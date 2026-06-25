@@ -66,5 +66,4 @@ BEGIN
     RETURN v_new_balance;
 END;
 $$;
-
 GRANT EXECUTE ON FUNCTION public.adjust_student_coins(TEXT, INTEGER, TEXT, TEXT) TO anon, authenticated;

@@ -67,8 +67,7 @@ SET semester_earned = t.new_semester_earned,
 FROM target_values t
 WHERE sc.student_name = t.student_name
   AND sc.semester_earned IS DISTINCT FROM t.new_semester_earned;
-
 -- 可选核对：
 -- SELECT student_name, balance, semester_earned
 -- FROM public.student_coins
--- ORDER BY semester_earned DESC, student_name ASC;
+-- ORDER BY semester_earned DESC, student_name ASC;;

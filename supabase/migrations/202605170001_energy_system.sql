@@ -1,0 +1,1 @@
+-- Applied via supabase db query --linked; see supabase/migrations/202605170001_energy_system.sql;

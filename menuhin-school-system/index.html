@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <title>学生练琴跟踪系统</title>
   <!-- 已移除 Google Fonts，使用系统字体以避免外部 400 报错 -->
-  
+
   <!--
   ====================================================================
   📊 数据同步与订阅配置检查报告 - 已完成全面验证 ✅
@@ -728,9 +728,11 @@
   .coin-hi-meta { font-size: 0.75rem; color: var(--text-3); display: flex; gap: 8px; align-items: center; }
   .coin-hi-tag { padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; background: rgba(255,255,255,0.1); color: var(--text-2); }
   .coin-hi-tag.auto { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+  .coin-hi-tag.semester-reset { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
   .coin-hi-amount { font-size: 1.1rem; font-weight: 800; }
   .coin-hi-amount.pos { color: #10b981; }
   .coin-hi-amount.neg { color: #ef4444; }
+  .coin-hi-amount.zero { color: var(--text-3); }
   .coin-hi-empty { text-align: center; color: var(--text-3); padding: 20px 0; font-size: 0.9rem; }
 
   .student-meta { display: flex; align-items: center; gap: 8px; font-size: 16px; color: var(--text-muted); font-weight: 500; }
@@ -2855,7 +2857,7 @@
             <div style="background:var(--surface-0); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 14px; font-size:12.5px; color:var(--text-2); line-height:1.7; margin-bottom:8px;">
               <div style="font-weight:700; color:var(--text-1); margin-bottom:6px;">💡 小提示</div>
               <div>• <strong>综合榜前 10 名</strong>不参与三个分类榜，无法获得分类榜奖励；其余同学若同时上进步/稳定/守则榜，奖励<strong>叠加计算</strong></div>
-              <div>• 音符币<strong>可跨学期积累</strong>，余额长期有效，不用担心过期</div>
+              <div>• 音符币会在<strong>新学期开启时统一清零</strong>，请记得在学期内及时兑换使用</div>
               <div>• 每周五结算后即可在个人页面查看余额</div>
               <div>• ⚠️ 前台管理员对存在<strong>违规练琴记录</strong>的学生有权<strong>扣除</strong>音符币</div>
             </div>
@@ -3037,10 +3039,10 @@
   function appendPracticeLogIncremental(row){
     if(!row) return false;
     // 标准化
-    const norm = {
-      id: row.id,
-      student_name: row.student_name || row.student || row.studentName || '',
-      room_name: row.room_name || row.room || row.roomName || '',
+	    const norm = {
+	      id: row.id,
+	      student_name: getLogStudentName(row),
+	      room_name: row.room_name || row.room || row.roomName || '',
       action: (row.action||'').toLowerCase(),
       timestamp: row.timestamp,
       session_start: row.session_start || row.start_time || null,
@@ -3641,9 +3643,52 @@
       isWithinTimeRange: (minutes, range) => {
         return minutes >= range.start && minutes < range.end;
       }
-    };
+	    };
 
-    // ==== 后端备份读取辅助 ====
+	    function getLogStudentName(log) {
+	      return utils.normalizeStudentName(log?.student_name || log?.student || log?.studentName || '');
+	    }
+
+	    function getRawLogStudentName(log) {
+	      return log?.student_name || log?.student || log?.studentName || '';
+	    }
+
+	    function sameStudentName(a, b) {
+	      const left = utils.normalizeStudentName(a);
+	      const right = utils.normalizeStudentName(b);
+	      return !!left && !!right && left === right;
+	    }
+
+	    function resolveStudentName(studentName) {
+	      const norm = utils.normalizeStudentName(studentName);
+	      if (norm && (appState.students.has(norm) || appState.studentsMeta.has(norm) || appState.timeSlots.has(norm))) {
+	        return norm;
+	      }
+	      if (studentName && (appState.students.has(studentName) || appState.studentsMeta.has(studentName) || appState.timeSlots.has(studentName))) {
+	        return studentName;
+	      }
+	      return norm || studentName || '';
+	    }
+
+	    function getStudentNameCandidates(studentName) {
+	      const norm = utils.normalizeStudentName(studentName);
+	      const candidates = [studentName, norm];
+	      const meta = appState.studentsMeta.get(norm) || appState.studentsMeta.get(studentName);
+	      if (meta?.name) candidates.push(meta.name);
+
+	      const logHit = (appState.practiceLogs || []).find(log => sameStudentName(getRawLogStudentName(log), norm || studentName));
+	      if (logHit) candidates.push(getRawLogStudentName(logHit));
+
+	      try {
+	        const rows = Object.values(_wlbData || {}).flat();
+	        const lbHit = rows.find(row => sameStudentName(row?.student_name, norm || studentName));
+	        if (lbHit?.student_name) candidates.push(lbHit.student_name);
+	      } catch (_) {}
+
+	      return Array.from(new Set(candidates.filter(Boolean)));
+	    }
+
+	    // ==== 后端备份读取辅助 ====
     // 统计用自然日 key（不受排行榜07:30切换影响）
     function getStatsDayKey(d){
       // 使用本地时区自然日：YYYY-MM-DD
@@ -3681,46 +3726,101 @@
       return d;
     }
 
-    async function fetchRuleV2WeekTargetContext(studentName) {
-      try {
-        if (!supabaseClient) return null;
-        const weekMonday = utils.toIsoDate(getCurrentWeekMondayDate());
-        const { data, error } = await supabaseClient.rpc('get_rule_v2_week_target_context', {
-          p_student_name: utils.normalizeStudentName(studentName),
-          p_week_monday: weekMonday
-        });
-        if (error) {
-          console.warn('fetchRuleV2WeekTargetContext error:', error);
-          return null;
-        }
-        return Array.isArray(data) ? (data[0] || null) : (data || null);
-      } catch (e) {
-        console.warn('fetchRuleV2WeekTargetContext exception:', e);
-        return null;
+	    async function fetchRuleV2WeekTargetContext(studentName) {
+	      try {
+	        if (!supabaseClient) return null;
+	        const weekMonday = utils.toIsoDate(getCurrentWeekMondayDate());
+	        const candidates = getStudentNameCandidates(studentName);
+	        for (const candidate of candidates) {
+	          const { data, error } = await supabaseClient.rpc('get_rule_v2_week_target_context', {
+	            p_student_name: candidate,
+	            p_week_monday: weekMonday
+	          });
+	          if (error) {
+	            console.warn('fetchRuleV2WeekTargetContext error:', error);
+	            continue;
+	          }
+	          const row = Array.isArray(data) ? (data[0] || null) : (data || null);
+	          if (row) return row;
+	        }
+	        return null;
+	      } catch (e) {
+	        console.warn('fetchRuleV2WeekTargetContext exception:', e);
+	        return null;
       }
     }
 
-    function getTodayTargetMinutes(studentName, date = new Date()) {
-      const weekday = utils.getWeekday(date);
-      const timeSlots = utils.getStudentTimeSlots(studentName);
-      const daySlots = Array.isArray(timeSlots[weekday]) ? timeSlots[weekday] : [];
-      return daySlots.reduce((sum, slot) => {
+	    function getTodayTargetMinutes(studentName, date = new Date()) {
+	      const weekday = utils.getWeekday(date);
+	      const timeSlots = utils.getStudentTimeSlots(studentName);
+	      const daySlots = Array.isArray(timeSlots[weekday]) ? timeSlots[weekday] : [];
+	      return daySlots.reduce((sum, slot) => {
         const startRaw = slot?.start_time ?? slot?.start;
         const endRaw = slot?.end_time ?? slot?.end;
         const start = typeof startRaw === 'number' ? startRaw : utils.parseTimeSlot(startRaw);
         const end = typeof endRaw === 'number' ? endRaw : utils.parseTimeSlot(endRaw);
         if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return sum;
         return sum + (end - start);
-      }, 0);
-    }
+	      }, 0);
+	    }
 
-    async function getCurrentWeekAchievedMinutes(studentName, today = new Date()) {
-      const weekMonday = getCurrentWeekMondayDate(today);
-      let total = 0;
-      try {
-        const backendMap = await fetchDailyPracticeSummaries(studentName, weekMonday, today);
-        if (backendMap.size > 0) {
-          for (let d = new Date(weekMonday); d <= today; d.setDate(d.getDate() + 1)) {
+	    async function fetchPracticeSessionMinutesByDay(studentName, startDate, endDate, options = {}) {
+	      if (!supabaseClient) return new Map();
+	      const start = new Date(startDate);
+	      start.setHours(0, 0, 0, 0);
+	      const end = new Date(endDate);
+	      end.setHours(0, 0, 0, 0);
+	      end.setDate(end.getDate() + 1);
+	      const candidates = getStudentNameCandidates(studentName);
+	      const { data, error } = await supabaseClient
+	        .from('practice_sessions')
+	        .select('session_start,cleaned_duration')
+	        .in('student_name', candidates)
+	        .gte('session_start', start.toISOString())
+	        .lt('session_start', end.toISOString())
+	        .order('session_start', { ascending: true });
+	      if (error) throw error;
+	      const map = new Map();
+	      (data || []).forEach(row => {
+	        if (!row?.session_start) return;
+	        const d = new Date(row.session_start);
+	        if (options.workdaysOnly) {
+	          const day = d.getDay();
+	          if (day === 0 || day === 6) return;
+	        }
+	        const key = getStatsDayKey(d);
+	        map.set(key, (map.get(key) || 0) + (Number(row.cleaned_duration) || 0));
+	      });
+	      return map;
+	    }
+
+	    async function getTodayAchievedMinutes(studentName, today = new Date()) {
+	      try {
+	        const backendMap = await fetchPracticeSessionMinutesByDay(studentName, today, today);
+	        if (backendMap.size > 0) {
+	          return Number(backendMap.get(getStatsDayKey(today)) || 0);
+	        }
+	      } catch (e) {
+	        console.warn('getTodayAchievedMinutes backend fallback:', e);
+	      }
+	      const dayData = calculateDayData(studentName, today);
+	      return (Number(dayData.in) || 0) + (Number(dayData.out) || 0);
+	    }
+
+	    async function getCurrentWeekAchievedMinutes(studentName, today = new Date()) {
+	      const weekMonday = getCurrentWeekMondayDate(today);
+	      let total = 0;
+	      try {
+	        const sessionMap = await fetchPracticeSessionMinutesByDay(studentName, weekMonday, today, { workdaysOnly: true });
+	        if (sessionMap.size > 0) {
+	          for (let d = new Date(weekMonday); d <= today; d.setDate(d.getDate() + 1)) {
+	            total += Number(sessionMap.get(utils.toIsoDate(d)) || 0);
+	          }
+	          return total;
+	        }
+	        const backendMap = await fetchDailyPracticeSummaries(studentName, weekMonday, today);
+	        if (backendMap.size > 0) {
+	          for (let d = new Date(weekMonday); d <= today; d.setDate(d.getDate() + 1)) {
             total += Number(backendMap.get(utils.toIsoDate(d)) || 0);
           }
           return total;
@@ -3799,12 +3899,12 @@
       return new Promise((resolve, reject) => {
         const script = document.createElement('script');
         // 优先使用本地文件，彻底避免 CDN 加载慢的问题
-        script.src = 'libs/supabase.min.js';
+        script.src = '../libs/supabase.min.js';
         script.onload = resolve;
         script.onerror = () => {
           // 本地文件失败时才回退到 CDN
           const fallbackScript = document.createElement('script');
-          fallbackScript.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js';
+          fallbackScript.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
           fallbackScript.onload = resolve;
           fallbackScript.onerror = reject;
           document.head.appendChild(fallbackScript);
@@ -4163,10 +4263,10 @@
               console.warn('差异同步中发现不完整的练琴日志:', r);
             }
             
-            return {
-              id: r.id,
-              student_name: r.student_name || r.student || r.studentName || '',
-              room_name: r.room_name || r.room || r.roomName || '',
+	            return {
+	              id: r.id,
+	              student_name: getLogStudentName(r),
+	              room_name: r.room_name || r.room || r.roomName || '',
               action: (r.action || '').toLowerCase(),
               timestamp: r.timestamp,
               location: r.location || '',
@@ -4189,10 +4289,11 @@
               return;
             }
             
-            const norm = utils.normalizeStudentName(student.name);
-            appState.studentsMeta.set(norm, {
-              id: student.id,
-              major: student.major || '',
+	            const norm = utils.normalizeStudentName(student.name);
+	            appState.studentsMeta.set(norm, {
+	              id: student.id,
+	              name: student.name || norm,
+	              major: student.major || '',
               grade: student.grade || '',
               archived: student.archived || false,
               remark: student.remark || '',
@@ -4375,10 +4476,10 @@
             console.warn('练琴日志数据不完整:', r);
           }
           
-          return {
-            id: r.id,
-            student_name: r.student_name || r.student || r.studentName || '',
-            room_name: r.room_name || r.room || r.roomName || '',
+	          return {
+	            id: r.id,
+	            student_name: getLogStudentName(r),
+	            room_name: r.room_name || r.room || r.roomName || '',
             action: (r.action || '').toLowerCase(),
             timestamp: r.timestamp,
             location: r.location || '',
@@ -4412,10 +4513,11 @@
             return;
           }
           
-          const norm = utils.normalizeStudentName(student.name);
-          appState.studentsMeta.set(norm, {
-            id: student.id,
-            major: student.major || '',
+	          const norm = utils.normalizeStudentName(student.name);
+	          appState.studentsMeta.set(norm, {
+	            id: student.id,
+	            name: student.name || norm,
+	            major: student.major || '',
             grade: student.grade || '',
             archived: student.archived || false,
             remark: student.remark || '',
@@ -4662,7 +4764,7 @@
             // ✅ 备用逻辑：从今日日志中查找正在进行的会话
             const todayLogs = (appState.practiceLogsNormalized || appState.practiceLogs || [])
               .filter(log => {
-                if (log.student_name !== studentName) return false;
+	                if (!sameStudentName(log.student_name || log.student || log.studentName, studentName)) return false;
                 const logDate = new Date(log.timestamp);
                 return logDate.getFullYear() === now.getFullYear() && 
                        logDate.getMonth() === now.getMonth() && 
@@ -4726,9 +4828,10 @@
   /**
    * 🔄 补偿推导当前会话（不改变统计口径，只用于 UI 显示 currentStartTime / 时长）
    */
-  function deriveCurrentSessionForStudent(studentName){
-    try{
-      const student = appState.students.get(studentName);
+	  function deriveCurrentSessionForStudent(studentName){
+	    try{
+	      studentName = resolveStudentName(studentName);
+	      const student = appState.students.get(studentName);
       if(!student) return;
       // 统一完全使用日志推导，不再依赖 rooms 占用；确保状态单一来源避免“房间还没释放”假阳性
       const live = computeLiveSessionFromLogs(studentName);
@@ -4742,7 +4845,7 @@
         student.currentRoom = null;
         student.currentStartTime = null;
       }
-      if(uiState.view==='detail' && uiState.selectedStudent===studentName){
+	      if(uiState.view==='detail' && sameStudentName(uiState.selectedStudent, studentName)){
         const startEl=document.getElementById('currentStartTime');
         const durEl=document.getElementById('currentDuration');
         const roomEl=document.getElementById('currentRoom');
@@ -4767,14 +4870,15 @@
   }
 
   // 基于 practice_logs 推导当前是否有未结束会话
-  function computeLiveSessionFromLogs(studentName){
-    try{
-      // 21:30 截断检查：如果当前时间超过 21:30，且开始时间早于 21:30，强制视为离线
+	  function computeLiveSessionFromLogs(studentName){
+	    try{
+	      studentName = resolveStudentName(studentName);
+	      // 21:30 截断检查：如果当前时间超过 21:30，且开始时间早于 21:30，强制视为离线
       const now = new Date();
       const cutoff = new Date(now);
       cutoff.setHours(21, 30, 0, 0);
 
-      const logs = (appState.practiceLogsNormalized || appState.practiceLogs || []).filter(l=> l.student_name===studentName);
+	      const logs = (appState.practiceLogsNormalized || appState.practiceLogs || []).filter(l=> sameStudentName(l.student_name || l.student || l.studentName, studentName));
       if(!logs.length) return {active:false};
       const today = new Date(); today.setHours(0,0,0,0);
       const nextDay = new Date(today.getTime()+86400000);
@@ -4809,7 +4913,7 @@
     const __origAppend = appendPracticeLogIncremental;
     appendPracticeLogIncremental = function(row){
       const ret = __origAppend(row);
-      if(uiState?.selectedStudent && row?.student_name === uiState.selectedStudent){
+	      if(uiState?.selectedStudent && sameStudentName(row?.student_name, uiState.selectedStudent)){
         updateStudentLiveStatus(uiState.selectedStudent);
       }
       // 对任意学生：如果是 clear/assign 事件立即更新该学生 live 状态
@@ -4959,8 +5063,9 @@
    * 计算某日的“规定时间内”和“规定时间外”的分钟数。
    * 会在剔除休息时间后再与学生个性化时段进行交集计算。
    */
-  function calculateDayPracticeTime(studentName, date, intervals) {
-      const dateKey = utils.getDateKey(date);
+	  function calculateDayPracticeTime(studentName, date, intervals) {
+	      studentName = resolveStudentName(studentName);
+	      const dateKey = utils.getDateKey(date);
       
       // 检查 practiceLogs 是否存在
       if (!appState.practiceLogs || !Array.isArray(appState.practiceLogs)) {
@@ -4970,7 +5075,7 @@
       
       const studentLogs = appState.practiceLogs.filter(log => {
         const logStudentName = log.student_name || log.student || log.studentName;
-        return logStudentName === studentName && utils.getDateKey(new Date(log.timestamp)) === dateKey;
+	        return sameStudentName(logStudentName, studentName) && utils.getDateKey(new Date(log.timestamp)) === dateKey;
       });
 
       if (studentLogs.length === 0) {
@@ -5196,9 +5301,9 @@
   previousView: null // 记录上一个视图，用于控制动画
     };
 
-    function isSelectedDetailStudent(studentName) {
-      return uiState.view === 'detail' && uiState.selectedStudent === studentName;
-    }
+	    function isSelectedDetailStudent(studentName) {
+	      return uiState.view === 'detail' && sameStudentName(uiState.selectedStudent, studentName);
+	    }
 
     let __rootScrollLocked = false;
     let __rootScrollY = 0;
@@ -5832,17 +5937,20 @@
         }
       } else if (uiState.view === 'detail') {
         // 展开详情视图
+        const isTransitioningToDetail = !uiState._dataRefresh && uiState.previousView !== 'detail';
         home.hidden = true;
         list.classList.remove('expanding');
         list.hidden = true;
         detail.hidden = false;
         detail.classList.add('active');
-        // 重置滚动位置
-        detail.scrollTop = 0;
+        // 只有真正切换进详情页时才回到顶部，数据刷新时保留当前阅读位置
+        if (isTransitioningToDetail) {
+          detail.scrollTop = 0;
+          startWeekChartAutoRefresh();
+          startCurrentDurationUpdate();
+          stopListCardRefresh(); // 离开列表
+        }
         renderStudentDetail(uiState.selectedStudent);
-  startWeekChartAutoRefresh();
-  startCurrentDurationUpdate();
-  stopListCardRefresh(); // 离开列表
       }
       syncRootScrollLock();
     }
@@ -6380,9 +6488,10 @@
       });
     }
 
-    // 打开学生详情页面
-    function openStudentDetail(studentName) {
-      // 🚀 性能优化：延迟执行以显示点击反馈
+	    // 打开学生详情页面
+	    function openStudentDetail(studentName) {
+	      studentName = resolveStudentName(studentName);
+	      // 🚀 性能优化：延迟执行以显示点击反馈
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           dbg('从通用方式进入学生详情:', studentName);
@@ -6461,9 +6570,13 @@
       }
     }
 
-    // 渲染学生详情页面
-  async function renderStudentDetail(studentName) {
-      const student = appState.students.get(studentName);
+	    // 渲染学生详情页面
+	  async function renderStudentDetail(studentName) {
+	      studentName = resolveStudentName(studentName);
+	      if (uiState.selectedStudent !== studentName) {
+	        uiState.selectedStudent = studentName;
+	      }
+	      const student = appState.students.get(studentName);
       if (!student) return;
 
       // 立即处理 442 分数徽章的可见性，避免周末闪烁 (已移除旧逻辑)
@@ -6489,17 +6602,19 @@
       renderStudentDetail._lastStudent = studentName;
 
       // 获取并显示音符币（切换学生时先隐藏，同学生刷新时静默更新）
-      const coinBadge = document.getElementById('studentCoinBadge');
-      if (coinBadge) {
-        if (_isNewStudent) coinBadge.style.display = 'none';
-        supabaseClient.from('student_coins').select('balance').eq('student_name', studentName).single()
-          .then(({data, error}) => {
-            // 只更新当前仍在查看该学生时的结果，防止快速切换时结果乱序
-            if (renderStudentDetail._lastStudent === studentName) {
-              coinBadge.textContent = `🎵 ${(!error && data) ? data.balance : 0}`;
-              coinBadge.style.display = 'inline-flex';
-            }
-          }).catch(() => {});
+	      const coinBadge = document.getElementById('studentCoinBadge');
+	      if (coinBadge) {
+	        if (_isNewStudent) coinBadge.style.display = 'none';
+	        const coinNameCandidates = getStudentNameCandidates(studentName);
+	        supabaseClient.from('student_coins').select('balance').in('student_name', coinNameCandidates).limit(1)
+	          .then(({data, error}) => {
+	            // 只更新当前仍在查看该学生时的结果，防止快速切换时结果乱序
+	            if (renderStudentDetail._lastStudent === studentName) {
+	              const row = Array.isArray(data) ? data[0] : data;
+	              coinBadge.textContent = `🎵 ${(!error && row) ? row.balance : 0}`;
+	              coinBadge.style.display = 'inline-flex';
+	            }
+	          }).catch(() => {});
       }
 
       // 排名分：切换学生时重置为占位符，同学生刷新时保留旧值
@@ -6585,7 +6700,7 @@
           // 优先用综合榜缓存里的 display_score，与排行榜完全一致
           const compRows = (typeof _wlbData !== 'undefined' && _wlbData['综合榜']) || [];
           const normName = utils.normalizeStudentName(studentName);
-          const lbHit = compRows.find(r => r.student_name === normName || r.student_name === studentName);
+	          const lbHit = compRows.find(r => sameStudentName(r.student_name, studentName));
           const score = lbHit ? (lbHit.display_score || 0) : (cur.composite_score || 0);
 
           if (score === 0 && !practicedThisWeek) {
@@ -6614,17 +6729,21 @@
           if (analysis && aiCard) {
             aiCard.style.display = 'block';
             delete aiCard.dataset.state;
-            const text = formatAiAnalysisHtml(analysis.analysis_text);
-            if (aiContent) aiContent.innerHTML = text;
-            if (aiDate) {
-              const d = new Date(analysis.generated_at);
-              aiDate.textContent = `${d.getMonth()+1}月${d.getDate()}日 生成`;
-            }
+	            const text = formatAiAnalysisHtml(analysis.analysis_text);
+	            if (aiContent) {
+	              const staleNotice = analysis.has_new_practice
+	                ? '<div style="margin-bottom:10px;color:#fbbf24;font-size:13px;line-height:1.6;">提示：生成后已有新的练琴记录，下面分析暂未包含最新进度；当前今日/本周进度以下方实时数据为准。</div>'
+	                : '';
+	              aiContent.innerHTML = staleNotice + text;
+	            }
+	            if (aiDate) {
+	              aiDate.textContent = formatAiGeneratedAt(analysis.generated_at) + (analysis.has_new_practice ? ' · 待更新' : '');
+	            }
           } else if (aiCard) {
             aiCard.style.display = 'block';
             aiCard.dataset.state = 'empty';
             if (aiContent) {
-              aiContent.innerHTML = '<span style="color:#9ca3af;font-size:13px;">暂无 AI 分析记录，每日晚上 6 点自动生成，或在管理员界面手动触发。</span>';
+              aiContent.innerHTML = '<span style="color:#9ca3af;font-size:13px;">暂无 AI 分析记录，系统会在工作日上午 10:00 自动更新综合榜前 50 名，或在管理员界面手动触发。</span>';
             }
             if (aiDate) aiDate.textContent = '';
           }
@@ -6709,7 +6828,7 @@
         const todayLogs = baseLogs.filter(log => {
           if (!log.timestamp || !log.action) return false;
           const logStudentName = log.student_name || log.student || log.studentName;
-          return logStudentName === studentName && utils.getDateKey(new Date(log.timestamp)) === todayKey;
+	          return sameStudentName(logStudentName, studentName) && utils.getDateKey(new Date(log.timestamp)) === todayKey;
         });
         
         if (todayLogs.length === 0) {
@@ -6939,10 +7058,15 @@
       // 当前琴房
       currentRoom.textContent = student.currentRoom || '--';
 
-      // 今日总计 - 使用与七天总结相同的计算逻辑
-      const todayData = calculateDayData(student.name, new Date());
-      const totalMinutes = todayData.in + todayData.out;
-      todayTotal.textContent = utils.formatDurationHoursMinutes(totalMinutes);
+	      // 今日总计 - 使用与七天总结相同的计算逻辑
+	      const todayData = calculateDayData(student.name, new Date());
+	      const totalMinutes = todayData.in + todayData.out;
+	      todayTotal.textContent = utils.formatDurationHoursMinutes(totalMinutes);
+	      getTodayAchievedMinutes(student.name, new Date()).then(minutes => {
+	        if (uiState.view === 'detail' && sameStudentName(uiState.selectedStudent, student.name)) {
+	          todayTotal.textContent = utils.formatDurationHoursMinutes(minutes);
+	        }
+	      }).catch(() => {});
       
       // 绑定今日总计说明按钮
       const todayTotalHelpBtn = document.getElementById('todayTotalHelpBtn');
@@ -7016,9 +7140,10 @@
       return result;
     }
 
-    // 更新今日时间轴 - 优先使用增量更新机制
-    function updateTodayTimeline(studentName) {
-      // 🚀 优先使用增量更新，性能更好，用户体验更流畅
+	    // 更新今日时间轴 - 优先使用增量更新机制
+	    function updateTodayTimeline(studentName) {
+	      studentName = resolveStudentName(studentName);
+	      // 🚀 优先使用增量更新，性能更好，用户体验更流畅
       if (timelineCache.has(studentName)) {
         updateTimelineIncremental(studentName);
         return;
@@ -7028,14 +7153,15 @@
       updateTodayTimelineFull(studentName);
     }
     
-    // 完整重建时间轴（保留原有逻辑作为兜底）
-    function updateTodayTimelineFull(studentName) {
-      const container = document.getElementById('todayTimeline');
+	    // 完整重建时间轴（保留原有逻辑作为兜底）
+	    function updateTodayTimelineFull(studentName) {
+	      studentName = resolveStudentName(studentName);
+	      const container = document.getElementById('todayTimeline');
       const __perfStart = performance.now();
       const baseLogs = Array.isArray(appState.practiceLogsNormalized) ? appState.practiceLogsNormalized : (appState.practiceLogs||[]);
       const studentLogs = baseLogs.filter(log => {
         const logStudentName = log.student_name || log.student || log.studentName;
-        return logStudentName === studentName;
+	        return sameStudentName(logStudentName, studentName);
       });
 
       const today = new Date();
@@ -7309,8 +7435,9 @@
      * @param {string} studentName 学生姓名
      * @param {Object} newLog 新的日志记录（可选，用于预测性更新）
      */
-    function updateTimelineIncremental(studentName, newLog = null) {
-      const container = document.getElementById('todayTimeline');
+	    function updateTimelineIncremental(studentName, newLog = null) {
+	      studentName = resolveStudentName(studentName);
+	      const container = document.getElementById('todayTimeline');
       if (!container) return;
       // 如果切换了学生，但沿用了同一个容器，需要重置（否则可能出现缓存与实际DOM脱节，导致新增会话被 arraysEqual 短路）
       const boundStudent = container.getAttribute('data-student');
@@ -7323,7 +7450,7 @@
       const baseLogs = Array.isArray(appState.practiceLogsNormalized) ? appState.practiceLogsNormalized : (appState.practiceLogs||[]);
       const studentLogs = baseLogs.filter(log => {
         const logStudentName = log.student_name || log.student || log.studentName;
-        return logStudentName === studentName;
+	        return sameStudentName(logStudentName, studentName);
       });
 
       const today = new Date();
@@ -8380,7 +8507,7 @@
 
         // 若当前打开的学生详情 == 此学生 且 周时段弹窗存在，则刷新其内容
         try {
-          if(uiState.view==='detail' && uiState.selectedStudent===studentName){
+	          if(uiState.view==='detail' && sameStudentName(uiState.selectedStudent, studentName)){
             const modal=document.querySelector('.lb-modal');
             if(modal && /每周练琴时段/.test(modal.textContent||'')){
               if(typeof closeScoreDetailModal==='function') closeScoreDetailModal();
@@ -8578,7 +8705,7 @@
         if(appState.students instanceof Map){
           currentStudent = appState.students.get(studentName) || {};
         } else if(Array.isArray(appState.students)) { // 兼容早期结构
-          currentStudent = appState.students.find(s=>s.name===studentName) || {};
+	          currentStudent = appState.students.find(s=>sameStudentName(s.name, studentName)) || {};
         }
       } catch(e){ console.warn('access student map failed', e); }
       
@@ -9009,8 +9136,9 @@
     }
 
     // 更新历史七天总结
-    async function updateWeekHistory(studentName) {
-      dbg('updateWeekHistory called for:', studentName);
+	    async function updateWeekHistory(studentName) {
+	      studentName = resolveStudentName(studentName);
+	      dbg('updateWeekHistory called for:', studentName);
       // 计算七天数据（优先使用后端备份）
       const weekData = await calculateWeekData(studentName);
       dbg('weekData:', weekData);
@@ -9020,8 +9148,9 @@
     }
 
     // 计算七天数据
-    async function calculateWeekData(studentName) {
-      const dailyData = [];
+	    async function calculateWeekData(studentName) {
+	      studentName = resolveStudentName(studentName);
+	      const dailyData = [];
       const today = new Date();
       let totalIn = 0;
       let totalOut = 0;
@@ -9070,8 +9199,9 @@
     }
 
     // 计算单日数据
-  function calculateDayData(studentName, date) {
-  // 统一：使用 assign/clear 配对模式构建会话
+	  function calculateDayData(studentName, date) {
+	  studentName = resolveStudentName(studentName);
+	  // 统一：使用 assign/clear 配对模式构建会话
   const dateKey = getStatsDayKey(date);
   const baseLogs = Array.isArray(appState.practiceLogsNormalized) ? appState.practiceLogsNormalized : (appState.practiceLogs||[]);
   if(!baseLogs.length) return { in:0, out:0 };
@@ -9079,7 +9209,7 @@
     // 按 timestamp 所在自然日过滤，只处理有 action 的日志
     if(!l.timestamp || !l.action) return false; 
     const tsDate=new Date(l.timestamp); 
-    return getStatsDayKey(tsDate)===dateKey && (l.student_name===studentName);
+	    return getStatsDayKey(tsDate)===dateKey && sameStudentName(l.student_name || l.student || l.studentName, studentName);
   });
   if(!dayLogs.length) return { in:0, out:0 };
 
@@ -9905,8 +10035,9 @@
       } };
     }
 
-    function getTodaySlotsMinutes(studentName, today) {
-      const weekday1to7 = utils.getWeekday(today); // 1..7，周一=1，周日=7
+	    function getTodaySlotsMinutes(studentName, today) {
+	      studentName = resolveStudentName(studentName);
+	      const weekday1to7 = utils.getWeekday(today); // 1..7，周一=1，周日=7
       const ts = appState.timeSlots.get(studentName);
       const list = (ts && ts[weekday1to7]) ? ts[weekday1to7] : [];
       // 现有结构：[{start_time, end_time}]（字符串 HH:MM）或 {start, end}（分钟）
@@ -9919,12 +10050,13 @@
       }).filter(x => Number.isFinite(x.start) && Number.isFinite(x.end) && x.end > x.start);
     }
 
-    function getTodayPracticeIntervalsMs(studentName, today) {
-      const dateKey = utils.getDateKey(today);
-      const logs = (appState.practiceLogs || []).filter(log => {
-        const nm = log.student_name || log.student || log.studentName;
-        if (nm !== studentName) return false;
-        const dKey = utils.getDateKey(new Date(log.timestamp));
+	    function getTodayPracticeIntervalsMs(studentName, today) {
+	      studentName = resolveStudentName(studentName);
+	      const dateKey = utils.getDateKey(today);
+	      const logs = (appState.practiceLogs || []).filter(log => {
+	        const nm = log.student_name || log.student || log.studentName;
+	        if (!sameStudentName(nm, studentName)) return false;
+	        const dKey = utils.getDateKey(new Date(log.timestamp));
         return dKey === dateKey;
       }).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
@@ -10152,7 +10284,7 @@
         if(!isWorkday(d)) { d.setDate(d.getDate()-1); continue; }
         const topNames = await getTopNameForDateFromDB(d); // 使用数据库查询
         // 只有独占第一（数组长度为1且是该学生）才计入连续天数
-        if(Array.isArray(topNames) && topNames.length === 1 && topNames[0] === studentName){
+	        if(Array.isArray(topNames) && topNames.length === 1 && sameStudentName(topNames[0], studentName)){
           cnt++;
         } else {
           // 并列第一或不是第一，中断连续计数
@@ -11104,39 +11236,63 @@
     // ==== 新增：AI 分析与分数获取 ====
     const AI_CACHE_DAYS = 7;
 
-    async function fetchAnalysisCache(name) {
-      try {
-        if (!supabaseClient) return null;
-        const normName = utils.normalizeStudentName(name);
-        
-        // 按 generated_at 倒序，确保始终取最新的一条
-        // 尝试匹配标准化名字
-        let { data: rows, error } = await supabaseClient
-          .from('student_ai_analysis')
-          .select('analysis_text,generated_at,model_source')
-          .eq('student_name', normName)
-          .order('generated_at', { ascending: false })
-          .limit(1);
-          
-        // 备用：尝试原始名字
-        if ((!rows || !rows.length) && name !== normName) {
-           const res = await supabaseClient
-            .from('student_ai_analysis')
-            .select('analysis_text,generated_at,model_source')
-            .eq('student_name', name)
-            .order('generated_at', { ascending: false })
-            .limit(1);
-           if (res.data && res.data.length) rows = res.data;
-        }
-          
-        if (!rows || !rows.length) return null;
-        
-        const ageDays = (Date.now() - new Date(rows[0].generated_at).getTime()) / 86400000;
-        return ageDays < AI_CACHE_DAYS ? rows[0] : null;
-      } catch (e) {
-        console.warn('fetchAnalysisCache error:', e);
-        return null;
-      }
+	    async function fetchAnalysisCache(name) {
+	      try {
+	        if (!supabaseClient) return null;
+	        const nameCandidates = getStudentNameCandidates(name);
+		        let rows = null;
+
+	        // 按 generated_at 倒序，确保始终取最新的一条
+	        for (const candidate of nameCandidates) {
+	          const { data } = await supabaseClient
+	            .from('student_ai_analysis')
+	            .select('analysis_text,generated_at,model_source')
+	            .eq('student_name', candidate)
+	            .order('generated_at', { ascending: false })
+	            .limit(1);
+	          if (data && data.length) {
+	            rows = data;
+	            break;
+	          }
+		        }
+
+	        if (!rows || !rows.length) return null;
+
+	        const latest = rows[0];
+	        const ageDays = (Date.now() - new Date(latest.generated_at).getTime()) / 86400000;
+	        if (ageDays >= AI_CACHE_DAYS) return null;
+
+	        try {
+	          const { data: newerSessions } = await supabaseClient
+	            .from('practice_sessions')
+	            .select('session_start')
+	            .in('student_name', nameCandidates)
+	            .gt('session_start', latest.generated_at)
+	            .order('session_start', { ascending: false })
+	            .limit(1);
+	          if (newerSessions && newerSessions.length) {
+	            latest.has_new_practice = true;
+	            latest.latest_session_at = newerSessions[0].session_start;
+	          }
+	        } catch (e) {
+	          console.warn('fetchAnalysisCache latest-session check failed:', e);
+	        }
+
+	        return latest;
+	      } catch (e) {
+	        console.warn('fetchAnalysisCache error:', e);
+	        return null;
+	      }
+	    }
+
+    function formatAiGeneratedAt(value) {
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return '';
+      return `${d.getMonth() + 1}月${d.getDate()}日 ${d.toLocaleTimeString('zh-CN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      })} 生成`;
     }
 
     async function fetchStudentScore(name) {
@@ -11147,27 +11303,24 @@
           return null;
         }
 
-        const normName = utils.normalizeStudentName(name);
-        dbg('[fetchStudentScore] 标准化姓名:', normName);
+	        const normName = utils.normalizeStudentName(name);
+	        dbg('[fetchStudentScore] 标准化姓名:', normName);
+	        const nameCandidates = getStudentNameCandidates(name);
 
-        // 从 student_baseline 获取最新有效分（与 dashboard 保持一致）
-        let { data: rows, error } = await supabaseClient
-          .from('student_baseline')
-          .select('composite_score, raw_score, last_updated')
-          .eq('student_name', normName)
-          .limit(1);
-
-        if (error) console.error('[fetchStudentScore] 查询失败 (标准姓名):', error);
-
-        // 回退：尝试原始姓名
-        if ((!rows || !rows.length) && name !== normName) {
-          const res = await supabaseClient
-            .from('student_baseline')
-            .select('composite_score, raw_score, last_updated')
-            .eq('student_name', name)
-            .limit(1);
-          if (res.data && res.data.length) rows = res.data;
-        }
+	        // 从 student_baseline 获取最新有效分（与 dashboard 保持一致）
+	        let rows = null;
+	        for (const candidate of nameCandidates) {
+	          const { data, error } = await supabaseClient
+	            .from('student_baseline')
+	            .select('composite_score, raw_score, last_updated')
+	            .eq('student_name', candidate)
+	            .limit(1);
+	          if (error) console.error('[fetchStudentScore] 查询失败:', error);
+	          if (data && data.length) {
+	            rows = data;
+	            break;
+	          }
+	        }
 
         if (!rows || !rows.length) {
           console.warn('[fetchStudentScore] 未找到分数记录');
@@ -11184,12 +11337,12 @@
         })();
         let practicedThisWeek = false;
         try {
-          const { data: ps } = await supabaseClient
-            .from('practice_sessions')
-            .select('session_start')
-            .eq('student_name', normName)
-            .gte('session_start', weekMondayMs)
-            .limit(50);
+	          const { data: ps } = await supabaseClient
+	            .from('practice_sessions')
+	            .select('session_start')
+	            .in('student_name', nameCandidates)
+	            .gte('session_start', weekMondayMs)
+	            .limit(50);
           practicedThisWeek = !!(ps && ps.some(r => r?.session_start && isWorkday(new Date(r.session_start))));
         } catch(e) { /* 查询失败则视为未练 */ }
 
@@ -11200,7 +11353,7 @@
           if (compRows.length > 0) {
             // 用排行榜缓存数据，排名与榜单完全一致
             totalCount = compRows.length;
-            const hit = compRows.find(r => r.student_name === normName || r.student_name === name);
+	            const hit = compRows.find(r => sameStudentName(r.student_name, name));
             rank = hit ? hit.rank_no : null;
           } else if (practicedThisWeek && (current.composite_score || 0) > 0) {
             // 排行榜尚未加载时，优先复用统一的周榜加载链路，避免重复 RPC
@@ -11208,7 +11361,7 @@
             const fallbackCompRows = (typeof _wlbData !== 'undefined' && _wlbData['综合榜']) || [];
             if (fallbackCompRows.length > 0) {
               totalCount = fallbackCompRows.length;
-              const hit = fallbackCompRows.find(r => r.student_name === normName || r.student_name === name);
+	              const hit = fallbackCompRows.find(r => sameStudentName(r.student_name, name));
               rank = hit ? hit.rank_no : null;
             }
           }
@@ -11607,11 +11760,11 @@
       }
 
       try {
-        const { data, error } = await supabaseClient
-          .from('coin_transactions')
-          .select('*')
-          .eq('student_name', studentName)
-          .order('created_at', { ascending: false })
+	        const { data, error } = await supabaseClient
+	          .from('coin_transactions')
+	          .select('*')
+	          .in('student_name', getStudentNameCandidates(studentName))
+	          .order('created_at', { ascending: false })
           .limit(50);
 
         if (error) throw error;
@@ -11623,14 +11776,18 @@
 
         listEl.innerHTML = data.map(tx => {
           const isPos = tx.amount > 0;
+          const isZero = tx.amount === 0;
           const sign = isPos ? '+' : '';
-          const cls = isPos ? 'pos' : 'neg';
+          const cls = isZero ? 'zero' : (isPos ? 'pos' : 'neg');
           const date = new Date(tx.created_at).toLocaleString('zh-CN', {
             month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
           });
-          const typeTag = tx.transaction_type === 'auto_reward' 
-            ? '<span class="coin-hi-tag auto">系统结算</span>' 
-            : '<span class="coin-hi-tag">手动操作</span>';
+          const typeTagMap = {
+            auto_reward: '<span class="coin-hi-tag auto">系统结算</span>',
+            semester_reset: '<span class="coin-hi-tag semester-reset">新学期清零</span>'
+          };
+          const typeTag = typeTagMap[tx.transaction_type]
+            || '<span class="coin-hi-tag">手动操作</span>';
 
           return `
             <div class="coin-history-item">

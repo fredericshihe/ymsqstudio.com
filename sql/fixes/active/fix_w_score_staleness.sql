@@ -16,19 +16,41 @@ SECURITY DEFINER
 AS $$
 DECLARE
   v_rec RECORD;
+  v_week_monday DATE;
+  v_week_start_bjt TIMESTAMPTZ;
+  v_has_current_week_session BOOLEAN;
 BEGIN
+  v_week_monday := DATE_TRUNC('week', NOW() AT TIME ZONE 'Asia/Shanghai')::DATE;
+  v_week_start_bjt := (v_week_monday::TIMESTAMP) AT TIME ZONE 'Asia/Shanghai';
+
   FOR v_rec IN
     SELECT student_name
     FROM public.student_baseline
     WHERE student_name IS NOT NULL
   LOOP
-    PERFORM public.compute_and_store_w_score(v_rec.student_name);
+    SELECT EXISTS (
+      SELECT 1
+      FROM public.practice_sessions
+      WHERE student_name = v_rec.student_name
+        AND cleaned_duration > 0
+        AND session_start >= v_week_start_bjt
+        AND EXTRACT(DOW FROM session_start AT TIME ZONE 'Asia/Shanghai') NOT IN (0, 6)
+    )
+    INTO v_has_current_week_session;
+
+    IF v_has_current_week_session THEN
+      -- 本周已练琴：完整重算当前周综合分，确保 W 变化同步进入 composite_score
+      PERFORM public.compute_student_score(v_rec.student_name);
+    ELSE
+      -- 本周未练琴：仅刷新 W 展示值，避免无意义重写当前周零分快照
+      PERFORM public.compute_and_store_w_score(v_rec.student_name);
+    END IF;
   END LOOP;
 END;
 $$;
 
 COMMENT ON FUNCTION public.refresh_all_w_scores() IS
-'Refresh w_score for all students based on current week progress.';
+'Refresh W for all students, and fully recompute current-week composite scores for students with active workday practice this week.';
 
 
 -- ---------------------------------------------------------------------------
@@ -88,4 +110,3 @@ SELECT jobname, schedule, command
 FROM cron.job
 WHERE jobname IN ('refresh_w_score_weekday_daily', 'refresh_w_score_monday_bootstrap')
 ORDER BY jobname;
-
