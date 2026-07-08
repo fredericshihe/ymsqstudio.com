@@ -4821,7 +4821,7 @@
 		studentIndex: new Map(),
 		floorSet: new Set(),
 		filters: { floor:'ALL', type:'ALL' },
-		settings: { basePracticeDuration:120, practiceSlotCheckEnabled:true }, // 新增: 练琴时段检测开关
+		settings: { basePracticeDuration:120, practiceSlotCheckEnabled:false }, // 新增: 练琴时段检测开关（默认关闭）
 		timer: null,
 		lastStats:{},
 		pendingAssign:new Map(), // roomName -> {occupant,version,ts}
@@ -15998,6 +15998,27 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			clearOperationIndicator(roomName);
 		}
 	}
+	// 拉取某琴房最近7天各学生的登记(assign)次数，缓存到 window.__roomUsageCounts[room]
+	window.__roomUsageCounts = window.__roomUsageCounts || {};
+	async function fetchRoomUsageCounts(roomName){
+		if(!roomName || !window.supabaseClient || !window.supabaseReady) return;
+		try{
+			const since = new Date(Date.now() - 7*24*60*60*1000).toISOString();
+			const { data, error } = await supabaseClient
+				.from('practice_logs')
+				.select('student_name')
+				.eq('room_name', roomName)
+				.eq('action', 'assign')
+				.gte('timestamp', since);
+			if(error){ console.warn('[RoomUsage] 拉取失败', error.message); return; }
+			const counts = new Map();
+			(data||[]).forEach(r=>{ const n=r.student_name; if(!n) return; counts.set(n, (counts.get(n)||0)+1); });
+			window.__roomUsageCounts[roomName] = counts;
+			// 拉取完成后，如该房间选择弹窗仍打开则重新排序渲染
+			const modal=document.getElementById('studentModalBackdrop');
+			if(modal && modal.style.display!=='none' && modal.dataset.room===roomName && typeof renderStudentList==='function'){ renderStudentList(); }
+		}catch(e){ console.warn('[RoomUsage] 异常', e.message); }
+	}
 	function openStudentModal(roomName){
 		const modal=document.getElementById('studentModalBackdrop'); 
 		modal.style.display='flex'; 
@@ -16024,6 +16045,8 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		renderStudentList();
 		// 后台拉取云端学生变更（节流），保证跨设备增删改也能在打开选择弹窗时及时反映
 		try{ window.StudentLibrary && window.StudentLibrary.refreshFromCloud && window.StudentLibrary.refreshFromCloud(); }catch(_){ }
+		// 后台拉取本琴房最近7天练琴次数，用于把常练学生排在前面
+		try{ fetchRoomUsageCounts(roomName); }catch(_){ }
 		// 聚焦输入框方便直接打字
 		setTimeout(()=>input.focus(), 0);
 	}
@@ -16067,7 +16090,14 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			arr = arr.filter(s => s.major === '钢琴教研室');
 		}
 		
-		arr.sort((a,b)=>a.name.localeCompare(b.name,'zh-Hans-CN'));
+		// 优先展示该琴房最近7天登记(练琴)次数最多的学生，其余按默认姓名顺序
+		const usageCounts = (window.__roomUsageCounts && window.__roomUsageCounts[roomName]) || null;
+		arr.sort((a,b)=>{
+			const ca = usageCounts ? (usageCounts.get(a.name)||0) : 0;
+			const cb = usageCounts ? (usageCounts.get(b.name)||0) : 0;
+			if(cb!==ca) return cb-ca;
+			return a.name.localeCompare(b.name,'zh-Hans-CN');
+		});
 		
 		// 建立占用索引，提高查找速度
 		const occupancyMap = new Map();
@@ -16124,6 +16154,16 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 				gradeEl.className = 'tag grade';
 				gradeEl.textContent = s.grade;
 				left.appendChild(gradeEl);
+			}
+
+			// 本房最近7天练琴次数徽标（用于说明置顶排序原因）
+			const roomFreq = usageCounts ? (usageCounts.get(s.name)||0) : 0;
+			if(roomFreq>0){
+				const freqEl = document.createElement('span');
+				freqEl.textContent = `本房 ${roomFreq} 次`;
+				freqEl.title = '最近7天在本琴房的练琴次数';
+				freqEl.style.cssText = 'padding:2px 8px;font-size:11px;border-radius:20px;background:rgba(52,211,153,0.15);color:#6ee7b7;letter-spacing:.3px;white-space:nowrap;';
+				left.appendChild(freqEl);
 			}
 
 			const right = document.createElement('div');
