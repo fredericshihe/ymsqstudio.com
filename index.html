@@ -16022,6 +16022,8 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			document.getElementById('btnStudentModalCancel').style.display = 'inline-flex';
 		}
 		renderStudentList();
+		// 后台拉取云端学生变更（节流），保证跨设备增删改也能在打开选择弹窗时及时反映
+		try{ window.StudentLibrary && window.StudentLibrary.refreshFromCloud && window.StudentLibrary.refreshFromCloud(); }catch(_){ }
 		// 聚焦输入框方便直接打字
 		setTimeout(()=>input.focus(), 0);
 	}
@@ -17921,9 +17923,19 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	// 待同步队列: {type:'upsert'|'delete', payload:{name,major,grade,archived?}} 离线时累积
 	let pendingCloudOps = [];
 	let pendingCloudOpsFlushing = false;
+	// 待同步队列持久化：刷新后可继续上行，避免未同步的本地录入丢失
+	const PENDING_KEY = 'yms_students_pending_ops_v1';
+	let flushRetryTimer = null;
+	let flushRetryCount = 0;
 	function now(){ return Date.now(); }
 	function save(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(store)); }catch(e){ console.warn('[StudentLibrary] save failed', e); } }
 	function load(){ try{ const raw=localStorage.getItem(LS_KEY); if(raw){ const obj=JSON.parse(raw); if(obj.version===1 && Array.isArray(obj.items)){ store.items=obj.items; } } }catch(e){ console.warn('[StudentLibrary] load failed', e); } }
+	function savePending(){ try{ localStorage.setItem(PENDING_KEY, JSON.stringify(pendingCloudOps)); }catch(e){ /* 忽略持久化失败 */ } }
+	function loadPending(){ try{ const raw=localStorage.getItem(PENDING_KEY); if(raw){ const arr=JSON.parse(raw); if(Array.isArray(arr) && arr.length) pendingCloudOps = arr; } }catch(e){ /* 损坏则忽略 */ } }
+	// 仍在等待上行（未确认写入云端）的学生名，用于保护本地未同步数据不被对账/云端加载销毁
+	function getPendingUpsertNames(){ const s=new Set(); for(const op of pendingCloudOps){ if(op && op.type==='upsert' && op.payload && op.payload.name) s.add(op.payload.name); } return s; }
+	function isSyncPending(name){ if(!name) return false; for(const op of pendingCloudOps){ if(op && op.payload && op.payload.name===name) return true; } return false; }
+	window.__isStudentSyncPending = isSyncPending;
 	
 	// 云端加载节流：首次不冷却，后续30秒冷却
 	let lastCloudLoadTime = 0;
@@ -17975,6 +17987,8 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					const localStudent = localByName.get(cloudStudent.name);
 					
 					if (localStudent) {
+						// 本地有未上行的修改则保留本地值，避免云端旧值覆盖
+						if (isSyncPending(cloudStudent.name)) { return; }
 						// 已存在，更新信息（以云端为准，但保留本地ID和备注）
 						localStudent.grade = cloudStudent.grade || '';
 						localStudent.major = cloudStudent.major || '';
@@ -18057,11 +18071,33 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 
 			if(upserts.length){
 				console.log('[StudentLibrary] 批量上行学生', upserts.length);
-				const { error: upsertError } = await supabaseClient
-					.from('student_database')
-					.upsert(upserts, { onConflict: 'name' });
-				if(upsertError){
-					throw new Error(`upsert失败: ${upsertError.message}`);
+				// student_database.name 无唯一约束（onConflict 会报 42P10），改为先查已存在再分插入/更新
+				const names = upserts.map(u => u.name);
+				let existingNames = [];
+				for(let i=0;i<names.length;i+=120){
+					const nameChunk = names.slice(i, i+120);
+					const { data: existRows, error: existErr } = await supabaseClient
+						.from('student_database')
+						.select('name')
+						.in('name', nameChunk);
+					if(existErr){ throw new Error(`查询已存在学生失败: ${existErr.message}`); }
+					if(Array.isArray(existRows)) existingNames.push(...existRows.map(r => r.name));
+				}
+				const existingSet = new Set(existingNames);
+				const toInsert = upserts.filter(u => !existingSet.has(u.name));
+				const toUpdate = upserts.filter(u => existingSet.has(u.name));
+				if(toInsert.length){
+					const { error: insErr } = await supabaseClient
+						.from('student_database')
+						.insert(toInsert);
+					if(insErr){ throw new Error(`insert失败: ${insErr.message}`); }
+				}
+				for(const row of toUpdate){
+					const { error: updErr } = await supabaseClient
+						.from('student_database')
+						.update({ major: row.major, grade: row.grade })
+						.eq('name', row.name);
+					if(updErr){ throw new Error(`update失败: ${updErr.message}`); }
 				}
 			}
 
@@ -18081,20 +18117,31 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 
 			// 仅在整批成功后移除已处理队列，失败时不丢单
 			pendingCloudOps = pendingCloudOps.slice(opsSnapshot.length);
+			savePending();
 			flushedOk = true;
 		}catch(e){
 			console.warn('[StudentLibrary] flushPending exception', e);
 		}finally{
 			pendingCloudOpsFlushing = false;
-			// 仅成功后继续冲刷剩余队列，失败留待下次触发避免重试风暴
-			if(flushedOk && pendingCloudOps.length > 0){
-				setTimeout(() => { flushPending(); }, 0);
+			if(flushedOk){
+				flushRetryCount = 0;
+				if(flushRetryTimer){ clearTimeout(flushRetryTimer); flushRetryTimer = null; }
+				// 成功后继续冲刷剩余队列
+				if(pendingCloudOps.length > 0){ setTimeout(() => { flushPending(); }, 0); }
+			}else if(pendingCloudOps.length > 0 && !flushRetryTimer){
+				// 失败：指数退避重试，避免重试风暴；多次失败后提示用户
+				flushRetryCount++;
+				const delay = Math.min(30000, 1000 * Math.pow(2, Math.min(flushRetryCount, 5)));
+				if(flushRetryCount === 3 && typeof toast==='function'){ toast('学生数据云端同步失败，正在重试…', 'warn'); }
+				else if(flushRetryCount >= 6 && typeof toast==='function'){ toast('学生数据多次同步失败，请检查网络后重试', 'error'); }
+				flushRetryTimer = setTimeout(() => { flushRetryTimer = null; flushPending(); }, delay);
 			}
 		}
 	}
-	function enqueue(op){ 
-		pendingCloudOps.push(op); 
-		if(pendingCloudOps.length>50) console.warn('[StudentLibrary] pendingCloudOps size', pendingCloudOps.length); 
+	function enqueue(op){
+		pendingCloudOps.push(op);
+		savePending();
+		if(pendingCloudOps.length>50) console.warn('[StudentLibrary] pendingCloudOps size', pendingCloudOps.length);
 		if(!window.supabaseReady){
 			if(typeof toast==='function') toast('离线：变更已排队', 'warn');
 			return; 
@@ -18308,8 +18355,9 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					if(!rename.data){ throw new Error('学生改名失败: 云端未找到旧学生记录'); }
 					step(70,'学生姓名与关联数据已同步');
 				}else{
-					const upd=await supabaseClient.from('student_database').update({ major:basePayload.major, grade:basePayload.grade }).eq('name', newName);
+					const upd=await supabaseClient.from('student_database').update({ major:basePayload.major, grade:basePayload.grade }).eq('name', newName).select('name');
 					if(upd.error){ throw new Error('学生更新失败: '+upd.error.message); }
+						if(!upd.data || upd.data.length===0){ enqueue({ type:'upsert', payload:{ name:newName, major:basePayload.major, grade:basePayload.grade } }); }
 					step(70,'学生信息已同步');
 				}
 				step(92,'刷新界面...'); await new Promise(r=>requestAnimationFrame(r)); step(100,'完成'); setTimeout(()=>close(),500);
@@ -18359,8 +18407,11 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			let added = 0;
 			let updated = 0;
 			
+			const pendingNames = getPendingUpsertNames();
 			for(const [name] of localMap){
 				if(!cloudMap.has(name)){
+					// 跳过仍在等待上行的本地学生，避免删除尚未同步成功的新录入
+					if(pendingNames.has(name)){ continue; }
 					const i = store.items.findIndex(s=>s.name===name);
 					if(i>=0){ store.items.splice(i,1); removed++; }
 				}
@@ -18382,6 +18433,8 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					added++;
 					continue;
 				}
+				// 本地有未上行的修改时，以本地为准，避免云端旧值覆盖
+				if (pendingNames.has(row.name)) { continue; }
 				
 				let changed = false;
 				if (local.grade !== (row.grade || '')) {
@@ -18470,8 +18523,8 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				try{
 					const rowsForCloud = Array.from(changedStudents.values());
 					if(rowsForCloud.length){
-						const { error } = await supabaseClient.from('student_database').upsert(rowsForCloud, { onConflict:'name' });
-						if(error) throw error;
+						// student_database.name 无唯一约束，不能用 onConflict；走统一的待同步队列
+						rowsForCloud.forEach(r=>{ enqueue({ type:'upsert', payload:{ name:r.name, major:r.major||'', grade:r.grade||'' } }); });
 					}
 				}catch(e){ console.warn('[StudentLibrary] 学生信息同步异常', e); }
 			})();
@@ -18650,15 +18703,21 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	}
 	function bindGlobalButtons(){ if(!document.getElementById('openStudentLibraryBtn')){ const topBar=document.querySelector('header .top-actions')||document.querySelector('header'); if(topBar){ const btn=document.createElement('button'); btn.id='openStudentLibraryBtn'; btn.textContent='学生库'; btn.style.cssText='margin-left:8px;padding:6px 14px;background:#1e3a8a;color:#fff;border:1px solid #1e40af;border-radius:6px;cursor:pointer;font-size:13px;'; btn.onclick=openPanel; topBar.appendChild(btn);} } }
 	document.addEventListener('DOMContentLoaded', async () => {
+		// 先加载本地数据与待同步队列，保证未上行成功的本地录入不被云端覆盖
+		load();
+		loadPending();
+
 		// 等待 Supabase (若页面刚通过密码进入, 脚本初始化可能稍后完成)
 		await waitSupabaseReady(6000);
-		
+
+		// 恢复上次未完成的上行队列（刷新前排队/失败的录入继续上传）
+		try{ if(pendingCloudOps.length) flushPending(); }catch(_){ }
+
 		let cloudLoaded = false;
 		try { cloudLoaded = await loadFromCloud(); } catch(_){ }
-		
-		if (!cloudLoaded) {
-			console.log('[StudentLibrary] 首次云端未加载成功，尝试本地/迁移');
-			load();
+
+		if (!cloudLoaded && store.items.length===0) {
+			console.log('[StudentLibrary] 云端未加载且本地为空，尝试迁移');
 			migrateFromRoomStore();
 		}
 		
@@ -18860,7 +18919,9 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		}
 	};
 	
-	window.StudentLibrary={ addStudent, updateStudent, deleteStudent, list:getAll, refresh:refreshUI, _handleRemoteUpdate: handleRemoteUpdate };
+	// 后台从云端拉取学生变更并刷新界面（供打开学生选择弹窗时调用，保证跨设备增删改及时反映）
+	async function refreshFromCloud(){ try{ const ok = await loadFromCloud(); if(ok) refreshUI(); }catch(_){ } }
+	window.StudentLibrary={ addStudent, updateStudent, deleteStudent, list:getAll, refresh:refreshUI, refreshFromCloud, _handleRemoteUpdate: handleRemoteUpdate };
 })();
 </script>
 
