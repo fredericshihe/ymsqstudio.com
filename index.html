@@ -228,7 +228,7 @@
 		.filters button {padding:6px 12px;font-size:12px;border-radius:999px;background:var(--surface-alt);} .filters button[data-active='1']{background:var(--accent);color:#fff;border-color:var(--accent);} .filters button:hover{border-color:var(--outline-hover);} 
 		.grid {display:grid; gap:var(--grid-gap); grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); contain: layout paint;}
 		@media (min-width:1250px){ .grid{grid-template-columns:repeat(5,1fr);} }
-		.room-card {position:relative; background:linear-gradient(150deg,#232b35,#1b2129); border:1px solid var(--outline); border-radius:var(--radius); padding:12px 12px 10px; display:flex; flex-direction:column; gap:6px; min-height:var(--card-min-h); cursor:pointer; transition:var(--transition); overflow:hidden; contain: content; will-change: transform;}
+		.room-card {position:relative; background:linear-gradient(150deg,#232b35,#1b2129); border:1px solid var(--outline); border-radius:var(--radius); padding:12px 12px 10px; display:flex; flex-direction:column; gap:6px; min-height:var(--card-min-h); cursor:pointer; transition:var(--transition); overflow:hidden; contain: content;}
 		.room-card:hover {border-color:var(--outline-hover); transform:translateY(-3px) translateZ(0);} 
 		.room-card[data-status='occupied']{
 			background:linear-gradient(135deg,#2a4158 0%,#1d3245 40%,#16252f 100%); 
@@ -910,7 +910,7 @@
 			<!-- 跳转按钮 -->
 			<button onclick="window.open('practiceanalyse.html', '_blank')" class="ghost" title="打开练琴分析">📊 练琴分析</button>
 			<button onclick="window.open('admin_coins.html', '_blank')" class="ghost" title="音符币管理后台">🎵 音符币</button>
-			<button id="btnToggleSlotCheck" class="ghost" title="切换登记时段检测">时段检测: 开</button>
+			<button id="btnToggleSlotCheck" class="ghost" title="切换登记时段检测">时段检测: 关</button>
 			<button id="btnPracticeLogSearch" class="ghost" title="查询学生练琴记录">查练琴记录</button>
 			<!-- 已移除刷新按钮 -->
 			<!-- 已移除考勤时间段入口 (改由学生库内导入导出 + 需要时可重新添加) -->
@@ -2545,38 +2545,40 @@
 			}
 		}
 		
-		// 与服务器同步时间
-		async syncWithServer() {
+		// 与服务器同步时间（优先用服务端 RPC 校准真实偏移，RPC 未部署则退回连通性检测、偏移保持0）
+		async syncWithServer(force=false) {
 			if (this.syncInProgress || !supabaseClient) return;
+			// 节流：非强制时 60 秒内不重复同步，避免频繁切标签刷请求
+			if (!force && this.lastSyncTime && (Date.now() - this.lastSyncTime < 60000)) return;
 			this.syncInProgress = true;
 			try {
-				// 简化策略：由于无法获取真实服务器时间戳，仅做连通性检测
-				// 实际时间偏移保持为0，避免异常的巨大偏移值
-				const t0 = performance.now();
-				const { data, error } = await supabaseClient
-					.from('rooms')
-					.select('name')
-					.limit(1);
-				const t1 = performance.now();
-				
-				if (error) {
-					this.failCount = (this.failCount||0) + 1;
-					logWarn('[TimeSync] 连接测试失败，保留旧偏移 (failCount=' + this.failCount + ')');
-					return;
+				const t0 = Date.now();
+				let usedRpc = false;
+				if (!this.rpcMissing) {
+					try {
+						const { data, error } = await supabaseClient.rpc('get_server_time');
+						const t1 = Date.now();
+						if (error) {
+							// 函数未部署（PGRST202 / does not exist）→ 记住并不再尝试，改用回退
+							if (error.code === 'PGRST202' || /function|does not exist|not found/i.test(error.message||'')) { this.rpcMissing = true; }
+						} else if (data) {
+							const serverMs = new Date(data).getTime();
+							if (!isNaN(serverMs)) {
+								const localMid = t0 + (t1 - t0) / 2;
+								const offset = serverMs - localMid;
+								if (Math.abs(offset) < 24 * 60 * 60 * 1000) { this.serverTimeOffset = offset; }
+								this.rtt = t1 - t0; this.lastSyncTime = Date.now(); this.failCount = 0; usedRpc = true;
+							}
+						}
+					} catch (_e) { /* RPC 不存在则回退 */ }
 				}
-				
-				// 成功连接，但不计算时间偏移（避免不准确的估算）
-				this.rtt = t1 - t0;
-				this.lastSyncTime = Date.now();
-				this.failCount = 0;
-				
-				// 检查是否存在异常的巨大偏移值，如果有则重置为0
+				if (usedRpc) return;
+				// 回退：连通性检测，保留旧偏移（get_server_time RPC 未部署时）
+				const { error: pingErr } = await supabaseClient.from('rooms').select('name').limit(1);
+				if (pingErr) { this.failCount = (this.failCount || 0) + 1; return; }
+				this.lastSyncTime = Date.now(); this.failCount = 0;
 				const oldOffset = this.serverTimeOffset || 0;
-				if (Math.abs(oldOffset) > 24 * 60 * 60 * 1000) { // 超过24小时
-					logWarn('[TimeSync] 检测到异常偏移值，重置为0');
-					this.serverTimeOffset = 0;
-				}
-				
+				if (Math.abs(oldOffset) > 24 * 60 * 60 * 1000) { this.serverTimeOffset = 0; }
 			} catch (e) {
 				logWarn('[TimeSync] 同步异常: ' + e.message);
 			} finally {
@@ -8891,6 +8893,9 @@
 		async function reconcileLoop(){
 			try {
 				if(!supabaseReady || !Store?.rooms?.length){ return; }
+				// 实时通道在本周期内有活动则跳过轮询对账（realtime 正在推送变更，无需再轮询）；
+				// 空闲或断线时 __lastRealtimeActivity 变旧 → 仍会对账，保留兜底
+				if((Date.now() - (window.__lastRealtimeActivity||0)) < LOOP_INTERVAL){ return; }
 				const sample = collectRoomStateReconcileSample(5);
 				if(!sample.length) return;
 				const { data, error } = await supabaseClient
@@ -12749,6 +12754,12 @@
 			logWarn('Supabase 未连接，跳过学生数据库同步');
 			return;
 		}
+		// 避免与 StudentLibrary 的待同步队列并发写入（两者都做“按名不存在则插入”，并发会产生重复行）
+		if(window.__studentLibraryHasPending && window.__studentLibraryHasPending()){
+			logInfo('StudentLibrary 队列未清空，跳过 legacy 学生全量同步以避免重复插入');
+			try{ if(window.__retryStudentLibraryPending) window.__retryStudentLibraryPending(); }catch(_){ }
+			return;
+		}
 		
 		try {
 			// 过滤并规范化：不上传前端生成的 UUID id，交由数据库 bigint identity 生成
@@ -12903,7 +12914,7 @@
 			const pending = (Store.localPracticeLogs||[]).filter(l=>!l.synced).slice(-800);
 			if(pending.length){ localStorage.setItem(LS_PRACTICE_LOGS_KEY, JSON.stringify(pending)); }
 			else { localStorage.removeItem(LS_PRACTICE_LOGS_KEY); }
-		}catch(_e){ /* 配额等失败忽略 */ }
+		}catch(e){ try{ window.__handleStorageQuota && window.__handleStorageQuota(e); }catch(_){ } }
 	}
 	function loadPendingPracticeLogs(){
 		try{
@@ -12917,6 +12928,24 @@
 		}catch(_e){ }
 	}
 	window.__persistPendingPracticeLogs = persistPendingPracticeLogs;
+
+	// ===== localStorage 配额溢出处理：识别 → 清理过期缓存 → 提示用户 =====
+	let __quotaToastAt = 0;
+	function isQuotaError(e){ return !!e && (e.name==='QuotaExceededError' || e.name==='NS_ERROR_DOM_QUOTA_REACHED' || e.code===22 || e.code===1014 || /quota/i.test(e.message||'')); }
+	window.__handleStorageQuota = function(e){
+		if(!isQuotaError(e)) return false;
+		// 回收空间：删除非今日的按天静音缓存
+		try{
+			const today = (new Date()).toISOString().slice(0,10);
+			for(let i=localStorage.length-1;i>=0;i--){
+				const k=localStorage.key(i);
+				if(k && k.indexOf('practice_alerts_silence_cache_')===0 && k.indexOf(today)<0){ localStorage.removeItem(k); }
+			}
+		}catch(_){ }
+		// 限流提示（每分钟最多一次）
+		if(Date.now()-__quotaToastAt > 60000){ __quotaToastAt=Date.now(); try{ if(typeof toast==='function') toast('本地存储空间已满，已清理部分缓存；如仍异常请清理浏览器数据', 'error'); }catch(_){ } }
+		return true;
+	};
 
 	// 同步练习记录到 practice_logs 表
 	async function syncPracticeLogsToCloud() {
@@ -15681,7 +15710,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			</select>`;
 		}
 		
-		return `<div class="room-card ${!r.occupant_student_name?'empty':''} ${editModeClass}" data-room="${r.name}" data-grand="${isGrand?1:0}" data-type="${typeStr}" data-floor="${escapeHtml(deriveFloor(r.location) || '')}" ${visibility.dataAttr} data-status="${st.state}" tabindex="0" title="${r.name}\n${r.location||''}\n${r.pianoType}"${visibility.styleAttr}>
+		return `<div class="room-card ${!r.occupant_student_name?'empty':''} ${editModeClass}" data-room="${escapeHtml(r.name)}" data-grand="${isGrand?1:0}" data-type="${typeStr}" data-floor="${escapeHtml(deriveFloor(r.location) || '')}" ${visibility.dataAttr} data-status="${st.state}" tabindex="0" title="${escapeHtml(r.name)}\n${escapeHtml(r.location||'')}\n${escapeHtml(r.pianoType||'')}"${visibility.styleAttr}>
 			${deleteBtn}
 			<div class="sync-hint" aria-hidden="true"><span class="dot"></span><span>提交中</span></div>
 			${Store.editMode ? `<div class="edit-row">
@@ -15692,7 +15721,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			<div class="remark" ${Store.editMode ? 'contenteditable="true" data-field="remark"' : ''}>${remarkContent}</div>
 			${r.occupant_student_name && !Store.editMode ?`<div class="occupant-line"><span class="dot"></span><span>${escapeHtml(r.occupant_student_name)}</span></div>`:''}
 			${!Store.editMode ? `<div class="status-row">
-				${r.occupant_student_name ? `<span class="chip ${st.class}" ${st.state==='preparing'?`data-preparing-chip="1" data-room-prep="${r.name}"`:''}>${st.chip}</span>` : `<span class="chip chip-dim" data-empty="1">空闲</span>`}
+				${r.occupant_student_name ? `<span class="chip ${st.class}" ${st.state==='preparing'?`data-preparing-chip="1" data-room-prep="${escapeHtml(r.name)}"`:''}>${st.chip}</span>` : `<span class="chip chip-dim" data-empty="1">空闲</span>`}
 				<div class="actions">${r.occupant_student_name?`<button class="danger" data-act="clear" title="清空">✕</button><button class="renew-btn" data-act="renew" title="续期">⟳</button>`:``}</div>
 			</div>` : ''}
 		</div>`; 
@@ -16059,10 +16088,14 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			clearOperationIndicator(roomName);
 		}
 	}
-	// 拉取某琴房最近7天各学生的登记(assign)次数，缓存到 window.__roomUsageCounts[room]
+	// 拉取某琴房最近7天各学生的登记(assign)次数，缓存到 window.__roomUsageCounts[room]（带 TTL，避免反复开弹窗重复查）
 	window.__roomUsageCounts = window.__roomUsageCounts || {};
+	window.__roomUsageCountsAt = window.__roomUsageCountsAt || {};
+	const ROOM_USAGE_TTL = 60000;
 	async function fetchRoomUsageCounts(roomName){
 		if(!roomName || !window.supabaseClient || !window.supabaseReady) return;
+		// 命中新鲜缓存则跳过网络请求
+		if(window.__roomUsageCounts[roomName] && (Date.now() - (window.__roomUsageCountsAt[roomName]||0) < ROOM_USAGE_TTL)) return;
 		try{
 			const since = new Date(Date.now() - 7*24*60*60*1000).toISOString();
 			const { data, error } = await supabaseClient
@@ -16075,6 +16108,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			const counts = new Map();
 			(data||[]).forEach(r=>{ const n=r.student_name; if(!n) return; counts.set(n, (counts.get(n)||0)+1); });
 			window.__roomUsageCounts[roomName] = counts;
+			window.__roomUsageCountsAt[roomName] = Date.now();
 			// 拉取完成后，如该房间选择弹窗仍打开则重新排序渲染
 			const modal=document.getElementById('studentModalBackdrop');
 			if(modal && modal.style.display!=='none' && modal.dataset.room===roomName && typeof renderStudentList==='function'){ renderStudentList(); }
@@ -16495,12 +16529,15 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 					closeStudentModal();
 				} else if(result.cancelled){
 					toast('已取消登记', 'info');
+					try{ renderStudentList(); }catch(_){ }
 				} else {
 					toast(`❌ 登记失败: ${result.error || '未知错误'}`, 'error');
+					try{ renderStudentList(); }catch(_){ }
 				}
 			} catch(err) {
 				logErr('多人登记失败:', err);
 				toast(`❌ 登记失败，请检查后重试`, 'error');
+				try{ renderStudentList(); }catch(_){ }
 			}
 		}
 	}
@@ -16526,16 +16563,8 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		
 		// 聚焦房间名称输入框
 		setTimeout(() => document.getElementById('addRoomName').focus(), 0);
-		
-		// 点击背景关闭模态框
-		modal.addEventListener('click', function handleBackdropClick(e) {
-			if (e.target === modal) {
-				closeAddRoomModal();
-				modal.removeEventListener('click', handleBackdropClick);
-			}
-		});
 	}
-	
+
 	function closeAddRoomModal(){
 		document.getElementById('addRoomModalBackdrop').style.display = 'none';
 	}
@@ -16544,6 +16573,9 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		document.getElementById('btnCloseAddRoomModal').onclick = closeAddRoomModal;
 		document.getElementById('btnAddRoomCancel').onclick = closeAddRoomModal;
 		document.getElementById('btnAddRoomConfirm').onclick = createNewRoom;
+		// 背景点击关闭（只绑定一次，避免每次打开弹窗都新增监听器泄漏）
+		const addRoomModal = document.getElementById('addRoomModalBackdrop');
+		if(addRoomModal && !addRoomModal.__backdropBound){ addRoomModal.__backdropBound=true; addRoomModal.addEventListener('click', e=>{ if(e.target===addRoomModal) closeAddRoomModal(); }); }
 		
 		// 钢琴类型选择器事件
 		document.querySelectorAll('.piano-type-option').forEach(option => {
@@ -16695,7 +16727,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 	/*************************************************
 	 * 搜索
 	 *************************************************/
-	function initSearch(){ document.getElementById('globalSearch').addEventListener('input', ()=>{ runGlobalSearch(); }); }
+	function initSearch(){ const el=document.getElementById('globalSearch'); let t=null; el.addEventListener('input', ()=>{ if(t) clearTimeout(t); t=setTimeout(()=>{ t=null; runGlobalSearch(); }, 150); }); }
 	function runGlobalSearch(){ 
 		const q=document.getElementById('globalSearch').value.trim().toLowerCase(); 
 		const box=document.getElementById('inlineSearchResults'); 
@@ -18047,14 +18079,15 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	let flushRetryTimer = null;
 	let flushRetryCount = 0;
 	function now(){ return Date.now(); }
-	function save(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(store)); }catch(e){ console.warn('[StudentLibrary] save failed', e); } }
+	function save(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(store)); }catch(e){ console.warn('[StudentLibrary] save failed', e); try{ window.__handleStorageQuota && window.__handleStorageQuota(e); }catch(_){ } } }
 	function load(){ try{ const raw=localStorage.getItem(LS_KEY); if(raw){ const obj=JSON.parse(raw); if(obj.version===1 && Array.isArray(obj.items)){ store.items=obj.items; } } }catch(e){ console.warn('[StudentLibrary] load failed', e); } }
-	function savePending(){ try{ localStorage.setItem(PENDING_KEY, JSON.stringify(pendingCloudOps)); }catch(e){ /* 忽略持久化失败 */ } }
+	function savePending(){ try{ localStorage.setItem(PENDING_KEY, JSON.stringify(pendingCloudOps)); }catch(e){ try{ window.__handleStorageQuota && window.__handleStorageQuota(e); }catch(_){ } } }
 	function loadPending(){ try{ const raw=localStorage.getItem(PENDING_KEY); if(raw){ const arr=JSON.parse(raw); if(Array.isArray(arr) && arr.length) pendingCloudOps = arr; } }catch(e){ /* 损坏则忽略 */ } }
 	// 仍在等待上行（未确认写入云端）的学生名，用于保护本地未同步数据不被对账/云端加载销毁
 	function getPendingUpsertNames(){ const s=new Set(); for(const op of pendingCloudOps){ if(op && op.type==='upsert' && op.payload && op.payload.name) s.add(op.payload.name); } return s; }
 	function isSyncPending(name){ if(!name) return false; for(const op of pendingCloudOps){ if(op && op.payload && op.payload.name===name) return true; } return false; }
 	window.__isStudentSyncPending = isSyncPending;
+	window.__studentLibraryHasPending = () => pendingCloudOps.length > 0;
 	
 	// 云端加载节流：首次不冷却，后续30秒冷却
 	let lastCloudLoadTime = 0;
@@ -18088,7 +18121,8 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			const { data: cloudStudents, error } = await window.supabaseClient
 				.from('student_database')
 				.select('name,grade,major,updated_at,created_at')
-				.order('name');
+				.order('name')
+				.range(0, 99999);
 			
 			if (error) {
 				console.warn('[StudentLibrary] 云端加载失败:', error.message);
@@ -18275,23 +18309,24 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	function syncStoreItemToCloud(it){ if(!it) return; enqueue({ type:'upsert', payload:{ name:it.name, major:it.major||'', grade:it.grade||'' } }); }
 	function addStudent(meta){ 
 		if(!meta?.name) throw new Error('name required'); 
-		if(findByName(meta.name)) throw new Error('已存在同名学生'); 
+		const nm=String(meta.name).trim(); if(!nm) throw new Error('name required');
+		if(findByName(nm)) throw new Error('已存在同名学生'); 
 		
 		// 标记本地更新，避免实时同步循环
 		if (!window.__studentUpdateIgnore) window.__studentUpdateIgnore = new Set();
-		window.__studentUpdateIgnore.add(meta.name);
+		window.__studentUpdateIgnore.add(nm);
 		window.__studentUpdateTimestamp = Date.now();
 		
 		// 清理标记（5秒后）
 		setTimeout(() => {
 			if (window.__studentUpdateIgnore) {
-				window.__studentUpdateIgnore.delete(meta.name);
+				window.__studentUpdateIgnore.delete(nm);
 			}
 		}, 5000);
 		
 		const item={ 
 			id:crypto.randomUUID?crypto.randomUUID():('id_'+Math.random().toString(36).slice(2)), 
-			name:meta.name.trim(), 
+			name:nm, 
 			grade:meta.grade||'', 
 			major:meta.major||'', 
 			remark:meta.remark||'', 
@@ -18529,7 +18564,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		const { silent = false } = options;
 		if(!window.supabaseClient || !window.supabaseReady) return;
 		try{
-			const { data, error } = await supabaseClient.from('student_database').select('name,major,grade,updated_at,created_at');
+			const { data, error } = await supabaseClient.from('student_database').select('name,major,grade,updated_at,created_at').range(0, 99999);
 			if(error){ console.warn('[StudentLibrary][reconcile] 拉取失败', error.message); return; }
 			const cloudRows = data || [];
 			const cloudMap = new Map(cloudRows.map(r => [r.name, r]));
@@ -18539,8 +18574,11 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			let updated = 0;
 			
 			const pendingNames = getPendingUpsertNames();
+			// 安全护栏：仅当云端返回非空且未触及分页上限时才允许按“云端缺失”删除本地，避免因分页截断/空响应误删全部本地学生
+			const allowDelete = cloudRows.length > 0 && cloudRows.length < 100000;
+			if(cloudRows.length >= 100000){ console.warn('[StudentLibrary][reconcile] 云端行数达上限，跳过本地删除以防误删'); }
 			for(const [name] of localMap){
-				if(!cloudMap.has(name)){
+				if(allowDelete && !cloudMap.has(name)){
 					// 跳过仍在等待上行的本地学生，避免删除尚未同步成功的新录入
 					if(pendingNames.has(name)){ continue; }
 					const i = store.items.findIndex(s=>s.name===name);
