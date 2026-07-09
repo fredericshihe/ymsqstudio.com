@@ -2429,12 +2429,15 @@
 	class RequestThrottler {
 		constructor() {
 			this.requests = new Map(); // 存储每种请求类型的最后执行时间
+			// 注意：目前仅 heartbeat / reconcile 两个键实际经过 canExecute() 限流；
+			// roomUpdate / studentUpdate / syncToCloud 未接入任何写路径（写操作靠每房间操作锁 + 乐观 UI 保护），
+			// 保留为将来接入用；如需真正限流请在对应写函数调用 requestThrottler.canExecute(key, id)。
 			this.minimumIntervals = {
-				heartbeat: 60000,        // 心跳最短1分钟间隔
-				reconcile: 30000,        // 状态同步最短30秒间隔
-				roomUpdate: 1000,        // 房间更新最短1秒间隔
-				studentUpdate: 2000,     // 学生更新最短2秒间隔
-				syncToCloud: 10000       // 云端同步最短10秒间隔
+				heartbeat: 60000,        // 心跳最短1分钟间隔（已接入）
+				reconcile: 30000,        // 状态同步最短30秒间隔（已接入）
+				roomUpdate: 1000,        // 房间更新最短1秒间隔（未接入）
+				studentUpdate: 2000,     // 学生更新最短2秒间隔（未接入）
+				syncToCloud: 10000       // 云端同步最短10秒间隔（未接入）
 			};
 		}
 		
@@ -3141,6 +3144,8 @@
 	
 	// 页面卸载时清理所有定时器
 	window.addEventListener('beforeunload', () => {
+		// 关页前落盘未同步的练习记录，避免丢失
+		try{ if(window.__persistPendingPracticeLogs) window.__persistPendingPracticeLogs(); }catch(_){ }
 		timerManager.clearAllTimers();
 		
 		// 清理其他可能的定时器
@@ -9691,20 +9696,25 @@
 				timestamp: Date.now() 
 			});
 			
-			// 更新rooms表
-			const { data, error } = await supabaseClient.from('rooms').upsert({
-				name: roomName,
-				occupant_student_name: combinedStudentName,
-				register_time: nowIso,
-				heartbeat_at: nowIso,
-				version: nextVersion,
-				updated_at: nowIso,
-			piano_type: row ? (row.pianoType || row.piano_type || '其他') : '其他',
-			location: row ? (row.location || '') : '',
-			remark: row ? (row.remark || '') : ''
+			// 更新rooms表（带版本 CAS，避免并发覆盖别人的登记）
+			const baseVersion = (row ? row.version : 0);
+			const { data, error } = await executeConditionalRoomCloudMutation({
+				roomName,
+				expectedVersion: baseVersion,
+				payload: {
+					name: roomName,
+					occupant_student_name: combinedStudentName,
+					register_time: nowIso,
+					heartbeat_at: nowIso,
+					version: nextVersion,
+					updated_at: nowIso,
+					piano_type: row ? (row.pianoType || row.piano_type || '其他') : '其他',
+					location: row ? (row.location || '') : '',
+					remark: row ? (row.remark || '') : ''
+				}
 			});
-			
-			if(error){ 
+
+			if(error){
 				logErr('多人登记失败', error.message);
 				// 回滚乐观更新
 				const rollbackState = Store.rollbackStates?.get(roomName);
@@ -9715,7 +9725,14 @@
 					queueRoomRenderHigh(roomName);
 					updateUsageStats();
 				}
-				return {ok:false,error}; 
+				Store.pendingAssign.delete(roomName);
+				if (error.code === 'VERSION_MISMATCH') {
+					try { syncRoomFromRemoteRow(roomName, error.remoteRow); } catch(_e) {}
+					scheduleRoomStateReconcile(roomName, 'assign-multi-write-stale', { delayMs: 1800, silent: true, force: true });
+					if(typeof toast==='function') toast('该琴房已被他人更新，请重试', 'warn');
+					return { ok:false, stale:true, reason:'version-mismatch', remoteVersion: error.remoteVersion, localVersion: baseVersion, rollback:true };
+				}
+				return {ok:false,error};
 			}
 			
 			// 为每个学生创建独立的练习记录（批量写入）
@@ -9723,6 +9740,7 @@
 				// 先在本地构建所有条目并推入本地缓存
 				const entries = students.map(s => createPracticeLogEntry(roomName, s, 'assign'));
 				Store.localPracticeLogs.push(...entries);
+				persistPendingPracticeLogs();
 
 				if (supabaseReady) {
 					// 构造数据库插入数据（去掉本地字段）
@@ -9735,6 +9753,7 @@
 						if (!error) {
 							// 标记为已同步
 							entries.forEach(en => en.synced = true);
+								persistPendingPracticeLogs();
 							break;
 						}
 						// 缺列容错：与单条写入一致
@@ -9754,7 +9773,9 @@
 								attempt++; continue;
 							}
 						}
-						// 其它错误，降级逐条写入以最大化成功率
+						// 其它错误：先移除预推入的批量条目，避免逐条重试造成重复，再降级逐条写入
+							Store.localPracticeLogs = (Store.localPracticeLogs||[]).filter(l => !entries.includes(l)); persistPendingPracticeLogs();
+							// 逐条写入以最大化成功率
 						for(const s of students){
 							try{ await writePracticeLog(roomName, s, 'assign'); }catch(_e){}
 						}
@@ -11838,6 +11859,8 @@
 						if (hadReconnectAttempts) {
 							logInfo('✅ 房间实时同步重连成功');
 							toast('实时同步已恢复');
+							// 断线期间可能漏掉 rooms 增删改，重连后补拉一次全量对齐（对齐 students 路径）
+							try{ realtimeMonitor && realtimeMonitor.performFullDataSync && realtimeMonitor.performFullDataSync(); }catch(_){ }
 						} else if (!window.__roomsInitialConnected) {
 							logInfo('✅ 房间实时同步已连接');
 							toast('实时同步已启用');
@@ -12872,6 +12895,29 @@
 		}
 	}
 
+	// ===== 练习记录本地持久化（防止刷新/离线丢失）=====
+	const LS_PRACTICE_LOGS_KEY = 'yms_practice_logs_pending_v1';
+	function practiceLogToDbRow(log){ const r = { ...log }; delete r.synced; return r; }
+	function persistPendingPracticeLogs(){
+		try{
+			const pending = (Store.localPracticeLogs||[]).filter(l=>!l.synced).slice(-800);
+			if(pending.length){ localStorage.setItem(LS_PRACTICE_LOGS_KEY, JSON.stringify(pending)); }
+			else { localStorage.removeItem(LS_PRACTICE_LOGS_KEY); }
+		}catch(_e){ /* 配额等失败忽略 */ }
+	}
+	function loadPendingPracticeLogs(){
+		try{
+			const raw = localStorage.getItem(LS_PRACTICE_LOGS_KEY);
+			if(!raw) return;
+			const arr = JSON.parse(raw);
+			if(!Array.isArray(arr) || !arr.length) return;
+			if(!Store.localPracticeLogs) Store.localPracticeLogs = [];
+			const seen = new Set(Store.localPracticeLogs.map(l=>`${l.student_name}|${l.action}|${l.timestamp}`));
+			arr.forEach(l=>{ const k=`${l.student_name}|${l.action}|${l.timestamp}`; if(!seen.has(k)){ l.synced=false; Store.localPracticeLogs.push(l); seen.add(k); } });
+		}catch(_e){ }
+	}
+	window.__persistPendingPracticeLogs = persistPendingPracticeLogs;
+
 	// 同步练习记录到 practice_logs 表
 	async function syncPracticeLogsToCloud() {
 		if (!supabaseReady) {
@@ -12894,18 +12940,33 @@
 				return;
 			}
 			
-			// 批量插入练习记录
-			const { data, error } = await supabaseClient
-				.from('practice_logs')
-				.insert(unsyncedLogs);
-			
-			if (error) {
+			// 批量插入练习记录（剔除本地字段 synced；缺列容错逐列剔除重试）
+			let payload = unsyncedLogs.map(practiceLogToDbRow);
+			let removedCols = [];
+			let attempt = 0;
+			let inserted = false;
+			while (attempt < 5) {
+				const { error } = await supabaseClient.from('practice_logs').insert(payload);
+				if (!error) { inserted = true; break; }
+				const msg = (error.message||'').toLowerCase();
+				if (error.code === '42703' || msg.includes("could not find the '")) {
+					let missing=''; const m = error.message.match(/'([^']+)' column/); if(m) missing=m[1];
+					if(missing){
+						removedCols.push(missing);
+						payload = payload.map(o=>{ const c={...o}; delete c[missing]; return c; });
+						if(removedCols.length>=2){ payload = unsyncedLogs.map(l=>({ action:l.action, student_name:l.student_name, timestamp:l.timestamp })); }
+						attempt++; continue;
+					}
+				}
 				logErr('同步练习记录失败:', error.message);
 				toast('练习记录同步失败', 'error');
-			} else {
-				// 标记为已同步
+				break;
+			}
+			if (inserted) {
+				// 标记为已同步并更新本地持久化
 				unsyncedLogs.forEach(log => log.synced = true);
-				logInfo(`✅ 成功同步 ${unsyncedLogs.length} 条练习记录到云端`);
+				persistPendingPracticeLogs();
+				logInfo(`✅ 成功同步 ${unsyncedLogs.length} 条练习记录到云端${removedCols.length?`（剔除列: ${removedCols.join(',')}）`:''}`);
 			}
 		} catch (err) {
 			logErr('练习记录同步异常:', err.message);
@@ -16246,7 +16307,10 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 				if(e.key==='ArrowDown') moveSelection(1); else if(e.key==='ArrowUp') moveSelection(-1); else if(e.key==='Enter') triggerSelect(); else if(e.key==='Escape') closeStudentModal();
 			}
 		}, {passive:false});
-		document.getElementById('studentSearch').addEventListener('input', renderStudentList);
+		document.getElementById('studentSearch').addEventListener('input', (function(){
+			let t=null;
+			return function(){ if(t) clearTimeout(t); t=setTimeout(()=>{ t=null; renderStudentList(); }, 130); };
+		})());
 		// 防抖机制的学生选择处理
 		let lastAssignClick = {};
 		document.getElementById('studentList').addEventListener('click', async (e) => { 
@@ -16586,7 +16650,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			if (floor) Store.floorSet.add(floor);
 			
 			// 同步到云端：写入静态表，并插入/更新动态表以触发他端实时订阅
-			if (!Store.settings.offlineMode) {
+			if (!Store.settings.offlineMode && supabaseReady) {
 				await supabaseClient.from('room_database').upsert({
 					name: name,
 					location: location || null,
@@ -16616,7 +16680,14 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			
 			closeAddRoomModal();
 		} catch (error) {
-			toast('添加失败', 'error');
+			// 云端写入失败：回滚本地，避免出现云端不存在的幽灵房间，并允许重试同名
+			try{
+				const i = Store.rooms.findIndex(r=>r.name===name);
+				if(i>=0) Store.rooms.splice(i,1);
+				Store.byName.delete(name);
+				scheduleRoomsFullRender(`add-room-rollback:${name}`);
+			}catch(_){ }
+			toast('添加失败：'+(error&&error.message?error.message:'请重试'), 'error');
 			logErr('新增琴房失败:', error.message);
 		}
 	}
@@ -17079,7 +17150,8 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		// 先缓存到本地
 			const logEntry = createPracticeLogEntry(roomName, studentName, action, opts);
 		Store.localPracticeLogs.push(logEntry);
-		
+		persistPendingPracticeLogs();
+
 		if (!supabaseReady) {
 			logInfo(`本地记录: ${action} ${studentName} @ ${roomName}`);
 			return;
@@ -17102,6 +17174,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 				if (!error) {
 					// 标记为已同步
 					logEntry.synced = true;
+					persistPendingPracticeLogs();
 					const removedInfo = removed.length ? ` (已剔除列: ${removed.join(',')})` : '';
 					logInfo(`✅ 练习记录已写入: ${action} ${studentName} @ ${roomName}${removedInfo}`);
 					return;
@@ -17229,10 +17302,16 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 	async function bootstrap(){
 		try{ 
 			await initSupabase(); 
-		}catch(e){ 
-			logWarn('Supabase 初始化失败 (离线模式)', e.message); 
+		}catch(e){
+			logWarn('Supabase 初始化失败 (离线模式)', e.message);
 			updateSyncStatus('error', '离线模式');
 		}
+
+		// 恢复上次未同步的练习记录（刷新/离线遗留），并在联网后补传
+		try{
+			loadPendingPracticeLogs();
+			if(window.supabaseReady){ syncPracticeLogsToCloud(); }
+		}catch(_){ }
 		
 		// 🔧 页面加载时先清理可能的缓存污染
 		logInfo('[Bootstrap] 清理缓存以防止数据污染');
@@ -18393,6 +18472,18 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 						.maybeSingle();
 					if(rename.error){ throw new Error('学生改名失败: '+rename.error.message); }
 					if(!rename.data){ throw new Error('学生改名失败: 云端未找到旧学生记录'); }
+						step(45,'同步关联数据...');
+						// 级联改名到关联表与在住房间，避免时段/记录/提醒对不上（best-effort，不阻断主流程）
+						try{ await supabaseClient.from('student_time_slots').update({ student_name:newName }).eq('student_name', oldName); }catch(e){ console.warn('[改名级联] student_time_slots 失败', e.message); }
+						try{ await supabaseClient.from('student_schedules').update({ name:newName }).eq('name', oldName); }catch(e){ console.warn('[改名级联] student_schedules 失败', e.message); }
+						try{ await supabaseClient.from('practice_logs').update({ student_name:newName }).eq('student_name', oldName); }catch(e){ console.warn('[改名级联] practice_logs 失败', e.message); }
+						try{
+							await supabaseClient.from('rooms').update({ occupant_student_name:newName }).eq('occupant_student_name', oldName);
+							const rooms=(window.Store&&window.Store.rooms)||[];
+							let touched=false;
+							rooms.forEach(r=>{ if(r.occupant_student_name===oldName){ r.occupant_student_name=newName; touched=true; try{ window.queueRoomRenderHigh&&window.queueRoomRenderHigh(r.name); }catch(_){} } });
+							if(touched && !window.queueRoomRenderHigh && window.renderRoomGrid){ try{ window.renderRoomGrid(); }catch(_){} }
+						}catch(e){ console.warn('[改名级联] rooms 占用者 失败', e.message); }
 					step(70,'学生姓名与关联数据已同步');
 				}else{
 					const upd=await supabaseClient.from('student_database').update({ major:basePayload.major, grade:basePayload.grade }).eq('name', newName).select('name');
