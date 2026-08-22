@@ -61,7 +61,7 @@ body{font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;backgro
 @media print{
   /* Hide app UI */
   body{background:#fff!important;color:#111!important}
-  .wrap,#dp-bg,.dp,#lbModalMask,#lbModal,#diag-bg,.toasts{display:none!important}
+  .wrap,#dp-bg,.dp,#lbModalMask,#lbModal,.toasts{display:none!important}
   #lbPrintRoot{display:block!important}
 
   /* 关键：避免因为固定 297mm 容器高度 + 内边距 + page margin 导致自动分页 */
@@ -173,86 +173,6 @@ body{font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;backgro
 .spin{display:inline-block;width:18px;height:18px;border:2px solid var(--bdr2);
   border-top-color:var(--blue);border-radius:50%;animation:sp .7s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
-
-/* ── AI 分析卡片 ─────────────────────────── */
-.ai-card{
-  position:relative;margin:0 0 24px;
-  background:linear-gradient(145deg,rgba(8,14,30,.92) 0%,rgba(14,20,46,.92) 60%,rgba(10,18,38,.92) 100%);
-  border:1px solid rgba(79,142,247,.38);border-radius:var(--r);
-  padding:0;overflow:hidden;
-  box-shadow:0 0 0 1px rgba(79,142,247,.08),0 10px 40px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.04)}
-/* 顶部发光线 */
-.ai-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
-  background:linear-gradient(90deg,transparent 5%,rgba(79,142,247,.7) 30%,rgba(168,85,247,.6) 70%,transparent 95%)}
-/* 扫描动画线（加载时用 .ai-card.scanning 触发） */
-.ai-card.scanning::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;
-  background:linear-gradient(90deg,transparent,rgba(79,142,247,.9),transparent);
-  animation:ai-scan 1.4s ease-in-out infinite}
-@keyframes ai-scan{0%{top:0;opacity:0}10%{opacity:1}90%{opacity:1}100%{top:100%;opacity:0}}
-/* HUD 四角装饰 */
-.ai-card .ai-corner{position:absolute;width:10px;height:10px;border-color:rgba(79,142,247,.55);border-style:solid}
-.ai-card .ai-corner.tl{top:7px;left:7px;border-width:1.5px 0 0 1.5px}
-.ai-card .ai-corner.tr{top:7px;right:7px;border-width:1.5px 1.5px 0 0}
-.ai-card .ai-corner.bl{bottom:7px;left:7px;border-width:0 0 1.5px 1.5px}
-.ai-card .ai-corner.br{bottom:7px;right:7px;border-width:0 1.5px 1.5px 0}
-/* 卡片头部 */
-.ai-hd{display:flex;align-items:center;gap:10px;
-  padding:13px 20px 12px;border-bottom:1px solid rgba(79,142,247,.15);
-  background:rgba(79,142,247,.05)}
-.ai-title{font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
-  background:linear-gradient(90deg,#6ab0ff,#c084fc);
-  background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.ai-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;
-  background:rgba(79,142,247,.9);
-  box-shadow:0 0 6px 2px rgba(79,142,247,.55);
-  animation:ai-pulse 2.2s ease-in-out infinite}
-@keyframes ai-pulse{0%,100%{opacity:1;box-shadow:0 0 6px 2px rgba(79,142,247,.55)}
-  50%{opacity:.5;box-shadow:0 0 3px 1px rgba(79,142,247,.25)}}
-.ai-meta{margin-left:auto;font-size:.64rem;color:rgba(148,163,184,.7);letter-spacing:.03em;white-space:nowrap}
-.ai-regen{font-size:.67rem;padding:3px 11px;border-radius:20px;
-  border:1px solid rgba(79,142,247,.4);background:transparent;
-  color:rgba(99,160,255,.9);cursor:pointer;letter-spacing:.04em;
-  transition:background .15s,border-color .15s,box-shadow .15s}
-.ai-regen:hover{background:rgba(79,142,247,.15);border-color:rgba(79,142,247,.7);
-  box-shadow:0 0 8px rgba(79,142,247,.25)}
-.ai-regen:disabled{opacity:.45;cursor:default}
-/* 卡片内容区 */
-.ai-body{padding:16px 20px 18px;position:relative}
-/* 左侧蓝色细竖线 + 文字 */
-.ai-text{font-size:.91rem;color:rgba(220,232,255,.88);line-height:1.95;
-  padding-left:14px;border-left:2px solid rgba(79,142,247,.35);
-  min-height:2.8rem;letter-spacing:.01em;white-space:pre-wrap}
-.ai-text.loading{color:rgba(148,163,184,.6);border-left-color:rgba(79,142,247,.15)}
-.ai-text.errored{color:rgba(251,113,133,.8);border-left-color:rgba(239,68,68,.35)}
-/* ── 深度诊断 Modal ──────────────────────────────── */
-.diag-btn{font-size:.65rem;padding:3px 10px;border-radius:20px;margin-left:6px;
-  border:1px solid rgba(168,85,247,.45);background:transparent;
-  color:rgba(192,132,252,.9);cursor:pointer;letter-spacing:.04em;
-  transition:background .15s,border-color .15s,box-shadow .15s}
-.diag-btn:hover{background:rgba(168,85,247,.12);border-color:rgba(168,85,247,.7);
-  box-shadow:0 0 8px rgba(168,85,247,.25)}
-.diag-btn:disabled{opacity:.45;cursor:default}
-#diag-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.68);
-  backdrop-filter:blur(4px);z-index:1100;align-items:center;justify-content:center}
-#diag-bg.show{display:flex}
-#diag-modal{background:#0f1729;border:1px solid rgba(168,85,247,.35);border-radius:14px;
-  width:min(680px,94vw);max-height:82vh;overflow-y:auto;position:relative;
-  box-shadow:0 0 40px rgba(168,85,247,.15),0 8px 40px rgba(0,0,0,.6)}
-#diag-modal::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
-  background:linear-gradient(90deg,transparent,rgba(168,85,247,.5),transparent)}
-.diag-hd{display:flex;align-items:center;gap:10px;padding:16px 20px 12px;
-  border-bottom:1px solid rgba(168,85,247,.12)}
-.diag-title{font-size:.73rem;font-weight:700;letter-spacing:.12em;
-  text-transform:uppercase;color:rgba(192,132,252,.95)}
-.diag-close{margin-left:auto;background:none;border:none;color:var(--t3);
-  cursor:pointer;font-size:1.1rem;line-height:1;padding:2px 6px;border-radius:4px}
-.diag-close:hover{color:#fff;background:rgba(255,255,255,.08)}
-.diag-body{padding:18px 22px 22px}
-.diag-body pre{white-space:pre-wrap;word-break:break-word;font-family:inherit;
-  font-size:.91rem;color:rgba(220,232,255,.9);line-height:1.9;
-  padding-left:14px;border-left:2px solid rgba(168,85,247,.4)}
-.diag-loading{color:rgba(148,163,184,.6);font-size:.91rem;
-  padding:24px 0;text-align:center}
 
 /* ── Header ──────────────────────────────── */
 .hd{display:flex;align-items:center;gap:18px;
@@ -573,7 +493,7 @@ tbody td.b{color:var(--t1);font-weight:700}
 <div class="mask hidden" id="msk">
   <div class="modal">
     <h2>🎹 连接 Supabase 数据库</h2>
-    <p class="sub">URL 仅保存在本地浏览器；自定义 Key 和 AI 口令仅保存在当前会话。</p>
+    <p class="sub">URL 仅保存在本地浏览器；自定义 Key 仅保存在当前会话。</p>
     <div class="tip-banner">
       默认使用内置的 <strong>anon public key</strong>。
       若切换环境，请填写对应项目的 anon key，不要在浏览器中使用 service_role。
@@ -587,11 +507,6 @@ tbody td.b{color:var(--t1);font-weight:700}
       <label>API Key</label>
       <input type="password" id="cKey" placeholder="eyJ…">
       <div class="hint">仅支持 anon public key；留空则继续使用当前默认值</div>
-    </div>
-    <div class="fg">
-      <label>AI 调用口令</label>
-      <input type="password" id="cBatchSecret" placeholder="输入部署在 Edge Function 的 BATCH_AI_SECRET">
-      <div class="hint">仅当前会话生效，不写入 localStorage；用于触发 AI 生成与深度诊断</div>
     </div>
     <div class="modal-foot">
       <button class="btn" id="cCancelBtn" onclick="closeCfg()">取消</button>
@@ -809,24 +724,6 @@ tbody td.b{color:var(--t1);font-weight:700}
   <div class="lb-modal-body" id="lbModalBody"></div>
 </div>
 
-<!-- 深度诊断 Modal -->
-<div id="diag-bg" onclick="if(event.target===this)closeDiag()">
-  <div id="diag-modal">
-    <div class="diag-hd">
-      <span style="font-size:1rem">🔬</span>
-      <span class="diag-title">深度诊断报告</span>
-      <span id="diag-name" style="font-size:.78rem;color:var(--t2);margin-left:4px"></span>
-      <button class="diag-close" onclick="closeDiag()">✕</button>
-    </div>
-    <div class="diag-body" id="diag-body">
-      <div class="diag-loading">
-        <div class="spin" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:8px"></div>
-        AI 正在深度分析，请稍候（约15-30秒）…
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- 单页 PDF 打印根节点（仅打印时显示） -->
 <div id="lbPrintRoot" aria-hidden="true"></div>
 
@@ -835,7 +732,6 @@ tbody td.b{color:var(--t1);font-weight:700}
 // ── Config ────────────────────────────────────────
 const CKEY = 'piano_v2';
 const CKEY_SESSION = `${CKEY}_session`;
-const AI_SECRET_SESSION = `${CKEY}_batch_secret`;
 const DEFAULT_URL = 'https://waesizzoqodntrlvrwhw.supabase.co';
 const DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhZXNpenpvcW9kbnRybHZyd2h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc4MjIyOTYsImV4cCI6MjA3MzM5ODI5Nn0.kE5gSV68q1nLo4z2IqgwqfTBVqNOJw5qs08f6r0SQH0';
 let cfg = null;
@@ -846,30 +742,23 @@ function loadCfg(){
   try{sessionCfg=JSON.parse(sessionStorage.getItem(CKEY_SESSION))}catch{sessionCfg=null}
   const url=(persisted&&persisted.url)||DEFAULT_URL;
   const key=(sessionCfg&&sessionCfg.key)||DEFAULT_KEY;
-  const batchSecret=sessionStorage.getItem(AI_SECRET_SESSION)||'';
-  cfg={url,key,batchSecret};
+  cfg={url,key};
   if(!persisted||persisted.url!==url||persisted.key){
     localStorage.setItem(CKEY,JSON.stringify({url}));
   }
 }
-function saveCfgD(u,k,batchSecret){
+function saveCfgD(u,k){
   const url=u.replace(/\/$/,'');
   const key=(k||DEFAULT_KEY).trim()||DEFAULT_KEY;
-  cfg={url,key,batchSecret:batchSecret||''};
+  cfg={url,key};
   localStorage.setItem(CKEY,JSON.stringify({url}));
   sessionStorage.setItem(CKEY_SESSION,JSON.stringify({key}));
-  if(batchSecret){
-    sessionStorage.setItem(AI_SECRET_SESSION,batchSecret);
-  }else{
-    sessionStorage.removeItem(AI_SECRET_SESSION);
-  }
 }
 function openCfg(){
   document.getElementById('msk').classList.remove('hidden');
   if(cfg){
     document.getElementById('cUrl').value=cfg.url;
     document.getElementById('cKey').value=cfg.key===DEFAULT_KEY?'':cfg.key;
-    document.getElementById('cBatchSecret').value=cfg.batchSecret||'';
   }
   document.getElementById('cCancelBtn').style.display=cfg?'':'none';
 }
@@ -877,16 +766,10 @@ function closeCfg(){document.getElementById('msk').classList.add('hidden')}
 function saveCfg(){
   const u=document.getElementById('cUrl').value.trim();
   const k=document.getElementById('cKey').value.trim();
-  const batchSecret=document.getElementById('cBatchSecret').value.trim();
   if(!u){toast('请填写完整的 URL','err');return}
-  saveCfgD(u,k,batchSecret);closeCfg();
+  saveCfgD(u,k);closeCfg();
   setConn(true);document.getElementById('refBtn').disabled=false;
   loadAll();
-}
-
-function getBatchSecret(){
-  const secret=(cfg&&cfg.batchSecret)||sessionStorage.getItem(AI_SECRET_SESSION)||'';
-  return String(secret||'').trim();
 }
 
 // ── UI helpers ────────────────────────────────────
@@ -1075,500 +958,11 @@ const fetchCurrentWeekScores=()=>api(
 const S={students:[],filtered:[],health:null,
   sortCol:'composite_score',sortDir:'desc',page:1,pageSize:20,
   selected:null,charts:{},
-  currentStudent:null,
-  aiState:null};
+  currentStudent:null};
 
-// ── AI Analysis ────────────────────────────────
-// AI 分析统一由后端 batch-ai-analysis Edge Function 生成，前端只负责读缓存和触发
-const AI_CACHE_DAYS = 7;         // 缓存有效天数
-
-async function fetchAnalysisCache(name){
-  try{
-    const rows=await api(`student_ai_analysis?student_name=eq.${encodeURIComponent(name)}&select=analysis_text,generated_at,model_source&order=generated_at.desc&limit=1`);
-    if(!rows.length)return null;
-    const ageDays=(Date.now()-new Date(rows[0].generated_at).getTime())/86400000;
-    return ageDays<AI_CACHE_DAYS?rows[0]:null;
-  }catch{return null;}
-}
-
-// AI prompt 构建 / generateAIAnalysis 已全部迁移至后端，见 index.ts
-
-
-
-// 从最近30次完整练琴中提炼更“像这个学生”的特征，供 AI 自由发挥
-function summarizeSessionSignals(sessions){
-  if(!sessions||!sessions.length) return '暂无最近练琴记录。';
-  const arr=[...sessions];
-  const total=arr.length;
-  const raw=(r)=>Math.round(r.raw_duration||r.cleaned_duration||0);
-  const fmtDate=(s)=>{const d=new Date(s);return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;};
-  const fmtHm=(s)=>{const d=new Date(s);return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;};
-
-  const long=arr.filter(r=>raw(r)>120);
-  const short=arr.filter(r=>raw(r)<30);
-  const lunch=arr.filter(r=>practiceSlot(new Date(r.session_start).getHours(),new Date(r.session_start).getMinutes())==='lunch');
-  const abnormal=arr.filter(r=>practiceSlot(new Date(r.session_start).getHours(),new Date(r.session_start).getMinutes())==='abnormal');
-
-  const byDay={};
-  arr.forEach(r=>{
-    const k=fmtDate(r.session_start);
-    (byDay[k] ||= []).push(r);
-  });
-  const multiDays=Object.entries(byDay)
-    .filter(([,items])=>items.length>=2)
-    .sort((a,b)=>b[1].length-a[1].length)
-    .slice(0,3)
-    .map(([d,items])=>`${d} 有 ${items.length} 次练琴`);
-
-  const longest=[...arr].sort((a,b)=>raw(b)-raw(a)).slice(0,3)
-    .map(r=>`${fmtDate(r.session_start)} ${fmtHm(r.session_start)}-${fmtHm(r.session_end||r.session_start)} ${raw(r)}分钟`);
-  const shortest=[...arr].filter(r=>raw(r)>=5).sort((a,b)=>raw(a)-raw(b)).slice(0,3)
-    .map(r=>`${fmtDate(r.session_start)} ${fmtHm(r.session_start)}-${fmtHm(r.session_end||r.session_start)} ${raw(r)}分钟`);
-
-  const weekdayCounts=[0,0,0,0,0,0,0];
-  arr.forEach(r=>weekdayCounts[new Date(r.session_start).getDay()]++);
-  const topWeekdays=weekdayCounts
-    .map((cnt,i)=>({cnt,label:WD_CN[i]}))
-    .sort((a,b)=>b.cnt-a.cnt)
-    .slice(0,2)
-    .filter(x=>x.cnt>0)
-    .map(x=>`${x.label}${x.cnt}次`);
-
-  const avgRaw=Math.round(arr.reduce((a,r)=>a+raw(r),0)/total);
-  const sameRoomHint=(()=>{
-    const roomMap={};
-    arr.forEach(r=>{const k=r.room_name||'未知琴房';roomMap[k]=(roomMap[k]||0)+1;});
-    const top=Object.entries(roomMap).sort((a,b)=>b[1]-a[1])[0];
-    if(!top||top[1]<Math.max(4,Math.ceil(total*0.3))) return '';
-    return `最常使用 ${top[0]}（${top[1]}次）`;
-  })();
-
-  return [
-    `总样本：最近${total}次完整练琴，平均实际时长约${avgRaw}分钟。`,
-    `明显短练：${short.length}次；明显超长：${long.length}次；午饭时间开始：${lunch.length}次；异常时段开始：${abnormal.length}次。`,
-    topWeekdays.length?`最常练琴日：${topWeekdays.join('、')}。`:'',
-    multiDays.length?`同一天多次练琴：${multiDays.join('；')}。`:'',
-    longest.length?`最长的3次：${longest.join('；')}。`:'',
-    shortest.length?`最短的3次：${shortest.join('；')}。`:'',
-    sameRoomHint?`${sameRoomHint}。`:''
-  ].filter(Boolean).join('\n');
-}
-
-function buildAnalysisPrompt(s,hist,sessions){
-  const bestScore = calcPersonalBestFromHistory(hist, s);
-  // ── 近10周历史快照（0 分 = 本周未练琴，完整字段+含义）──
-  const recent=[...hist].filter(h=>h.composite_score!=null).reverse().slice(0,10);
-  const histRows=recent.length
-    ?recent.map(h=>{
-        if(h.composite_score===0) return `  ${(h.snapshot_date||'').slice(0,10)}  ▸ 【本周未练琴：全校排名分=0，个人原始成长值不作比较】`;
-        // 各字段转成自然语言
-        const progressTxt=h.baseline_score!=null
-          ?(h.baseline_score>0.55?'比上一周表现更好（1v1 对比进步）'
-            :h.baseline_score<0.45?'比上一周表现略弱（1v1 对比回落）':'与上一周表现相当')
-          :'—';
-        const trendTxt=h.trend_score!=null
-          ?(h.trend_score>0.6?'近期练琴量明显多于此前（上升趋势）'
-            :h.trend_score<0.4?'近期练琴量明显少于此前（下滑趋势）':'近期与此前练琴量基本持平')
-          :'—';
-        const mmtTxt=h.momentum_score!=null
-          ?(h.momentum_score>0.6?'最近4周多数周达标（动量较强）'
-            :h.momentum_score<0.4?'最近4周达标次数偏少（动量偏弱）':'最近4周达标与未达标基本持平')
-          :'—';
-        return [
-          `  ${(h.snapshot_date||'').slice(0,10)}`,
-          `    · 全校排名分 ${h.composite_score}/100（0=最低, 100=最高，用来看本周在全校的位置）`,
-          `    · 个人原始成长值 ${h.raw_score!=null?(h.raw_score||0).toFixed(3):'-'}（只看自己前后变化，不参与横向排名）`,
-          `    · 均练琴时长 ${h.mean_duration!=null?(h.mean_duration||0).toFixed(0):'-'}分钟（该周统计时的历史每次平均时长）`,
-          `    · 异常次数占比 ${h.outlier_rate!=null?((h.outlier_rate||0)*100).toFixed(0):'-'}%（too_long 或 meal_break 占该周记录的比例；25% 起开始明显扣分，60% 以上进入指数衰减）`,
-          `    · 进步情况：${progressTxt}`,
-          `    · 时长走向：${trendTxt}`,
-          `    · 近期冲劲：${mmtTxt}`,
-        ].join('\n');
-      }).join('\n')
-    :'  暂无历史快照';
-
-  // ── 近30次练琴明细 ──
-  const WD=WD_CN;
-  const sessRows=(sessions||[]).map(r=>{
-    const d=new Date(r.session_start);
-    const e=new Date(r.session_end||r.session_start);
-    const date=`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
-    const wd=WD[d.getDay()];
-    const startHm=`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-    const endHm=`${String(e.getHours()).padStart(2,'0')}:${String(e.getMinutes()).padStart(2,'0')}`;
-    const rawDur=Math.round(r.raw_duration||r.cleaned_duration||0);
-    const cleanDur=Math.round(r.cleaned_duration||0);
-    const flag=r.is_outlier?'  ★超长/疑似未还卡':'';
-    const capNote=rawDur!==cleanDur?`（计分按${cleanDur}分钟）`:'';
-    const room=r.room_name?`  ${r.room_name}`:'';
-    return `  ${date} ${wd}  ${startHm}-${endHm}  实际${rawDur}分钟${capNote}${room}${flag}`;
-  }).join('\n')||'  暂无记录';
-
-  // ── 星期分布统计 ──
-  const wdCount=[0,0,0,0,0,0,0];
-  (sessions||[]).forEach(r=>{wdCount[new Date(r.session_start).getDay()]++;});
-  const wdSummary=WD.map((w,i)=>`${w}:${wdCount[i]}次`).join('  ');
-
-  // ── 冷启动注意 ──
-  const coldExtra = weekendFetched>0&&cleanedZeroFetched>0
-    ? `，另有${weekendFetched}条周末不计分、${cleanedZeroFetched}条时长过短被清零`
-    : weekendFetched>0
-      ? `，另有${weekendFetched}条周末练琴不计入基线`
-      : cleanedZeroFetched>0
-        ? `，另有${cleanedZeroFetched}条因时长过短/异常被清洗为无效`
-        : '';
-  const coldNote=s.is_cold_start
-    ?`⚠ 该生工作日累计记录仅${s.record_count??0}条${coldExtra}，处于冷启动阶段，数据量不足，分析结论仅供参考（基线统计仅含周一至周五）`
-    :`数据充分（${s.record_count??0}条工作日有效记录${coldExtra}），结论可信`;
-
-  // ── 本周实际状态（display_score 始终为最新有效分，has_week_snapshot=true 表示本周尚未练）──
-  const displayScore = 'display_score' in s ? s.display_score : s.composite_score;
-  const noPracticeNow = s.has_week_snapshot; // true = 本周未练（但仍展示历史分）
-  const displayRaw = 'display_raw_score' in s ? s.display_raw_score : s.raw_score;
-  // 最近10周中有多少周是 0（缺席）
-  const absentWeeks=recent.filter(h=>h.composite_score===0).length;
-  const activeWeeks=recent.filter(h=>h.composite_score>0).length;
-  const absentNote=absentWeeks>0
-    ?`最近${recent.length}周快照中有 ${absentWeeks} 周为缺席（完全没有练琴记录），有练琴的仅 ${activeWeeks} 周`
-    :`最近${recent.length}周均有练琴记录`;
-
-  // ── 趋势对比：只对有练琴的快照取平均，避免0分缺席周拉低数值 ──
-  const recentActive=recent.slice(0,4).filter(h=>h.composite_score>0);
-  const olderActive=recent.slice(4).filter(h=>h.composite_score>0);
-  const recentAvg=recentActive.length?recentActive.reduce((a,h)=>a+h.composite_score,0)/recentActive.length:null;
-  const olderAvg=olderActive.length?olderActive.reduce((a,h)=>a+h.composite_score,0)/olderActive.length:null;
-  const trendNote=recentAvg!==null&&olderAvg!==null
-    ?(recentAvg>olderAvg+3?`有练琴的周里近4周排名分均值${recentAvg.toFixed(1)}，前期均值${olderAvg.toFixed(1)}，有进步`
-      :recentAvg<olderAvg-3?`有练琴的周里近4周排名分均值${recentAvg.toFixed(1)}，前期均值${olderAvg.toFixed(1)}，有下滑`
-      :`有练琴的周里近期排名分均值${recentAvg.toFixed(1)}，与前期基本持平`)
-    :recentAvg!==null?`近期有练琴的周排名分均值${recentAvg.toFixed(1)}，历史对比数据不足`
-    :'近期均无练琴记录，无法比较';
-
-  // ── 各维度来源说明（来自最后一次有练琴时的计算值）──
-  const lastPracticeNote=noPracticeNow
-    ?`（以下各维度数据来自上次有练琴时的最后计算值，当前本周无练琴记录）`
-    :`（以下各维度数据为本周最新计算值）`;
-
-  // ── 时长分布统计（供 AI 判断短练/超长占比）──
-  const totalSess=(sessions||[]).length;
-  const shortSess=(sessions||[]).filter(r=>(r.raw_duration||r.cleaned_duration||0)<30);
-  const longSess=(sessions||[]).filter(r=>(r.raw_duration||r.cleaned_duration||0)>120);
-  const shortCnt=shortSess.length, longCnt=longSess.length;
-  const shortPct=totalSess?Math.round(shortCnt/totalSess*100):0;
-  const longPct=totalSess?Math.round(longCnt/totalSess*100):0;
-  const durationDistNote=totalSess>0
-    ?`不足30分钟的练琴：${shortCnt}次（占${shortPct}%）；超过120分钟的练琴：${longCnt}次（占${longPct}%）；其余${totalSess-shortCnt-longCnt}次在30~120分钟之间`
-    :'暂无记录';
-
-  // ── 超长/过短练琴的时间段分布（仅在占比明显时生成）──
-  function slotLabel(h,min){
-    const t=h*60+(min||0);
-    if(t<480)  return '8点前(异常)';
-    if(t<720)  return '上午(8~12点)';
-    if(t<780)  return '午饭时间(12~13点)';
-    if(t<1080) return '下午(13~18点)';
-    if(t<1290) return '晚饭后(18~21:30)';
-    return '21:30后(异常)';
-  }
-  function slotDist(arr){
-    const m={};
-    arr.forEach(r=>{const d=new Date(r.session_start);const lbl=slotLabel(d.getHours(),d.getMinutes());m[lbl]=(m[lbl]||0)+1;});
-    return Object.entries(m).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${k}${v}次`).join('、');
-  }
-  // 超长练琴中，跨越午休(12~13点)或晚餐(18点)的次数 → 大概率是没还琴房卡
-  let spanLunchCnt=0, spanDinnerCnt=0;
-  longSess.forEach(r=>{
-    const start=new Date(r.session_start);
-    const startMin=start.getHours()*60+start.getMinutes();
-    const endMin=startMin+Math.round(r.raw_duration||r.cleaned_duration||0);
-    if(startMin<720&&endMin>720)  spanLunchCnt++;   // 跨越12:00
-    if(startMin<1080&&endMin>1080) spanDinnerCnt++; // 跨越18:00
-  });
-  const spanNote=(spanLunchCnt>0||spanDinnerCnt>0)
-    ?`\n  其中跨越午休时间(12点)的：${spanLunchCnt}次，跨越晚饭时间(18点)的：${spanDinnerCnt}次 → 这类记录大概率是午饭/晚饭未归还琴房卡所致`
-    :'';
-
-  // 超长：占比>20% 时附带时间段分布 + 跨餐点分析
-  const longTimeNote=(longPct>=20&&longCnt>=3)
-    ?`\n超长练琴时间段分布：${slotDist(longSess)}${spanNote}`
-    :(spanLunchCnt+spanDinnerCnt>=2?`\n${spanLunchCnt+spanDinnerCnt}次超长练琴跨越了午休或晚餐时间${spanNote}`:'');
-  // 过短：占比>30% 时附带时间段分布
-  const shortTimeNote=(shortPct>=30&&shortCnt>=5)
-    ?`\n过短练琴时间段分布：${slotDist(shortSess)}`:'';
-
-  return `
-【学生基本信息】
-姓名：${s.student_name}（${s.student_major||'专业未知'} ${s.student_grade||''}）
-${coldNote}
-
-【⚠️ 当前周状态（最重要，请优先参考）】
-本周（${getWeekMonday()}）是否有练琴：${noPracticeNow?'【否，本周完全没有练琴记录】':'【是，本周已有练琴记录】'}
-最新有效全校排名分：${displayScore!=null?displayScore+'/100（来自最近一次有效练琴，不参与本周横向排名）':'—（暂无有效练琴记录）'}
-本周个人原始成长值：${noPracticeNow?'—（本周尚未练琴，暂不更新）':(displayRaw!=null?displayRaw.toFixed(3):'—')}（只和自己历史比较，不用于横向排名）
-${absentNote}
-最近一次练琴记录：${(sessions||[]).length>0?(() => {const d=new Date(sessions[0].session_start);const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,'0');const dd=String(d.getDate()).padStart(2,'0');const wd=WD_CN[d.getDay()];return `${y}-${m}-${dd} ${wd}`;})():'无记录'}
-
-【历史综合表现】
-上次有练琴时的全校排名分：${s.composite_score??'—'}/100（这是历史值，不代表本周状态）
-历史最高综合排名分：${bestScore??'—'}
-已连续提升周数：${s.weeks_improving??0}周（仅计有练琴的周）
-${trendNote}
-
-【练琴时长分布（最近${totalSess}次记录）】
-平均每次练琴时长：${(s.mean_duration||0).toFixed(1)}分钟
-时长分布：${durationDistNote}${longTimeNote}${shortTimeNote}
-备注：不足30分钟的练琴效果有限；超过120分钟可能未及时归还琴房卡（偶发属正常）；不足5分钟的记录不计入统计
-不足30分钟的短时练琴次数占比（5~30分钟均计入）：${((s.short_session_rate||0)*100).toFixed(1)}%
-
-【各维度拆解说明（五维 B/T/M/A/W）】${lastPracticeNote}
-B 进步分（近1活跃周 vs 前1活跃周目标完成率变化）：${(s.baseline_score||0)>0.58?'最近一周相对前一周更稳或更有进步':((s.baseline_score||0)<0.42?'最近一周相对前一周有明显回落':'最近两周整体基本持平')}（量化值=${(s.baseline_score||0).toFixed(3)}，±6% 小波动视为持平；两周都已稳定达标时，不会因为没继续加量而被明显扣分）
-T 趋势分（近2活跃周平均完成率 vs 前2活跃周）：${s.trend_score>0.6?'近期整体趋势更稳或更强':(s.trend_score<0.4?'近期整体趋势有回落':'近期整体趋势基本持平')}（量化值=${(s.trend_score||0).toFixed(3)}，稳定达标区更看重“别回落”，不是要求周周创新高）
-M 稳定达标分（最近4活跃周加权达标 + 波动控制）：${s.momentum_score>0.6?'近期多数周都比较稳定地完成了目标':(s.momentum_score<0.4?'近期周与周之间波动偏大，稳定性不足':'近期稳定性中等，仍有提升空间')}（量化值=${(s.momentum_score||0).toFixed(3)}，最近周权重更高；越高说明越稳定达标）
-A 长期积累分（同专业长期周量水平 + 活跃稳定度）：${(s.accum_score||0).toFixed(3)}（越高说明长期底盘更扎实，但不再单纯奖励无限堆总量）
-W 本周进度分（本周实时完成度）：本周工作日实际时长会按“个人目标 + 同专业地板”的双锚目标实时换算，达到目标后超量收益很小，不鼓励无上限加量
-
-【最近${recent.length}周每周数据快照（从新到旧排列，第一条为最近一周）】
-以下每周含6项指标，括号内是该指标的实际含义：
-${histRows}
-
-【缺席段落分析（请结合中国节假日日历判断是否属于正常假期）】
-今天日期：${new Date().toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric',weekday:'long'})}
-中国音乐学院常规节假日参考：
-${CN_HOLIDAYS.map(h=>`  ${h.name}：${h.range}`).join('\n')}
-
-该生历史缺席段落及初步假期推测：
-${inferAbsencePeriods(hist)}
-
-【最近30次练琴的机器提炼特征（请优先吸收后再写，不要逐条复述）】
-${summarizeSessionSignals(sessions)}
-
-${(()=>{const ts=analyzePracticeTimeSlots(sessions);return ts?`【练琴时间段特点】\n${ts}\n\n`:''})()}【最近${(sessions||[]).length}次完整单次练琴记录（从新到旧，直接由 practice_logs 的 assign/clear 配对得到）】
-格式：日期  星期  开始-结束  实际时长  （若显示“计分按XX分钟”表示系统计分时已封顶；★表示超长，需结合时间段判断是否忘还琴房卡或其他异常）
-${sessRows}
-
-【各星期练琴频次分布（最近${(sessions||[]).length}次）】
-${wdSummary}
-`.trim();
-}
-
-async function generateAIAnalysis(s,hist,sessions){
-  const res=await fetch(`${cfg.url}/functions/v1/${AI_FN}`,{
-    method:'POST',
-    headers:{apikey:cfg.key,Authorization:`Bearer ${cfg.key}`,'Content-Type':'application/json'},
-    body:JSON.stringify({
-      system_prompt:`你是音乐学院练琴数据分析系统的智能助理，面向任课老师提供专业的学情简报。你熟悉中国音乐学院的学年节奏、节假日安排以及学生练琴规律。
-
-【语言风格】
-- 语气专业、客观、简洁，面向老师和家长均可读懂，不使用任何技术术语
-- 每位学生的分析必须基于其具体数据，不得套用与数据无关的通用模板句
-- 允许你根据最近30次完整练琴记录自由发挥，优先写“最值得老师知道的现象和判断”，不要机械套模板
-- 不要总用同一类开头，如“某某同学本周……”“需要重点关注的是……”这类句式不要反复套用
-- 每次都尽量找到这个学生身上最有辨识度的细节，让老师一看就知道这段分析不能套在别人身上
-- 禁止出现：α、β、σ、outlier、baseline、score、momentum、accum、基线可信度、维度 等统计词汇
-- 禁止使用Markdown格式（不能有 *、#、**、- 开头的列表），输出纯文字段落
-- 字数控制在140~240字之间，2~3段
-
-【假期处理规则（重要）】
-- 若停练段与寒暑假或法定假日重合，仅用一句话带过（如"这段停练正值寒假，属正常情况"），不再展开解释，立即转入下一个有价值的信息点
-- 若停练不在任何假期范围内且连续3周以上，需明确标注异常，并建议了解原因
-
-【练琴时长与时间段解读规则（重要）】
-- 学校琴房8:00开放，21:30强制清场；12:00~13:00为午饭时间；时段分为：上午(8~12点)、午饭时间(12~13点)、下午(13~18点)、晚饭后(18~21:30)
-- 午饭时间练琴占比较高（≥20%）说明该生习惯利用午休练琴，属积极行为，可正面提及
-- 若数据中出现"8点前"或"21:30后"的记录，属异常数据，可提及但无需过度解读
-- 练琴时长波动大属于正常现象（文化课安排决定可用时间），不必单独提及时长波动
-- 若不足30分钟的练琴次数超过总次数的30%，需明确指出效果有限
-- 若超过120分钟的练琴次数超过总次数的20%，可能是未及时归还琴房卡所致；偶发属正常，但需提醒老师转告学生：练超2小时建议去前台续卡、起身走动
-- 若数据中标注了"跨越午休（11:50前开始且12:30后结束）"或"跨越晚饭（17:50前开始且18:30后结束）"的超长练琴，说明该生在午饭或晚饭期间未归还琴房卡、继续占用琴房，这是最直接的忘还卡证据，应明确指出次数并建议告知学生按时归还
-
-【最近30次完整练琴记录的使用规则（非常重要）】
-- prompt 中给你的最近30次记录，已经是从 practice_logs 的 assign / clear 完整配对得到的单次练琴，不是简单打点
-- 每条记录都包含：日期、星期、开始时间、结束时间、实际时长；部分记录还会显示“计分按XX分钟”，表示实际时长过长、系统计分时已封顶
-- 你要认真利用这30条记录自己发现规律和问题，例如：连续多次超长、跨午饭/晚饭、极短练习过多、只在某个时段练、几乎只在午休练、频繁晚饭后超长、同一天多次碎片化练琴等
-- 你必须至少举出 2 个具体例子，最好直接写出“日期 + 时间段 + 时长”，让老师知道你的判断来自真实记录，而不是空泛总结
-- 你可以提出“可能原因”，包括但不限于：忘记还琴房卡、只是占用琴房未正常练习、短时打卡式练琴、作息挤压导致练琴碎片化、近期状态回升或松懈
-- 但涉及原因判断时必须使用审慎语气，如“可能”“更像是”“需要核实”，不要把推测说成确定事实
-
-【排名分与原始值口径（必须分清）】
-- 全校排名分：用于看该生本周在全校处于什么位置，适合横向比较
-- 个人原始成长值：用于看该生相对自己近期是进步还是回落，适合纵向比较
-- 判断“最近是否进步”时，优先参考个人原始成长值和 B/T/M/A/W，不要只根据全校排名分变化下结论
-
-【维度数值解读规则（五维 B/T/M/A/W）】
-prompt中会提供5个量化维度，仅在数值明显（绝对值>0.1）且有实际意义时才用通俗语言提及，否则忽略：
-- baseline_score（B 进步分）：最近1个活跃周 vs 前1个活跃周的目标完成率变化；±6% 小波动视为持平；如果两周都已稳定达标，不会因为没继续加量而被明显扣分
-- trend_score（T 趋势分）：近2活跃周平均完成率 vs 前2活跃周；稳定达标区更看重“别回落”，不再要求持续越练越多
-- momentum_score（M 稳定达标分）：最近4个活跃周的加权稳定达标 + 波动控制；最近周权重更高，越高说明近期越稳定完成目标
-- accum_score（A 长期积累分）：同专业长期周量水平 + 长期活跃稳定度；越高说明长期底盘越扎实，但不再单纯奖励无限堆时长
-- W 本周进度分（未单独列出）：本周工作日实际时长相对“个人目标 + 同专业地板”的双锚目标完成度；达到目标后超量收益很小
-
-【分析结构（灵活撰写，不要分点）】
-- 第1段：先说本周状态和整体判断
-- 第2段：从最近30次完整练琴记录和近几周快照中，抓最关键的1~3个现象来讲，并大胆给出“可能原因”的专业推测
-- 第3段：给老师一条或两条简短、明确、能立刻执行的建议
-- 不要求每次都按固定句式写，重点是让老师一眼看懂“最近发生了什么、可能为什么、接下来该怎么管”`,
-      user_prompt:buildAnalysisPrompt(s,hist,sessions),
-      temperature:0.82,
-      max_tokens:600
-    })
-  });
-  if(!res.ok){const t=await res.text();throw new Error(`AI调用失败 (${res.status}): ${t.slice(0,100)}`);}
-  const data=await res.json();
-  if(data.error)throw new Error(data.error);
-  return{text:(data.choices?.[0]?.message?.content||'').trim()||'生成失败',source:data._source||'unknown'};
-}
-
-function setAIUI(state,text,meta){
-  const elTxt=document.getElementById('dp-ai-text');
-  const elMeta=document.getElementById('dp-ai-meta');
-  const elBtn=document.getElementById('dp-ai-btn');
-  const elCard=document.getElementById('ai-card-wrap');
-  if(S.currentStudent?.student_name){
-    S.aiState={
-      studentName:S.currentStudent.student_name,
-      state,
-      text:text||'',
-      meta:meta||''
-    };
-  }
-  if(!elTxt)return;
-  elTxt.classList.remove('loading','errored');
-  if(elCard) elCard.classList.remove('scanning');
-  if(state==='loading'){
-    elTxt.classList.add('loading');
-    if(elCard) elCard.classList.add('scanning');
-    elTxt.innerHTML='<div class="spin" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:8px"></div>AI 正在分析，请稍候…';
-    if(elBtn){elBtn.disabled=true;elBtn.textContent='生成中…';}
-  }else if(state==='error'){
-    elTxt.classList.add('errored');
-    elTxt.textContent='⚠ '+text;
-    if(elBtn){elBtn.disabled=false;elBtn.textContent='重新生成';}
-  }else{
-    elTxt.textContent=text||'';
-    if(elMeta)elMeta.textContent=meta||'';
-    if(elBtn){elBtn.disabled=false;elBtn.textContent='重新生成';}
-  }
-}
-
-// AI 分析缓存检查 → 有效则直接展示，过期/缺失则调用后端重新生成
-async function loadStudentAnalysis(s){
-  const cached=await fetchAnalysisCache(s.student_name);
-  if(cached){
-    // 本周未练且缓存早于本周一 → 状态已变化，强制重新生成
-    const cacheDate=new Date(cached.generated_at);
-    const weekMonday=new Date(getWeekMonday()+'T00:00:00');
-    const staleForAbsent = s.has_week_snapshot && cacheDate < weekMonday;
-    if(!staleForAbsent){
-      const src=cached.model_source==='deepseek'?'DeepSeek':'Gemini';
-      setAIUI('ok',cached.analysis_text,`${src} 生成 · ${cacheDate.toLocaleDateString('zh-CN')} · 缓存`);
-      return;
-    }
-  }
-  await doGenerateAnalysis(s.student_name);
-}
-
-// 调用后端 batch-ai-analysis Edge Function（单学生模式）
-async function doGenerateAnalysis(name){
-  setAIUI('loading');
-  try{
-    const batchSecret=getBatchSecret();
-    if(!batchSecret){
-      throw new Error('请先在右上角配置中填写 AI 调用口令');
-    }
-    const res=await fetch(`${cfg.url}/functions/v1/batch-ai-analysis`,{
-      method:'POST',
-      headers:{
-        apikey:cfg.key,
-        Authorization:`Bearer ${cfg.key}`,
-        'Content-Type':'application/json',
-        'x-batch-secret':batchSecret
-      },
-      body:JSON.stringify({student_name:name})
-    });
-    if(!res.ok){const t=await res.text();throw new Error(`AI 生成失败 (${res.status}): ${t.slice(0,120)}`);}
-    const data=await res.json();
-    if(data.log) console.log('🔍 AI调试日志:', data.log); // 打印后端返回的调试日志
-    if(data.error)throw new Error(data.error);
-    const src=data.source==='deepseek'?'DeepSeek':'Gemini';
-    setAIUI('ok',data.text,`${src} 生成 · ${new Date().toLocaleDateString('zh-CN')}`);
-  }catch(e){
-    setAIUI('error',e.message);
-  }
-}
-
-// 重新生成按钮回调
-function regenerateAnalysis(){
-  if(S.currentStudent)doGenerateAnalysis(S.currentStudent.student_name);
-}
-
-// ── 深度诊断 ──────────────────────────────────────
-function closeDiag(){
-  const bg=$('diag-bg');
-  if(bg)bg.classList.remove('show');
-  document.body.style.overflow='';
-}
-
-async function deepDiag(name){
-  if(!name)return;
-  const bg=$('diag-bg');
-  const body=$('diag-body');
-  const nameEl=$('diag-name');
-  if(!bg||!body)return;
-
-  // 显示 Modal + Loading
-  nameEl.textContent='— '+name;
-  body.innerHTML=`<div class="diag-loading">
-    <div class="spin" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:8px"></div>
-    AI 正在深度分析 ${name}，请稍候（约 15~30 秒）…
-  </div>`;
-  bg.classList.add('show');
-  document.body.style.overflow='hidden';
-
-  // 禁用按钮防重复点击
-  const btn=$('dp-diag-btn');
-  if(btn)btn.disabled=true;
-
-  try{
-    const batchSecret=getBatchSecret();
-    if(!batchSecret){
-      throw new Error('请先在右上角配置中填写 AI 调用口令');
-    }
-    const EDGE_URL=`${cfg.url}/functions/v1/batch-ai-analysis`;
-    const res=await fetch(EDGE_URL,{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        apikey:cfg.key,
-        'Authorization':`Bearer ${cfg.key}`,
-        'x-batch-secret': batchSecret,
-      },
-      body:JSON.stringify({ student_name: name, diagnostic: true }),
-    });
-    const data=await res.json();
-    if(!res.ok||data.error){
-      body.innerHTML=`<pre style="color:var(--red)">诊断失败：${esc(data.error||'未知错误')}</pre>`;
-      return;
-    }
-    // 将 AI 返回文本渲染为带格式的段落
-    const html=esc(data.text||'（无结果）')
-      .replace(/^(\d\.\s+[^\n]+)/gm,'<strong>$1</strong>')   // 标题行加粗
-      .replace(/\n/g,'<br>');
-    body.innerHTML=`<pre style="border:none;padding:0;margin:0">${html}</pre>
-      <div style="margin-top:14px;font-size:.72rem;color:var(--t3)">
-        模型：${esc(data.source||'—')} &nbsp;|&nbsp; 仅供参考，不构成教学评价
-      </div>`;
-  }catch(e){
-    body.innerHTML=`<pre style="color:var(--red)">网络错误：${esc(String(e))}</pre>`;
-  }finally{
-    if(btn)btn.disabled=false;
-  }
-}
-
-// ESC 同时关闭诊断弹窗
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     if($('lbModal')&&$('lbModal').classList.contains('open')){closeLbModal();return;}
-    if($('diag-bg')&&$('diag-bg').classList.contains('show')){closeDiag();return;}
     if(S.selected)closeDp();
   }
 });
@@ -1591,8 +985,6 @@ function toggleSessTable(){
   wrap.style.display=opening?'block':'none';
   if(arrow)arrow.style.transform=opening?'rotate(90deg)':'';
 }
-
-// ESC 关闭（已在上方 deepDiag 区块统一处理）
 
 // ── Load ──────────────────────────────────────────
 async function loadAll(){
@@ -2176,14 +1568,11 @@ async function pickStudent(name){
     ]);
     S.currentStudent=s;
     renderDP(s,hist,sessions,weekSessions,wRefServer,wTargetCtx);
-    // AI 分析由后端生成，异步触发不阻塞面板渲染
-    loadStudentAnalysis(s);
   }catch(e){dp.innerHTML=`<div style="padding:28px;color:var(--red)">加载失败：${e.message}</div>`;toast(`加载失败：${e.message}`,'err')}
 }
 
 function renderDP(s,hist,sessions=[],weekSessions=[],wRefServer=null,wTargetCtx=null){
   const dp=$('dp');
-  const savedAI = S.aiState?.studentName===s.student_name ? S.aiState : null;
   const bestScore = calcPersonalBestFromHistory(hist, s);
   // has_week_snapshot=true 表示本周无练琴（由 loadAll 根据 practice_sessions 判断）
   const noPracticeWeek = !!s.has_week_snapshot;
@@ -2307,24 +1696,6 @@ function renderDP(s,hist,sessions=[],weekSessions=[],wRefServer=null,wTargetCtx=
       </div>
     </div>
     <button class="dp-close" onclick="closeDp()">✕</button>
-  </div>
-
-  <!-- ── AI 练琴分析卡片 ── -->
-  <div class="ai-card" id="ai-card-wrap">
-    <div class="ai-corner tl"></div><div class="ai-corner tr"></div>
-    <div class="ai-corner bl"></div><div class="ai-corner br"></div>
-    <div class="ai-hd">
-      <div class="ai-dot"></div>
-      <span class="ai-title">AI · 练琴状况智能分析</span>
-      <span id="dp-ai-meta" class="ai-meta"></span>
-      <button id="dp-ai-btn" class="ai-regen" onclick="regenerateAnalysis()">重新生成</button>
-      <button id="dp-diag-btn" class="diag-btn" onclick="deepDiag(S.selected)">🔬 深度诊断</button>
-    </div>
-    <div class="ai-body">
-      <div id="dp-ai-text" class="ai-text loading">
-        <div class="spin" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:8px"></div>AI 正在分析，请稍候…
-      </div>
-    </div>
   </div>
 
   <div class="dp-body">
@@ -2506,10 +1877,6 @@ function renderDP(s,hist,sessions=[],weekSessions=[],wRefServer=null,wTargetCtx=
 
     </div>
   </div>`;
-
-  if(savedAI){
-    setAIUI(savedAI.state,savedAI.text,savedAI.meta);
-  }
 
   setTimeout(()=>{
     renderHistCh(hist);

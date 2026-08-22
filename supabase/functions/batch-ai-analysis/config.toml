@@ -1,3 +1,0 @@
-# Deprecated:
-# Supabase CLI/Deploy 读取的是 supabase/config.toml。
-# 实际生效的函数配置已迁移到 ../../config.toml。
