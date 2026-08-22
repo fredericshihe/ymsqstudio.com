@@ -172,36 +172,129 @@
 			border-color: #b45309;
 		}
 
-		/* 学生库特定样式调整 */
-		#studentLibraryPanel .sl-btn {
-			font-weight: 500;
-			letter-spacing: 0.2px;
+		/* ===== 学生库（全屏表格式，slw- 前缀避免与全局 .btn/.modal/.field/.tag/.toolbar/.panel 冲突） ===== */
+		#studentLibraryPanel{
+			--slw-surface-raised:#2a323d; --slw-accent-soft:rgba(76,141,255,.16);
+			--slw-danger-soft:rgba(255,95,86,.14); --slw-warn-soft:rgba(255,179,71,.14);
+			--slw-ok-soft:rgba(63,191,107,.14); --slw-text-faint:#6b7684;
+			--slw-focus:0 0 0 3px rgba(76,141,255,.35);
 		}
+		#studentLibraryPanel.slw-backdrop{ position:fixed; inset:0; z-index:3100; background:rgba(6,8,11,.72); backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; padding:26px; }
+		#studentLibraryPanel .slw-panel{ width:min(1220px,100%); height:min(880px,92vh); background:var(--surface); border:1px solid var(--outline); border-radius:var(--radius-lg); box-shadow:0 24px 70px -20px rgba(0,0,0,.65); display:flex; flex-direction:column; overflow:hidden; color:var(--text); font-family:inherit; font-size:13px; font-variant-numeric:tabular-nums; }
+		#studentLibraryPanel .slw-panel-head{ display:flex; align-items:center; gap:14px; padding:18px 22px; border-bottom:1px solid var(--outline); flex-shrink:0; }
+		#studentLibraryPanel .slw-panel-head h1{ margin:0; font-size:19px; font-weight:700; letter-spacing:.3px; background:linear-gradient(90deg,#91bdff,#c3daff); -webkit-background-clip:text; background-clip:text; color:transparent; }
+		#studentLibraryPanel .slw-count-pill{ font-size:12px; font-weight:600; color:var(--text-dim); background:var(--surface-alt); border:1px solid var(--outline); padding:3px 10px; border-radius:999px; }
+		#studentLibraryPanel .slw-head-actions{ margin-left:auto; display:flex; gap:8px; align-items:center; }
+		#studentLibraryPanel .slw-icon-btn{ width:32px; height:32px; border-radius:8px; border:1px solid var(--outline); background:var(--surface-alt); color:var(--text-dim); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:15px; transition:.15s ease; }
+		#studentLibraryPanel .slw-icon-btn:hover{ background:var(--slw-surface-raised); color:var(--text); border-color:var(--outline-hover); }
 
-		#studentLibraryPanel .sl-btn:focus {
-			outline: none;
-			box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.5);
-		}
+		#studentLibraryPanel .slw-insight-strip{ display:flex; align-items:center; gap:10px; padding:12px 22px; flex-wrap:wrap; border-bottom:1px solid var(--divider); flex-shrink:0; }
+		#studentLibraryPanel .slw-insight-label{ font-size:11px; color:var(--slw-text-faint); letter-spacing:.4px; text-transform:uppercase; margin-right:2px; }
+		#studentLibraryPanel .slw-facet-chip{ display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:var(--text-dim); background:var(--surface-alt); border:1px solid var(--outline); border-radius:999px; padding:5px 11px; cursor:pointer; transition:.15s ease; user-select:none; }
+		#studentLibraryPanel .slw-facet-chip:hover{ border-color:var(--outline-hover); color:var(--text); }
+		#studentLibraryPanel .slw-facet-chip .slw-n{ color:var(--text); font-weight:700; }
+		#studentLibraryPanel .slw-facet-chip.slw-active{ background:var(--slw-accent-soft); border-color:var(--accent); color:#cfe1ff; }
+		#studentLibraryPanel .slw-facet-chip.slw-active .slw-n{ color:#eaf2ff; }
+		#studentLibraryPanel .slw-facet-chip.slw-warn{ background:var(--slw-warn-soft); border-color:rgba(255,179,71,.4); color:#ffd8a0; }
+		#studentLibraryPanel .slw-facet-chip.slw-warn .slw-n{ color:#ffe3b8; }
+		#studentLibraryPanel .slw-facet-chip.slw-warn:hover{ border-color:var(--warn); }
 
-		/* 学生列表行样式 */
-		.sl-row {
-			transition: all 0.2s ease;
-			position: relative;
-			z-index: 1;
-		}
+		#studentLibraryPanel .slw-toolbar{ display:flex; align-items:center; gap:10px; padding:12px 22px; flex-wrap:wrap; border-bottom:1px solid var(--outline); flex-shrink:0; position:relative; }
+		#studentLibraryPanel .slw-search-box{ position:relative; flex:1; min-width:200px; max-width:280px; }
+		#studentLibraryPanel .slw-search-box input{ width:100%; padding:8px 12px 8px 32px; border-radius:8px; border:1px solid var(--outline); background:var(--surface-alt); color:var(--text); font-size:13px; font-family:inherit; }
+		#studentLibraryPanel .slw-search-box input::placeholder{ color:var(--slw-text-faint); }
+		#studentLibraryPanel .slw-search-box input:focus{ outline:none; border-color:var(--accent); box-shadow:var(--slw-focus); }
+		#studentLibraryPanel .slw-search-box svg{ position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--slw-text-faint); pointer-events:none; }
 
-		.sl-row:hover {
-			background: #f8fafc !important;
-			border-color: #cbd5e1 !important;
-			transform: translateY(-1px);
-			box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-			z-index: 10;
-		}
+		#studentLibraryPanel .slw-dd{ position:relative; }
+		#studentLibraryPanel .slw-dd-btn{ display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border-radius:8px; border:1px solid var(--outline); background:var(--surface-alt); color:var(--text-dim); font-size:13px; font-weight:500; cursor:pointer; font-family:inherit; }
+		#studentLibraryPanel .slw-dd-btn:hover{ border-color:var(--outline-hover); color:var(--text); }
+		#studentLibraryPanel .slw-dd-btn.slw-has-value{ border-color:var(--accent); color:#cfe1ff; background:var(--slw-accent-soft); }
+		#studentLibraryPanel .slw-dd-btn .slw-car{ font-size:10px; color:var(--slw-text-faint); margin-left:2px; }
+		#studentLibraryPanel .slw-dd-panel{ position:absolute; top:calc(100% + 6px); left:0; width:220px; max-height:280px; overflow:auto; background:var(--slw-surface-raised); border:1px solid var(--outline-hover); border-radius:10px; box-shadow:0 12px 30px -8px rgba(0,0,0,.55); padding:6px; z-index:40; display:none; }
+		#studentLibraryPanel .slw-dd.slw-open .slw-dd-panel{ display:block; }
+		#studentLibraryPanel .slw-dd-opt{ display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:7px; cursor:pointer; font-size:13px; color:var(--text-dim); }
+		#studentLibraryPanel .slw-dd-opt:hover{ background:var(--surface-alt); color:var(--text); }
+		#studentLibraryPanel .slw-dd-opt input{ accent-color:var(--accent); width:14px; height:14px; flex-shrink:0; }
+		#studentLibraryPanel .slw-dd-opt .slw-label{ flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+		#studentLibraryPanel .slw-dd-opt .slw-cnt{ color:var(--slw-text-faint); font-size:11px; }
+		#studentLibraryPanel .slw-dd-opt.slw-empty .slw-label{ font-style:italic; color:var(--slw-text-faint); }
 
-		/* 按钮组间距优化 */
-		.sl-row .sl-btn + .sl-btn {
-			margin-left: 4px;
-		}
+		#studentLibraryPanel .slw-btn{ display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:8px 14px; font-size:13px; font-weight:600; border-radius:8px; border:1px solid var(--outline); cursor:pointer; font-family:inherit; white-space:nowrap; transition:.15s ease; }
+		#studentLibraryPanel .slw-btn-ghost{ background:var(--surface-alt); color:var(--text-dim); border-color:var(--outline); }
+		#studentLibraryPanel .slw-btn-ghost:hover{ color:var(--text); border-color:var(--outline-hover); }
+		#studentLibraryPanel .slw-btn-primary{ background:var(--accent); border-color:var(--accent); color:#fff; }
+		#studentLibraryPanel .slw-btn-primary:hover{ background:var(--accent-hover); border-color:var(--accent-hover); }
+		#studentLibraryPanel .slw-btn-danger{ background:transparent; border-color:rgba(255,95,86,.55); color:#ffb3ae; }
+		#studentLibraryPanel .slw-btn-danger:hover{ background:var(--slw-danger-soft); color:#fff; border-color:var(--danger); }
+		#studentLibraryPanel .slw-btn-danger.slw-solid{ background:var(--danger); border-color:var(--danger); color:#fff; }
+		#studentLibraryPanel .slw-btn-danger.slw-solid:hover{ background:#e6473f; }
+		#studentLibraryPanel .slw-btn-ok{ background:transparent; border-color:rgba(63,191,107,.55); color:#9fe4b6; }
+		#studentLibraryPanel .slw-btn-ok:hover{ background:var(--slw-ok-soft); color:#fff; border-color:var(--ok); }
+		#studentLibraryPanel .slw-btn-sm{ padding:6px 10px; font-size:12px; }
+		#studentLibraryPanel .slw-btn:disabled{ opacity:.45; cursor:not-allowed; }
+		#studentLibraryPanel .slw-toolbar-spacer{ margin-left:auto; display:flex; gap:8px; align-items:center; }
+		#studentLibraryPanel .slw-clear-filters{ font-size:12px; color:var(--accent); background:none; border:none; cursor:pointer; font-family:inherit; padding:4px 2px; }
+		#studentLibraryPanel .slw-clear-filters:hover{ color:var(--accent-hover); text-decoration:underline; }
+
+		#studentLibraryPanel .slw-batch-bar{ display:none; align-items:center; gap:10px; padding:10px 22px; background:linear-gradient(180deg,rgba(76,141,255,.14),rgba(76,141,255,.07)); border-bottom:1px solid rgba(76,141,255,.35); flex-shrink:0; flex-wrap:wrap; }
+		#studentLibraryPanel .slw-batch-bar.slw-show{ display:flex; }
+		#studentLibraryPanel .slw-batch-count{ font-size:13px; font-weight:700; color:#eaf2ff; }
+		#studentLibraryPanel .slw-batch-all-link{ font-size:12px; color:var(--accent-hover); background:none; border:none; cursor:pointer; font-family:inherit; text-decoration:underline; padding:0; }
+		#studentLibraryPanel .slw-batch-actions{ display:flex; gap:8px; margin-left:auto; flex-wrap:wrap; }
+
+		#studentLibraryPanel .slw-table-wrap{ flex:1; min-height:0; overflow:auto; padding:0 22px; }
+		#studentLibraryPanel table{ width:100%; border-collapse:collapse; font-size:13px; }
+		#studentLibraryPanel thead th{ position:sticky; top:0; background:var(--surface); z-index:5; text-align:left; padding:10px 10px; font-weight:600; color:var(--slw-text-faint); font-size:11px; text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid var(--outline); cursor:pointer; white-space:nowrap; }
+		#studentLibraryPanel thead th.slw-nosort{ cursor:default; }
+		#studentLibraryPanel thead th:hover:not(.slw-nosort){ color:var(--text-dim); }
+		#studentLibraryPanel thead th .slw-sort-arrow{ margin-left:4px; opacity:0; font-size:10px; }
+		#studentLibraryPanel thead th.slw-sorted .slw-sort-arrow{ opacity:1; color:var(--accent); }
+		#studentLibraryPanel thead th.slw-checkcol{ width:38px; }
+		#studentLibraryPanel tbody td{ padding:9px 10px; border-bottom:1px solid var(--divider); vertical-align:middle; }
+		#studentLibraryPanel tbody tr{ transition:background .12s ease; }
+		#studentLibraryPanel tbody tr:hover{ background:rgba(255,255,255,.025); }
+		#studentLibraryPanel tbody tr.slw-selected{ background:var(--slw-accent-soft); }
+		#studentLibraryPanel tbody tr.slw-flag td:first-child{ box-shadow:inset 3px 0 0 var(--warn); }
+		#studentLibraryPanel tbody tr.slw-archived{ opacity:.55; }
+		#studentLibraryPanel input[type=checkbox]{ accent-color:var(--accent); width:15px; height:15px; cursor:pointer; }
+
+		#studentLibraryPanel .slw-name-cell{ display:flex; align-items:center; gap:9px; font-weight:600; }
+		#studentLibraryPanel .slw-avatar{ width:26px; height:26px; border-radius:50%; background:var(--slw-surface-raised); color:var(--text-dim); font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid var(--outline); }
+		#studentLibraryPanel .slw-badge{ display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap; }
+		#studentLibraryPanel .slw-badge.slw-grade{ background:var(--surface-alt); border:1px solid var(--outline); color:var(--text-dim); }
+		#studentLibraryPanel .slw-badge.slw-grade.slw-empty{ border-style:dashed; color:var(--slw-text-faint); font-style:italic; font-weight:500; }
+		#studentLibraryPanel .slw-tag{ display:inline-flex; align-items:center; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:600; white-space:nowrap; background:var(--slw-accent-soft); color:#8fb4ff; }
+		#studentLibraryPanel .slw-status-pill{ font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px; }
+		#studentLibraryPanel .slw-status-pill.slw-active{ color:#9fe4b6; background:var(--slw-ok-soft); }
+		#studentLibraryPanel .slw-status-pill.slw-archived{ color:var(--slw-text-faint); background:var(--surface-alt); border:1px solid var(--outline); }
+		#studentLibraryPanel .slw-updated-cell{ color:var(--slw-text-faint); font-size:12px; }
+		#studentLibraryPanel .slw-row-actions{ display:flex; gap:6px; opacity:0; transition:opacity .12s ease; }
+		#studentLibraryPanel tbody tr:hover .slw-row-actions{ opacity:1; }
+		#studentLibraryPanel .slw-row-icon-btn{ width:26px; height:26px; border-radius:6px; border:1px solid transparent; background:transparent; color:var(--slw-text-faint); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:13px; }
+		#studentLibraryPanel .slw-row-icon-btn:hover{ background:var(--slw-surface-raised); color:var(--text); }
+		#studentLibraryPanel .slw-row-icon-btn.slw-del:hover{ color:#ff9b95; background:var(--slw-danger-soft); }
+		#studentLibraryPanel .slw-empty-state{ padding:60px 20px; text-align:center; color:var(--slw-text-faint); font-size:13px; }
+
+		#studentLibraryPanel .slw-panel-foot{ display:flex; align-items:center; gap:12px; padding:12px 22px; border-top:1px solid var(--outline); font-size:12px; color:var(--slw-text-faint); flex-shrink:0; }
+
+		.slw-modal-backdrop{ position:fixed; inset:0; background:rgba(6,8,11,.65); backdrop-filter:blur(2px); display:none; align-items:center; justify-content:center; z-index:3150; }
+		.slw-modal-backdrop.slw-show{ display:flex; }
+		.slw-modal{ width:380px; max-width:92%; background:var(--slw-surface-raised, #2a323d); border:1px solid var(--outline-hover); border-radius:var(--radius); box-shadow:0 20px 50px -12px rgba(0,0,0,.6); padding:20px 22px; font-family:inherit; color:var(--text); }
+		.slw-modal.slw-wide{ width:440px; }
+		.slw-modal h3{ margin:0 0 4px; font-size:16px; font-weight:700; color:var(--text); }
+		.slw-modal .slw-sub{ font-size:12.5px; color:var(--text-dim); margin:0 0 16px; line-height:1.5; }
+		.slw-field{ display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+		.slw-field label{ font-size:12px; font-weight:600; color:var(--text-dim); }
+		.slw-field input{ padding:9px 11px; border-radius:8px; border:1px solid var(--outline); background:var(--surface-alt); color:var(--text); font-size:13px; font-family:inherit; }
+		.slw-field input:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(76,141,255,.35); }
+		.slw-affected-list{ max-height:120px; overflow:auto; background:var(--surface-alt); border:1px solid var(--outline); border-radius:8px; padding:8px 10px; font-size:12px; color:var(--text-dim); line-height:1.8; margin-bottom:14px; }
+		.slw-modal-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:4px; }
+		.slw-danger-box{ background:rgba(255,95,86,.14); border:1px solid rgba(255,95,86,.4); border-radius:8px; padding:10px 12px; font-size:12px; color:#ffb3ae; line-height:1.6; margin-bottom:14px; }
+		.slw-archive-box{ background:rgba(63,191,107,.14); border:1px solid rgba(63,191,107,.4); border-radius:8px; padding:10px 12px; font-size:12px; color:#bdeeca; line-height:1.6; margin-bottom:14px; }
+		.slw-progress{ display:none; font-size:12px; color:var(--text-dim); background:var(--surface-alt); border:1px solid var(--outline); padding:6px 8px; border-radius:6px; line-height:1.5; margin-bottom:12px; }
+		.slw-progress .slw-progress-bar-track{ height:6px; background:var(--outline); border-radius:4px; margin-top:6px; overflow:hidden; }
+		.slw-progress .slw-progress-bar{ height:100%; width:0%; background:linear-gradient(90deg,var(--accent),var(--accent-hover)); transition:width .3s; }
 		* {box-sizing:border-box;}
 		body {margin:0; background:linear-gradient(180deg,#0d1014,#11161d); min-height:100vh; display:flex; flex-direction:column;}
 		header {padding:18px 26px 10px; display:flex; flex-wrap:wrap; align-items:flex-start; gap:16px;}
@@ -956,34 +1049,143 @@
 	</main>
 	<footer>© 2025 青岛耶胡迪梅纽因学校 琴房管理系统 · Demo 版本 · <a href="https://supabase.com" target="_blank" rel="noopener">Supabase</a></footer>
 
-	<!-- 学生库管理面板（抽屉） -->
-	<div id="studentLibraryPanel" style="position:fixed;top:0;right:0;bottom:0;width:420px;max-width:100%;background:#ffffff;box-shadow:-4px 0 18px -4px rgba(0,0,0,.15);border-left:1px solid #e2e8f0;z-index:3100;display:none;flex-direction:column;font-size:13px;color:#1a1a1a;">
-		<div style="padding:14px 16px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px;position:relative;z-index:20;background:#ffffff;">
-			<h3 style="margin:0;font-size:16px;font-weight:600;flex:1;display:flex;align-items:center;gap:6px;color:#1a1a1a;">学生库 <span id="slTotal" style="font-size:11px;font-weight:500;color:#64748b;">--</span></h3>
-			<button id="slCloseBtn" class="sl-btn sl-btn-secondary sl-btn-sm">关闭</button>
+	<!-- 学生库管理面板（全屏表格式） -->
+	<div id="studentLibraryPanel" class="slw-backdrop" style="display:none;">
+		<div class="slw-panel">
+			<div class="slw-panel-head">
+				<h1>学生库</h1>
+				<span class="slw-count-pill" id="slwTotalPill">-- 名学生</span>
+				<div class="slw-head-actions">
+					<button class="slw-icon-btn" id="slwCloseBtn" title="关闭">✕</button>
+				</div>
+			</div>
+
+			<div class="slw-insight-strip" id="slwInsightStrip">
+				<span class="slw-insight-label">按专业查看</span>
+			</div>
+
+			<div class="slw-toolbar">
+				<div class="slw-search-box">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.3-4.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+					<input type="text" id="slwSearchInput" placeholder="搜索姓名 / 拼音首字母" />
+				</div>
+				<div class="slw-dd" id="slwGradeDd">
+					<button class="slw-dd-btn" id="slwGradeDdBtn">年级 <span class="slw-car">▾</span></button>
+					<div class="slw-dd-panel" id="slwGradeDdPanel"></div>
+				</div>
+				<div class="slw-dd" id="slwMajorDd">
+					<button class="slw-dd-btn" id="slwMajorDdBtn">专业 <span class="slw-car">▾</span></button>
+					<div class="slw-dd-panel" id="slwMajorDdPanel"></div>
+				</div>
+				<div class="slw-dd" id="slwStatusDd">
+					<button class="slw-dd-btn" id="slwStatusDdBtn">状态 <span class="slw-car">▾</span></button>
+					<div class="slw-dd-panel" id="slwStatusDdPanel"></div>
+				</div>
+				<button class="slw-clear-filters" id="slwClearFiltersBtn" style="display:none;">清除筛选</button>
+				<div class="slw-toolbar-spacer">
+					<button class="slw-btn slw-btn-ghost slw-btn-sm" id="slwImportBtn">导入 CSV</button>
+					<button class="slw-btn slw-btn-ghost slw-btn-sm" id="slwExportBtn">导出 CSV</button>
+					<input type="file" id="slwImportFile" accept=".csv,text/csv" style="display:none;" />
+					<button class="slw-btn slw-btn-primary" id="slwAddBtn">＋ 新增学生</button>
+				</div>
+			</div>
+
+			<div class="slw-batch-bar" id="slwBatchBar">
+				<span class="slw-batch-count" id="slwBatchCount">已选 0 项</span>
+				<button class="slw-batch-all-link" id="slwSelectAllFilteredBtn"></button>
+				<div class="slw-batch-actions">
+					<button class="slw-btn slw-btn-ghost slw-btn-sm" id="slwBatchGradeBtn">批量改年级</button>
+					<button class="slw-btn slw-btn-ghost slw-btn-sm" id="slwBatchMajorBtn">批量改专业</button>
+					<button class="slw-btn slw-btn-ghost slw-btn-sm" id="slwBatchExportBtn">导出所选</button>
+					<button class="slw-btn slw-btn-ok slw-btn-sm" id="slwBatchArchiveBtn">批量归档</button>
+					<button class="slw-btn slw-btn-ghost slw-btn-sm" id="slwBatchUnarchiveBtn">取消归档</button>
+					<button class="slw-btn slw-btn-danger slw-btn-sm" id="slwBatchDeleteBtn">永久删除</button>
+					<button class="slw-btn slw-btn-ghost slw-btn-sm" id="slwBatchCancelBtn">取消</button>
+				</div>
+			</div>
+
+			<div class="slw-table-wrap">
+				<table>
+					<thead>
+						<tr>
+							<th class="slw-checkcol slw-nosort"><input type="checkbox" id="slwSelectAllCb" /></th>
+							<th data-key="name">姓名<span class="slw-sort-arrow">▲</span></th>
+							<th data-key="grade">年级<span class="slw-sort-arrow">▲</span></th>
+							<th data-key="major">专业<span class="slw-sort-arrow">▲</span></th>
+							<th data-key="updated">更新时间<span class="slw-sort-arrow">▲</span></th>
+							<th data-key="status">状态<span class="slw-sort-arrow">▲</span></th>
+							<th class="slw-nosort">操作</th>
+						</tr>
+					</thead>
+					<tbody id="slwTbody"></tbody>
+				</table>
+			</div>
+
+			<div class="slw-panel-foot">
+				<span id="slwFootCount">显示 0 / 0 名学生</span>
+			</div>
 		</div>
-		<div style="padding:10px 14px;display:flex;flex-direction:column;gap:10px;flex:1;min-height:0;">
-			<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-				<input id="slSearch" placeholder="搜索姓名 / 拼音" class="sl-input" style="flex:1;min-width:160px;" />
-				<button id="slAddBtn" class="sl-btn sl-btn-primary">新增学生</button>
+	</div>
+
+	<!-- 学生库：新增/编辑学生 -->
+	<div class="slw-modal-backdrop" id="slwEditModalBackdrop">
+		<div class="slw-modal">
+			<h3 id="slwEditModalTitle">新增学生</h3>
+			<p class="slw-sub">姓名在系统中作为跨表格的唯一标识；修改姓名会级联更新排课、时间段与练琴记录等关联数据。</p>
+			<div class="slw-field"><label>姓名 *</label><input id="slwFName" type="text" placeholder="例如：林晏熹" /></div>
+			<div class="slw-field"><label>年级</label><input id="slwFGrade" type="text" list="slwGradeOptions" placeholder="例如：G7" /></div>
+			<div class="slw-field"><label>专业</label><input id="slwFMajor" type="text" list="slwMajorOptions" placeholder="例如：钢琴教研室" /></div>
+			<datalist id="slwGradeOptions"></datalist>
+			<datalist id="slwMajorOptions"></datalist>
+			<div class="slw-progress" id="slwEditProgress"><span id="slwEditProgressText">同步中...</span><div class="slw-progress-bar-track"><div class="slw-progress-bar" id="slwEditProgressBar"></div></div></div>
+			<div class="slw-modal-actions">
+				<button class="slw-btn slw-btn-ghost" data-slw-close="slwEditModalBackdrop">取消</button>
+				<button class="slw-btn slw-btn-primary" id="slwSaveEditBtn">保存</button>
 			</div>
-			<div id="slAddForm" style="display:none;gap:8px;flex-wrap:wrap;background:#f8fafc;border:1px solid #e2e8f0;padding:12px;border-radius:8px;">
-				<input id="slName" placeholder="姓名*" class="sl-input" style="flex:1;min-width:120px;" />
-				<input id="slGrade" placeholder="年级" class="sl-input" style="flex:1;min-width:100px;" />
-				<input id="slMajor" placeholder="专业" class="sl-input" style="flex:1;min-width:100px;" />
-				<div style="display:flex;gap:8px;width:100%;justify-content:flex-end;margin-top:6px;">
-					<button id="slCancelAdd" class="sl-btn sl-btn-secondary">取消</button>
-					<button id="slSubmitAdd" class="sl-btn sl-btn-success">保存</button>
-				</div>
+		</div>
+	</div>
+
+	<!-- 学生库：批量修改年级/专业 -->
+	<div class="slw-modal-backdrop" id="slwBatchFieldModalBackdrop">
+		<div class="slw-modal">
+			<h3 id="slwBatchFieldTitle">批量设置年级</h3>
+			<p class="slw-sub" id="slwBatchFieldSub">将为 <b id="slwBatchFieldCount">0</b> 名学生统一设置该字段，原有值将被覆盖。</p>
+			<div class="slw-field"><label id="slwBatchFieldLabel">新值</label><input id="slwBatchFieldInput" type="text" list="slwBatchFieldOptions" /></div>
+			<datalist id="slwBatchFieldOptions"></datalist>
+			<div class="slw-affected-list" id="slwBatchAffectedList"></div>
+			<div class="slw-modal-actions">
+				<button class="slw-btn slw-btn-ghost" data-slw-close="slwBatchFieldModalBackdrop">取消</button>
+				<button class="slw-btn slw-btn-primary" id="slwBatchFieldApplyBtn">应用</button>
 			</div>
-			<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-				<div style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-					<button id="slExportCsvSlotsBtn" class="sl-btn sl-btn-outline sl-btn-sm">导出学生库</button>
-					<button id="slImportCsvSlotsBtn" class="sl-btn sl-btn-outline sl-btn-sm">导入学生库</button>
-					<input type="file" id="slImportCsvSlotsFile" accept=".csv,text/csv" style="display:none;" />
-				</div>
+		</div>
+	</div>
+
+	<!-- 学生库：批量归档/取消归档确认 -->
+	<div class="slw-modal-backdrop" id="slwArchiveModalBackdrop">
+		<div class="slw-modal">
+			<h3 id="slwArchiveModalTitle">批量归档</h3>
+			<p class="slw-sub" id="slwArchiveModalSub">归档后学生将从常规视图中隐藏，但保留全部历史记录与排课数据，可随时在「状态」筛选中查看并恢复。</p>
+			<div class="slw-archive-box" id="slwArchiveModalBox">✓ 更安全的移除方式：不影响练琴记录、金币记录等历史数据的关联完整性。</div>
+			<div class="slw-affected-list" id="slwArchiveAffectedList"></div>
+			<div class="slw-modal-actions">
+				<button class="slw-btn slw-btn-ghost" data-slw-close="slwArchiveModalBackdrop">取消</button>
+				<button class="slw-btn slw-btn-ok" id="slwConfirmArchiveBtn">确认归档</button>
 			</div>
-			<div id="slList" style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:6px;"></div>
+		</div>
+	</div>
+
+	<!-- 学生库：批量永久删除确认 -->
+	<div class="slw-modal-backdrop" id="slwDeleteModalBackdrop">
+		<div class="slw-modal slw-wide">
+			<h3>永久删除学生</h3>
+			<p class="slw-sub">此操作不可恢复，将同时删除对应的排课时间段。练琴记录、金币记录等历史表不会被删除，但会失去对应的学生姓名关联，成为孤立记录。</p>
+			<div class="slw-danger-box">⚠ 建议优先使用「批量归档」。仅当确认这些学生数据是重复/录入错误时才使用永久删除。</div>
+			<div class="slw-affected-list" id="slwDeleteAffectedList"></div>
+			<div class="slw-field"><label>输入 <b id="slwDeleteConfirmWord">DELETE</b> 以确认</label><input id="slwDeleteConfirmInput" type="text" placeholder="DELETE" /></div>
+			<div class="slw-modal-actions">
+				<button class="slw-btn slw-btn-ghost" data-slw-close="slwDeleteModalBackdrop">取消</button>
+				<button class="slw-btn slw-btn-danger slw-solid" id="slwConfirmDeleteBtn" disabled>确认永久删除</button>
+			</div>
 		</div>
 	</div>
 
@@ -18120,7 +18322,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			
 			const { data: cloudStudents, error } = await window.supabaseClient
 				.from('student_database')
-				.select('name,grade,major,updated_at,created_at')
+				.select('name,grade,major,archived,updated_at,created_at')
 				.order('name')
 				.range(0, 99999);
 			
@@ -18145,6 +18347,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 						// 已存在，更新信息（以云端为准，但保留本地ID和备注）
 						localStudent.grade = cloudStudent.grade || '';
 						localStudent.major = cloudStudent.major || '';
+						localStudent.archived = cloudStudent.archived === true;
 						localStudent.updated_at = cloudStudent.updated_at ? new Date(cloudStudent.updated_at).getTime() : now();
 						mergedCount++;
 					} else {
@@ -18155,7 +18358,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 							grade: cloudStudent.grade || '',
 							major: cloudStudent.major || '',
 							remark: '',
-							archived: false,
+							archived: cloudStudent.archived === true,
 							created_at: cloudStudent.created_at ? new Date(cloudStudent.created_at).getTime() : now(),
 							updated_at: cloudStudent.updated_at ? new Date(cloudStudent.updated_at).getTime() : now()
 						};
@@ -18209,11 +18412,13 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				if(!n) continue;
 				if(op.type === 'upsert'){
 					deleteSet.delete(n);
-					upsertMap.set(n, {
+					const row = {
 						name: n,
 						major: op.payload.major || '未填写',
 						grade: op.payload.grade || ''
-					});
+					};
+					if(op.payload.archived !== undefined) row.archived = op.payload.archived;
+					upsertMap.set(n, row);
 				}else if(op.type === 'delete'){
 					upsertMap.delete(n);
 					deleteSet.add(n);
@@ -18246,9 +18451,11 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					if(insErr){ throw new Error(`insert失败: ${insErr.message}`); }
 				}
 				for(const row of toUpdate){
+					const patch = { major: row.major, grade: row.grade };
+					if(row.archived !== undefined) patch.archived = row.archived;
 					const { error: updErr } = await supabaseClient
 						.from('student_database')
-						.update({ major: row.major, grade: row.grade })
+						.update(patch)
 						.eq('name', row.name);
 					if(updErr){ throw new Error(`update失败: ${updErr.message}`); }
 				}
@@ -18304,7 +18511,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	// 供外部在 Supabase 连接后再次尝试
 	window.__retryStudentLibraryPending = flushPending;
 	function migrateFromRoomStore(){ if(store.items.length) return; const rs=window.RoomStore?.students||[]; if(!rs.length) return; rs.forEach(s=>{ store.items.push({ id:crypto.randomUUID?crypto.randomUUID():('id_'+Math.random().toString(36).slice(2)), name:s.name, grade:s.grade||'', major:s.major||'', remark:'', archived:false, created_at:now(), updated_at:now() }); }); save(); console.log('[StudentLibrary] migrated', store.items.length); }
-	function getAll(){ return store.items.slice().sort((a,b)=>a.name.localeCompare(b.name,'zh-Hans-CN')); }
+	function getAll(activeOnly){ const items = activeOnly ? store.items.filter(s=>!s.archived) : store.items; return items.slice().sort((a,b)=>a.name.localeCompare(b.name,'zh-Hans-CN')); }
 	function findByName(name){ return store.items.find(s=>s.name===name); }
 	function syncStoreItemToCloud(it){ if(!it) return; enqueue({ type:'upsert', payload:{ name:it.name, major:it.major||'', grade:it.grade||'' } }); }
 	function addStudent(meta){ 
@@ -18356,12 +18563,79 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			}
 		}, 5000);
 		
-		Object.assign(it, patch||{}, { updated_at:now() }); 
-		save(); 
-		syncStoreItemToCloud(it); 
-		refreshUI(); 
+		Object.assign(it, patch||{}, { updated_at:now() });
+		save();
+		syncStoreItemToCloud(it);
+		refreshUI();
 	}
-	
+
+	// ===== 批量操作（年级/专业/归档/删除） =====
+	function batchSetField(names, field, value){ // field: 'grade' | 'major'
+		const ts = now();
+		names.forEach(n=>{ const it=findByName(n); if(it){ it[field]=value; it.updated_at=ts; } });
+		save(); refreshUI();
+		const queueFallback = ()=>{ names.forEach(n=>{ const it=findByName(n); if(it) syncStoreItemToCloud(it); }); };
+		if(!window.supabaseReady || !window.supabaseClient){ queueFallback(); if(typeof toast==='function') toast('离线：变更已排队', 'warn'); return Promise.resolve({ok:false, offline:true}); }
+		return (async()=>{
+			try{
+				for(let i=0;i<names.length;i+=120){
+					const chunk = names.slice(i,i+120);
+					const { error } = await supabaseClient.from('student_database').update({ [field]: value }).in('name', chunk);
+					if(error) throw error;
+				}
+				return { ok:true };
+			}catch(e){
+				console.warn('[StudentLibrary] batchSetField 云端写入失败，回退到队列', e.message);
+				queueFallback();
+				return { ok:false, error:e.message };
+			}
+		})();
+	}
+
+	function batchArchive(names, archivedVal){ // true=归档, false=取消归档
+		const ts = now();
+		names.forEach(n=>{ const it=findByName(n); if(it){ it.archived=archivedVal; it.updated_at=ts; } });
+		save(); refreshUI();
+		const queueFallback = ()=>{ names.forEach(n=>{ const it=findByName(n); if(it) enqueue({ type:'upsert', payload:{ name:it.name, major:it.major||'', grade:it.grade||'', archived:it.archived } }); }); };
+		if(!window.supabaseReady || !window.supabaseClient){ queueFallback(); if(typeof toast==='function') toast('离线：变更已排队', 'warn'); return Promise.resolve({ok:false, offline:true}); }
+		return (async()=>{
+			try{
+				for(let i=0;i<names.length;i+=120){
+					const chunk = names.slice(i,i+120);
+					const { error } = await supabaseClient.from('student_database').update({ archived: archivedVal }).in('name', chunk);
+					if(error) throw error;
+				}
+				return { ok:true };
+			}catch(e){
+				console.warn('[StudentLibrary] batchArchive 云端写入失败，回退到队列', e.message);
+				queueFallback();
+				return { ok:false, error:e.message };
+			}
+		})();
+	}
+
+	function batchDelete(names){
+		names.forEach(n=>{
+			const idx = store.items.findIndex(s=>s.name===n);
+			if(idx>=0){
+				if (!window.__studentUpdateIgnore) window.__studentUpdateIgnore = new Set();
+				window.__studentUpdateIgnore.add(n);
+				window.__studentUpdateTimestamp = Date.now();
+				setTimeout(()=>{ if(window.__studentUpdateIgnore) window.__studentUpdateIgnore.delete(n); }, 5000);
+				store.items.splice(idx,1);
+				enqueue({ type:'delete', payload:{ name:n } });
+			}
+		});
+		save(); refreshUI();
+		if(window.supabaseClient){
+			for(let i=0;i<names.length;i+=120){
+				const chunk = names.slice(i,i+120);
+				supabaseClient.from('student_time_slots').delete().in('student_name', chunk)
+					.then(({error})=>{ if(error) console.warn('[StudentLibrary] batchDelete 级联清理时间段失败', error.message); });
+			}
+		}
+	}
+
 	// 处理远程更新（避免循环同步）
 	function handleRemoteUpdate(payload) {
 		try {
@@ -18380,7 +18654,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 						grade: row.grade || '',
 						major: row.major || '',
 						remark: '',
-						archived: false,
+						archived: row.archived === true,
 						created_at: now(),
 						updated_at: now()
 					};
@@ -18394,6 +18668,10 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					}
 					if (student.major !== (row.major || '')) {
 						student.major = row.major || '';
+						changed = true;
+					}
+					if (student.archived !== (row.archived === true)) {
+						student.archived = row.archived === true;
 						changed = true;
 					}
 					if (changed) {
@@ -18452,44 +18730,38 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		}
 	}
 	// 打开编辑学生弹窗（支持改名、年级、专业）
+	// 打开新增/编辑学生弹窗；oldName 为空表示新增
 	function openEditStudent(oldName){
-		const stu=findByName(oldName); if(!stu){ alert('未找到学生'); return; }
-		let wrap=document.getElementById('editStudentModal');
-		if(!wrap){
-			wrap=document.createElement('div'); wrap.id='editStudentModal'; wrap.style.cssText='position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:6200;background:rgba(0,0,0,.45);backdrop-filter:blur(2px);';
-			wrap.innerHTML=`<div style="width:360px;max-width:92%;background:#fff;border-radius:14px;padding:20px 22px;box-shadow:0 8px 32px rgba(0,0,0,.25);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
-				<div style="font-size:16px;font-weight:600;margin-bottom:14px;letter-spacing:.5px;color:#1f2937;">编辑学生</div>
-				<div style="display:flex;flex-direction:column;gap:12px;">
-					<label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:#1f2937;font-weight:500;">姓名<input id=\"esName\" type=\"text\" style=\"padding:12px 14px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;color:#1f2937;background:#fafafa;transition:all 0.2s ease;outline:none;\" onfocus=\"this.style.borderColor='#2563eb';this.style.background='#fff';\" onblur=\"this.style.borderColor='#e5e7eb';this.style.background='#fafafa';\" /></label>
-					<label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:#1f2937;font-weight:500;">年级<input id=\"esGrade\" type=\"text\" style=\"padding:12px 14px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;color:#1f2937;background:#fafafa;transition:all 0.2s ease;outline:none;\" onfocus=\"this.style.borderColor='#2563eb';this.style.background='#fff';\" onblur=\"this.style.borderColor='#e5e7eb';this.style.background='#fafafa';\" /></label>
-					<label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:#1f2937;font-weight:500;">专业<input id=\"esMajor\" type=\"text\" style=\"padding:12px 14px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;color:#1f2937;background:#fafafa;transition:all 0.2s ease;outline:none;\" onfocus=\"this.style.borderColor='#2563eb';this.style.background='#fff';\" onblur=\"this.style.borderColor='#e5e7eb';this.style.background='#fafafa';\" /></label>
-					<div id=\"esProgress\" style=\"display:none;font-size:12px;color:#0f172a;background:#f1f5f9;border:1px solid #cbd5e1;padding:6px 8px;border-radius:6px;line-height:1.5;\">\n<span id=\"esProgText\">同步中...</span>\n<div style=\"height:6px;background:#e2e8f0;border-radius:4px;margin-top:6px;overflow:hidden;\">\n<div id=\"esProgBar\" style=\"height:100%;width:0%;background:linear-gradient(90deg,#2563eb,#3b82f6);transition:width .3s;\"></div>\n</div>\n</div>
-					<div style="display:flex;gap:12px;justify-content:flex-end;margin-top:8px;">
-						<button id=\"esCancel\" style=\"padding:10px 18px;border:2px solid #e5e7eb;background:#fff;color:#6b7280;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;transition:all 0.2s ease;\" onmouseover=\"this.style.borderColor='#d1d5db';this.style.color='#374151';\" onmouseout=\"this.style.borderColor='#e5e7eb';this.style.color='#6b7280';\">取消</button>
-						<button id=\"esSave\" style=\"padding:10px 18px;border:2px solid #2563eb;background:#2563eb;color:#fff;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s ease;box-shadow:0 2px 4px rgba(37,99,235,0.2);\" onmouseover=\"this.style.background='#1d4ed8';this.style.borderColor='#1d4ed8';this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 8px rgba(37,99,235,0.3)';\" onmouseout=\"this.style.background='#2563eb';this.style.borderColor='#2563eb';this.style.transform='translateY(0)';this.style.boxShadow='0 2px 4px rgba(37,99,235,0.2)';\">保存</button>
-					</div>
-				</div>`;
-			wrap.addEventListener('click',e=>{ if(e.target===wrap) close(); });
-			document.body.appendChild(wrap);
-		}
-		const nameInput=wrap.querySelector('#esName'); const gradeInput=wrap.querySelector('#esGrade'); const majorInput=wrap.querySelector('#esMajor'); const progBox=wrap.querySelector('#esProgress'); const progText=wrap.querySelector('#esProgText'); const progBar=wrap.querySelector('#esProgBar');
-		function close(){ wrap.style.display='none'; }
-		// 重置进度条状态
-		progBox.style.display='none'; progText.textContent='同步中...'; progBar.style.width='0%'; progBar.style.background='linear-gradient(90deg,#2563eb,#3b82f6)';
-		wrap.style.display='flex'; nameInput.value=stu.name; gradeInput.value=stu.grade||''; majorInput.value=stu.major||''; nameInput.focus();
-		wrap.querySelector('#esCancel').onclick=close;
+		const stu = oldName ? findByName(oldName) : null;
+		if(oldName && !stu){ alert('未找到学生'); return; }
+		const wrap=document.getElementById('slwEditModalBackdrop');
+		const nameInput=document.getElementById('slwFName'), gradeInput=document.getElementById('slwFGrade'), majorInput=document.getElementById('slwFMajor');
+		const progBox=document.getElementById('slwEditProgress'), progText=document.getElementById('slwEditProgressText'), progBar=document.getElementById('slwEditProgressBar');
+		const saveBtn=document.getElementById('slwSaveEditBtn');
+		document.getElementById('slwEditModalTitle').textContent = stu ? '编辑学生' : '新增学生';
+		function close(){ wrap.classList.remove('slw-show'); }
+		progBox.style.display='none'; progText.textContent='同步中...'; progBar.style.width='0%'; progBar.style.background='';
+		wrap.classList.add('slw-show'); nameInput.value=stu?stu.name:''; gradeInput.value=stu?(stu.grade||''):''; majorInput.value=stu?(stu.major||''):''; nameInput.focus();
 		let saving = false;
-		wrap.querySelector('#esSave').onclick=async ()=>{
+		saveBtn.onclick=async ()=>{
 			if(saving) return;
-			const newName=nameInput.value.trim(); const newGrade=gradeInput.value.trim(); const newMajor=majorInput.value.trim(); if(!newName){ alert('姓名不能为空'); nameInput.focus(); return; }
-			if(newName!==oldName && findByName(newName)){ alert('已存在同名学生'); return; }
+			const newName=nameInput.value.trim(); const newGrade=gradeInput.value.trim(); const newMajor=majorInput.value.trim();
+			if(!newName){ alert('姓名不能为空'); nameInput.focus(); return; }
+			if(!stu){
+				// 新增
+				try{ addStudent({ name:newName, grade:newGrade, major:newMajor }); }
+				catch(e){ alert(e.message||e); return; }
+				close();
+				return;
+			}
+			const oldNameLocal = stu.name;
+			if(newName!==oldNameLocal && findByName(newName)){ alert('已存在同名学生'); return; }
 			saving = true;
-			const saveBtn = wrap.querySelector('#esSave');
 			if(saveBtn){ saveBtn.disabled = true; saveBtn.style.opacity='0.7'; }
 			stu.name=newName; stu.grade=newGrade; stu.major=newMajor; stu.updated_at=now(); save(); refreshUI();
 			if(!window.supabaseClient){
 				close();
-				if(window.toast) toast('离线：仅本地保存','warn');
+				if(typeof toast==='function') toast('离线：仅本地保存','warn');
 				saving = false;
 				if(saveBtn){ saveBtn.disabled = false; saveBtn.style.opacity=''; }
 				return;
@@ -18498,25 +18770,25 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			try{
 				function step(p,msg){ progBar.style.width=p+'%'; if(msg) progText.textContent=msg; }
 				const basePayload={ name:newName, grade:newGrade||'', major:newMajor||'' };
-				if(newName!==oldName){
+				if(newName!==oldNameLocal){
 					const rename = await supabaseClient
 						.from('student_database')
 						.update(basePayload)
-						.eq('name', oldName)
+						.eq('name', oldNameLocal)
 						.select('name')
 						.maybeSingle();
 					if(rename.error){ throw new Error('学生改名失败: '+rename.error.message); }
 					if(!rename.data){ throw new Error('学生改名失败: 云端未找到旧学生记录'); }
 						step(45,'同步关联数据...');
 						// 级联改名到关联表与在住房间，避免时段/记录/提醒对不上（best-effort，不阻断主流程）
-						try{ await supabaseClient.from('student_time_slots').update({ student_name:newName }).eq('student_name', oldName); }catch(e){ console.warn('[改名级联] student_time_slots 失败', e.message); }
-						try{ await supabaseClient.from('student_schedules').update({ name:newName }).eq('name', oldName); }catch(e){ console.warn('[改名级联] student_schedules 失败', e.message); }
-						try{ await supabaseClient.from('practice_logs').update({ student_name:newName }).eq('student_name', oldName); }catch(e){ console.warn('[改名级联] practice_logs 失败', e.message); }
+						try{ await supabaseClient.from('student_time_slots').update({ student_name:newName }).eq('student_name', oldNameLocal); }catch(e){ console.warn('[改名级联] student_time_slots 失败', e.message); }
+						try{ await supabaseClient.from('student_schedules').update({ name:newName }).eq('name', oldNameLocal); }catch(e){ console.warn('[改名级联] student_schedules 失败', e.message); }
+						try{ await supabaseClient.from('practice_logs').update({ student_name:newName }).eq('student_name', oldNameLocal); }catch(e){ console.warn('[改名级联] practice_logs 失败', e.message); }
 						try{
-							await supabaseClient.from('rooms').update({ occupant_student_name:newName }).eq('occupant_student_name', oldName);
+							await supabaseClient.from('rooms').update({ occupant_student_name:newName }).eq('occupant_student_name', oldNameLocal);
 							const rooms=(window.Store&&window.Store.rooms)||[];
 							let touched=false;
-							rooms.forEach(r=>{ if(r.occupant_student_name===oldName){ r.occupant_student_name=newName; touched=true; try{ window.queueRoomRenderHigh&&window.queueRoomRenderHigh(r.name); }catch(_){} } });
+							rooms.forEach(r=>{ if(r.occupant_student_name===oldNameLocal){ r.occupant_student_name=newName; touched=true; try{ window.queueRoomRenderHigh&&window.queueRoomRenderHigh(r.name); }catch(_){} } });
 							if(touched && !window.queueRoomRenderHigh && window.renderRoomGrid){ try{ window.renderRoomGrid(); }catch(_){} }
 						}catch(e){ console.warn('[改名级联] rooms 占用者 失败', e.message); }
 					step(70,'学生姓名与关联数据已同步');
@@ -18527,16 +18799,15 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					step(70,'学生信息已同步');
 				}
 				step(92,'刷新界面...'); await new Promise(r=>requestAnimationFrame(r)); step(100,'完成'); setTimeout(()=>close(),500);
-				if(window.toast) toast('学生已同步','success');
-			}catch(err){ progBar.style.width='100%'; progBar.style.background='#dc2626'; progText.textContent=err.message||err; if(newName!==oldName){ // 回滚本地名称
-				stu.name=oldName; save(); refreshUI(); }
+				if(typeof toast==='function') toast('学生已同步','success');
+			}catch(err){ progBar.style.width='100%'; progBar.style.background='var(--danger)'; progText.textContent=err.message||err; if(newName!==oldNameLocal){ // 回滚本地名称
+				stu.name=oldNameLocal; save(); refreshUI(); }
 			} finally {
 				saving = false;
 				if(saveBtn){ saveBtn.disabled = false; saveBtn.style.opacity=''; }
 			}
 		};
 	}
-	// 归档功能已移除
 	function deleteStudent(name){ 
 		const idx=store.items.findIndex(s=>s.name===name); 
 		if(idx>=0){ 
@@ -18564,7 +18835,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		const { silent = false } = options;
 		if(!window.supabaseClient || !window.supabaseReady) return;
 		try{
-			const { data, error } = await supabaseClient.from('student_database').select('name,major,grade,updated_at,created_at').range(0, 99999);
+			const { data, error } = await supabaseClient.from('student_database').select('name,major,grade,archived,updated_at,created_at').range(0, 99999);
 			if(error){ console.warn('[StudentLibrary][reconcile] 拉取失败', error.message); return; }
 			const cloudRows = data || [];
 			const cloudMap = new Map(cloudRows.map(r => [r.name, r]));
@@ -18595,7 +18866,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 						grade: row.grade || '',
 						major: row.major || '',
 						remark: '',
-						archived: false,
+						archived: row.archived === true,
 						created_at: row.created_at ? new Date(row.created_at).getTime() : now(),
 						updated_at: row.updated_at ? new Date(row.updated_at).getTime() : now()
 					});
@@ -18604,7 +18875,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				}
 				// 本地有未上行的修改时，以本地为准，避免云端旧值覆盖
 				if (pendingNames.has(row.name)) { continue; }
-				
+
 				let changed = false;
 				if (local.grade !== (row.grade || '')) {
 					local.grade = row.grade || '';
@@ -18612,6 +18883,10 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				}
 				if (local.major !== (row.major || '')) {
 					local.major = row.major || '';
+					changed = true;
+				}
+				if (local.archived !== (row.archived === true)) {
+					local.archived = row.archived === true;
 					changed = true;
 				}
 				if (changed) {
@@ -18629,10 +18904,10 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			}
 		}catch(e){ console.warn('[StudentLibrary][reconcile] 异常', e.message); }
 	};
-	window.getAllActiveStudents = () => getAll(false).map(s=>({ name:s.name, grade:s.grade, major:s.major }));
+	window.getAllActiveStudents = () => getAll(true).map(s=>({ name:s.name, grade:s.grade, major:s.major }));
 	// UI
-	let panel,listEl,searchEl,addBtn,addForm,showArchivedCb;
-	function initDom(){ panel=document.getElementById('studentLibraryPanel'); listEl=document.getElementById('slList'); searchEl=document.getElementById('slSearch'); addBtn=document.getElementById('slAddBtn'); addForm=document.getElementById('slAddForm'); showArchivedCb=document.getElementById('slShowArchived'); }
+	let panel,tbodyEl;
+	function initDom(){ panel=document.getElementById('studentLibraryPanel'); tbodyEl=document.getElementById('slwTbody'); }
 
 	// ===== 含时间段导出 (直接从数据库获取) =====
 	async function fetchAllSlotsMap(){
@@ -18641,13 +18916,16 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		return map;
 	}
 	function weekSlotsToString(week){ if(!week) return ''; const order=['monday','tuesday','wednesday','thursday','friday']; const res={}; order.forEach(d=>{ const arr=(week[d]||[]).filter(sl=>/^\d{2}:\d{2}$/.test(sl.start)&&/^\d{2}:\d{2}$/.test(sl.end)); res[d]=arr.map(sl=>`${sl.start}-${sl.end}`).join(';'); }); return res; }
-	async function exportCSVWithSlots(){
+	async function exportCSVWithSlots(students, filenamePrefix){
+		students = students || getAll(true);
+		filenamePrefix = filenamePrefix || 'students_with_slots_';
 		try{
+			if(!students.length){ if(typeof toast==='function') toast('没有可导出的学生','warn'); return; }
 			const slotsMap=await fetchAllSlotsMap();
 			const header=['name','grade','major','remark','mon','tue','wed','thu','fri'];
 			const lines=[header.join(',')];
-			getAll(true).forEach(s=>{ const week=weekSlotsToString(slotsMap[s.name]); const row=[s.name,s.grade||'',s.major||'',(s.remark||'').replace(/\r|\n/g,' '),week.monday||'',week.tuesday||'',week.wednesday||'',week.thursday||'',week.friday||'']; lines.push(row.map(v=>{ if(/[",\n]/.test(v)) return '"'+v.replace(/"/g,'""')+'"'; return v; }).join(',')); });
-			const csv=lines.join('\n'); const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='students_with_slots_'+Date.now()+'.csv'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),500);
+			students.forEach(s=>{ const week=weekSlotsToString(slotsMap[s.name]); const row=[s.name,s.grade||'',s.major||'',(s.remark||'').replace(/\r|\n/g,' '),week.monday||'',week.tuesday||'',week.wednesday||'',week.thursday||'',week.friday||'']; lines.push(row.map(v=>{ if(/[",\n]/.test(v)) return '"'+v.replace(/"/g,'""')+'"'; return v; }).join(',')); });
+			const csv=lines.join('\n'); const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filenamePrefix+Date.now()+'.csv'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),500);
 		}catch(e){ alert('导出失败:'+e.message); }
 	}
 	function parseCSV(text){
@@ -18659,13 +18937,14 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	async function importCSVSlotsText(text){
 		// 提前创建进度条，放置在学生库面板底部
 		const progId='slotImportProgress'; let prog=document.getElementById(progId); if(!prog){
-			prog=document.createElement('div'); prog.id=progId; prog.style.cssText='margin:8px 12px 12px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; line-height:1.4; color:#0f172a; padding:6px 10px; display:flex; flex-direction:column; gap:4px;';
-			const bar=document.createElement('div'); bar.style.cssText='height:6px;background:#e2e8f0;border-radius:4px;overflow:hidden;position:relative;';
-			const inner=document.createElement('div'); inner.style.cssText='height:100%;width:0%;background:linear-gradient(90deg,#2563eb,#3b82f6);transition:width .25s ease;'; inner.id='slotImportProgressBar'; bar.appendChild(inner);
+			prog=document.createElement('div'); prog.id=progId; prog.style.cssText='margin:0 22px 12px; background:var(--surface-alt); border:1px solid var(--outline); border-radius:6px; font-size:12px; line-height:1.4; color:var(--text); padding:6px 10px; display:flex; flex-direction:column; gap:4px; flex-shrink:0;';
+			const bar=document.createElement('div'); bar.style.cssText='height:6px;background:var(--outline);border-radius:4px;overflow:hidden;position:relative;';
+			const inner=document.createElement('div'); inner.style.cssText='height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent-hover));transition:width .25s ease;'; inner.id='slotImportProgressBar'; bar.appendChild(inner);
 			const text=document.createElement('div'); text.id='slotImportProgressText';
 			prog.appendChild(text); prog.appendChild(bar);
-			// 放在学生库面板内，若面板存在; 否则附加到 body
-			const panel=document.getElementById('studentLibraryPanel'); if(panel){ panel.appendChild(prog); } else { document.body.appendChild(prog); }
+			// 放在学生库面板卡片内（表格容器之前），若面板存在; 否则附加到 body
+			const panelRoot=document.getElementById('studentLibraryPanel'); const innerPanel=panelRoot && panelRoot.querySelector('.slw-panel');
+			if(innerPanel){ const tableWrap=innerPanel.querySelector('.slw-table-wrap'); innerPanel.insertBefore(prog, tableWrap||null); } else { document.body.appendChild(prog); }
 		}
 		function setProg(msg, percent){ const txt=prog.querySelector('#slotImportProgressText'); if(txt) txt.textContent=msg; if(typeof percent==='number'){ const bar=prog.querySelector('#slotImportProgressBar'); if(bar) bar.style.width=Math.min(100,Math.max(0,percent))+'%'; } }
 		setProg('解析 CSV...',0); await new Promise(r=>requestAnimationFrame(r));
@@ -18750,10 +19029,9 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		alert(`导入完成: 学生 新增${inserted} 更新${updated} 跳过${skipped}; 时间段有效${slotTotal} 无效${slotInvalid}; 成功${ok} 失败${fail}` + (errors.length?`\n首条错误: ${errors[0]}`:''));
 	}
 	// 修改 openPanel: 打开时尝试 hydration
-	async function openPanel(){ 
-		initDom(); if(!panel) return; panel.style.display='flex'; 
-		const list=document.getElementById('slList'); 
-		const showSkeleton=()=>{ if(!list) return; list.innerHTML=`<div style=\"display:flex;flex-direction:column;gap:8px;padding:4px;\">${Array.from({length:5}).map(()=>'<div style=\"height:44px;border:1px solid #e2e8f0;border-radius:8px;position:relative;overflow:hidden;background:linear-gradient(90deg,#f1f5f9,#e2e8f0,#f1f5f9);background-size:200% 100%;animation:slShine 1.15s infinite;\"></div>').join('')}<style>@keyframes slShine{0%{background-position:0 0}100%{background-position:-200% 0}}</style><div style=\"font-size:12px;color:#64748b;padding:4px 2px;\" id=\"slLoadingHint\">正在连接并加载学生数据...</div></div>`; };
+	async function openPanel(){
+		initDom(); if(!panel) return; panel.style.display='flex';
+		const showSkeleton=()=>{ if(!tbodyEl) return; tbodyEl.innerHTML=`<tr><td colspan="7"><div style=\"display:flex;flex-direction:column;gap:8px;padding:12px 0;\">${Array.from({length:5}).map(()=>'<div style=\"height:36px;border:1px solid var(--outline);border-radius:8px;position:relative;overflow:hidden;background:linear-gradient(90deg,var(--surface-alt),var(--surface),var(--surface-alt));background-size:200% 100%;animation:slwShine 1.15s infinite;\"></div>').join('')}<style>@keyframes slwShine{0%{background-position:0 0}100%{background-position:-200% 0}}</style><div style=\"font-size:12px;color:var(--slw-text-faint);padding:4px 2px;\" id=\"slwLoadingHint\">正在连接并加载学生数据...</div></div></td></tr>`; };
 		if(store.items.length===0) showSkeleton();
 		// 并发触发 hydration
 		try{ if(window.ensureStudentLibraryHydrated){ window.ensureStudentLibraryHydrated({ source:'open-panel' }); } }catch(_){ }
@@ -18770,106 +19048,210 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			}
 		}
 		// 最终渲染
-		renderList(); updateTotal();
-		const hint=document.getElementById('slLoadingHint'); if(hint && store.items.length===0){ hint.textContent='暂无学生数据，可手动添加或稍后重试'; }
+		renderPanel();
+		const hint=document.getElementById('slwLoadingHint'); if(hint && store.items.length===0){ hint.textContent='暂无学生数据，可手动添加或稍后重试'; }
 	}
 	function closePanel(){ if(panel) panel.style.display='none'; }
-	function toggleAddForm(show){ if(!addForm) return; addForm.style.display=show?'flex':'none'; if(show){ const n=document.getElementById('slName'); n&&n.focus(); } }
-	function updateTotal(){ const el=document.getElementById('slTotal'); if(el) el.textContent=getAll().length+' 人'; }
-	function createStudentRowElement(s){
-		const row = document.createElement('div');
-		row.className = 'sl-row';
-		row.dataset.name = s.name;
-		row.style.cssText = 'display:flex;flex-direction:column;gap:4px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;';
 
-		const top = document.createElement('div');
-		top.style.cssText = 'display:flex;align-items:center;gap:8px;';
+	// ===== 筛选/排序/多选状态 =====
+	const uiState = { search:'', grades:new Set(), majors:new Set(), statuses:new Set(), sortKey:'name', sortDir:1, selected:new Set() };
 
-		const nameEl = document.createElement('span');
-		nameEl.style.fontWeight = '600';
-		nameEl.className = 'sl-name';
-		nameEl.textContent = s.name;
+	function isInvalidGrade(g){ return !!g && !/^G(?:[1-9]|1[0-2])$/.test(g); }
+	function computeCounts(field){ const m=new Map(); getAll().forEach(s=>{ const k=s[field]||'(未填写)'; m.set(k,(m.get(k)||0)+1); }); return m; }
+	function computeStatusCounts(){ const all=getAll(); return { active: all.filter(s=>!s.archived).length, archived: all.filter(s=>s.archived).length }; }
 
-		const metaEl = document.createElement('span');
-		metaEl.style.cssText = 'font-size:11px;color:#475569;';
-		metaEl.className = 'sl-meta';
-		metaEl.textContent = `${s.major || '--'} · ${s.grade || '--'}`;
-
-		const actions = document.createElement('span');
-		actions.style.cssText = 'margin-left:auto;display:flex;gap:6px;';
-
-		const editBtn = document.createElement('button');
-		editBtn.dataset.act = 'edit';
-		editBtn.className = 'sl-btn sl-btn-secondary sl-btn-mini';
-		editBtn.textContent = '编辑';
-
-		const delBtn = document.createElement('button');
-		delBtn.dataset.act = 'delete';
-		delBtn.className = 'sl-btn sl-btn-danger sl-btn-mini';
-		delBtn.textContent = '删除';
-
-		actions.appendChild(editBtn);
-		actions.appendChild(delBtn);
-		top.appendChild(nameEl);
-		top.appendChild(metaEl);
-		top.appendChild(actions);
-		row.appendChild(top);
-		return row;
+	function filteredRows(){
+		const kw = uiState.search.trim().toLowerCase();
+		let rows = getAll().filter(s=>{
+			if(kw && !s.name.toLowerCase().includes(kw) && !(window.matchPinyin && matchPinyin(s.name, kw))) return false;
+			if(uiState.grades.size && !uiState.grades.has(s.grade||'(未填写)')) return false;
+			if(uiState.majors.size && !uiState.majors.has(s.major||'(未填写)')) return false;
+			if(uiState.statuses.size){ const st = s.archived ? 'archived':'active'; if(!uiState.statuses.has(st)) return false; }
+			return true;
+		});
+		rows.sort((a,b)=>{
+			let av, bv;
+			if(uiState.sortKey==='updated'){ av=a.updated_at||0; bv=b.updated_at||0; }
+			else if(uiState.sortKey==='status'){ av=a.archived?1:0; bv=b.archived?1:0; }
+			else { av=(a[uiState.sortKey]||''); bv=(b[uiState.sortKey]||''); }
+			if(av<bv) return -1*uiState.sortDir; if(av>bv) return 1*uiState.sortDir; return 0;
+		});
+		return rows;
 	}
-	function patchStudentList(rows){
-		if(!listEl) return;
-		// 清理占位节点（如“无数据”）
-		Array.from(listEl.children).forEach(ch => {
-			if(!ch.classList || !ch.classList.contains('sl-row')) ch.remove();
-		});
-		const existing = new Map(Array.from(listEl.querySelectorAll('.sl-row')).map(el => [el.dataset.name, el]));
-		const nextNames = new Set(rows.map(r => r.name));
 
-		// 先删除不再存在的行
-		existing.forEach((el, name) => {
-			if(!nextNames.has(name)) el.remove();
-		});
+	function renderDropdowns(){
+		const gradeCounts = computeCounts('grade');
+		const gradeKeys = [...gradeCounts.keys()].sort((a,b)=>{ if(a==='(未填写)') return 1; if(b==='(未填写)') return -1; const na=parseInt(a.replace(/\D/g,''))||99, nb=parseInt(b.replace(/\D/g,''))||99; return na-nb; });
+		const gradePanel = document.getElementById('slwGradeDdPanel');
+		if(gradePanel) gradePanel.innerHTML = gradeKeys.map(k=>{
+			const invalid = k!=='(未填写)' && isInvalidGrade(k);
+			const cls = k==='(未填写)' ? 'slw-empty' : '';
+			const checked = uiState.grades.has(k) ? 'checked' : '';
+			return `<label class="slw-dd-opt ${cls}"><input type="checkbox" value="${escapeHtml(k)}" data-slw-group="grade" ${checked}/><span class="slw-label">${escapeHtml(k)}${invalid?' ⚠':''}</span><span class="slw-cnt">${gradeCounts.get(k)}</span></label>`;
+		}).join('');
 
-		// 按目标顺序增量更新/新增
-		let anchor = null;
-		for(let i = rows.length - 1; i >= 0; i--){
-			const s = rows[i];
-			let el = existing.get(s.name);
-			if(!el){
-				el = createStudentRowElement(s);
-				listEl.insertBefore(el, anchor);
-			}else{
-				const nameEl = el.querySelector('.sl-name');
-				const metaEl = el.querySelector('.sl-meta');
-				if(nameEl && nameEl.textContent !== s.name) nameEl.textContent = s.name;
-				const nextMeta = `${s.major || '--'} · ${s.grade || '--'}`;
-				if(metaEl && metaEl.textContent !== nextMeta) metaEl.textContent = nextMeta;
-				if(el.nextSibling !== anchor){
-					listEl.insertBefore(el, anchor);
-				}
-			}
-			anchor = el;
+		const majorCounts = computeCounts('major');
+		const majorKeys = [...majorCounts.keys()].sort((a,b)=>majorCounts.get(b)-majorCounts.get(a));
+		const majorPanel = document.getElementById('slwMajorDdPanel');
+		if(majorPanel) majorPanel.innerHTML = majorKeys.map(k=>{
+			const cls = k==='(未填写)' ? 'slw-empty' : '';
+			const checked = uiState.majors.has(k) ? 'checked' : '';
+			return `<label class="slw-dd-opt ${cls}"><input type="checkbox" value="${escapeHtml(k)}" data-slw-group="major" ${checked}/><span class="slw-label">${escapeHtml(k)}</span><span class="slw-cnt">${majorCounts.get(k)}</span></label>`;
+		}).join('');
+
+		const sc = computeStatusCounts();
+		const statusPanel = document.getElementById('slwStatusDdPanel');
+		if(statusPanel) statusPanel.innerHTML = `
+			<label class="slw-dd-opt"><input type="checkbox" value="active" data-slw-group="status" ${uiState.statuses.has('active')?'checked':''}/><span class="slw-label">在读</span><span class="slw-cnt">${sc.active}</span></label>
+			<label class="slw-dd-opt"><input type="checkbox" value="archived" data-slw-group="status" ${uiState.statuses.has('archived')?'checked':''}/><span class="slw-label">已归档</span><span class="slw-cnt">${sc.archived}</span></label>`;
+	}
+
+	function renderInsightStrip(){
+		const majorCounts = computeCounts('major');
+		const majorKeys = [...majorCounts.keys()].filter(k=>k!=='(未填写)').sort((a,b)=>majorCounts.get(b)-majorCounts.get(a));
+		const emptyGradeTotal = getAll().filter(s=>!s.grade).length;
+		const invalidGradeTotal = getAll().filter(s=>isInvalidGrade(s.grade)).length;
+		const strip = document.getElementById('slwInsightStrip');
+		if(!strip) return;
+		let html = '<span class="slw-insight-label">按专业查看</span>';
+		majorKeys.forEach(k=>{
+			const active = uiState.majors.has(k) ? 'slw-active' : '';
+			html += `<span class="slw-facet-chip ${active}" data-slw-quick-major="${escapeHtml(k)}">${escapeHtml(k.replace('教研室',''))} <span class="slw-n">${majorCounts.get(k)}</span></span>`;
+		});
+		if(emptyGradeTotal + invalidGradeTotal > 0){
+			html += `<span class="slw-facet-chip slw-warn" data-slw-quick-badgrade="1">⚠ 年级异常/空缺 <span class="slw-n">${emptyGradeTotal + invalidGradeTotal}</span></span>`;
 		}
+		strip.innerHTML = html;
 	}
-	function renderList(){
-		if(!listEl) return;
-		const kw = (searchEl?.value || '').trim().toLowerCase();
-		const rows = getAll().filter(s =>
-			!kw ||
-			s.name.toLowerCase().includes(kw) ||
-			(window.matchPinyin ? matchPinyin(s.name, kw) : false)
-		);
+
+	function relTime(ts){
+		if(!ts) return '--';
+		const days = Math.floor((Date.now()-ts)/86400000);
+		if(days<=0) return '今天'; if(days<30) return days+' 天前';
+		const mo=Math.round(days/30); if(mo<12) return mo+' 个月前';
+		return Math.round(mo/12)+' 年前';
+	}
+
+	function renderTable(){
+		if(!tbodyEl) return;
+		const rows = filteredRows();
 		if(!rows.length){
-			listEl.innerHTML = '<div style="padding:12px;color:#64748b;font-style:italic;">无数据</div>';
-			return;
+			tbodyEl.innerHTML = `<tr><td colspan="7"><div class="slw-empty-state">没有匹配的学生 — 试试清除筛选条件</div></td></tr>`;
+		}else{
+			tbodyEl.innerHTML = rows.map(s=>{
+				const flag = isInvalidGrade(s.grade) || !s.grade;
+				const gradeCls = !s.grade ? 'slw-empty' : '';
+				return `<tr data-name="${escapeHtml(s.name)}" class="${uiState.selected.has(s.name)?'slw-selected':''} ${flag?'slw-flag':''} ${s.archived?'slw-archived':''}">
+					<td><input type="checkbox" class="slw-row-cb" ${uiState.selected.has(s.name)?'checked':''}/></td>
+					<td><div class="slw-name-cell"><span class="slw-avatar">${escapeHtml(s.name.slice(0,1))}</span>${escapeHtml(s.name)}</div></td>
+					<td><span class="slw-badge slw-grade ${gradeCls}">${escapeHtml(s.grade || '未填写')}${isInvalidGrade(s.grade)?' ⚠':''}</span></td>
+					<td><span class="slw-tag">${escapeHtml(s.major||'未填写')}</span></td>
+					<td class="slw-updated-cell">${relTime(s.updated_at)}</td>
+					<td><span class="slw-status-pill ${s.archived?'slw-archived':'slw-active'}">${s.archived?'已归档':'在读'}</span></td>
+					<td>
+						<div class="slw-row-actions">
+							<button class="slw-row-icon-btn" title="编辑" data-slw-act="edit" data-name="${escapeHtml(s.name)}">✎</button>
+							<button class="slw-row-icon-btn slw-del" title="删除" data-slw-act="delete" data-name="${escapeHtml(s.name)}">🗑</button>
+						</div>
+					</td>
+				</tr>`;
+			}).join('');
 		}
-		patchStudentList(rows);
+		const footEl = document.getElementById('slwFootCount'); if(footEl) footEl.textContent = `显示 ${rows.length} / ${getAll().length} 名学生`;
+		const totalPill = document.getElementById('slwTotalPill'); if(totalPill) totalPill.textContent = getAll().length + ' 名学生';
+		updateSortHeaders(); updateFilterButtons(); updateBatchBar(rows.length); updateSelectAllCb(rows);
 	}
+
+	function updateSortHeaders(){
+		document.querySelectorAll('#studentLibraryPanel thead th[data-key]').forEach(th=>{
+			const key = th.dataset.key;
+			th.classList.toggle('slw-sorted', key===uiState.sortKey);
+			const arrow = th.querySelector('.slw-sort-arrow');
+			if(arrow && key===uiState.sortKey) arrow.textContent = uiState.sortDir===1 ? '▲' : '▼';
+		});
+	}
+	function updateFilterButtons(){
+		const gBtn=document.getElementById('slwGradeDdBtn'), mBtn=document.getElementById('slwMajorDdBtn'), sBtn=document.getElementById('slwStatusDdBtn');
+		if(gBtn) gBtn.classList.toggle('slw-has-value', uiState.grades.size>0);
+		if(mBtn) mBtn.classList.toggle('slw-has-value', uiState.majors.size>0);
+		if(sBtn) sBtn.classList.toggle('slw-has-value', uiState.statuses.size>0);
+		const anyFilter = uiState.grades.size || uiState.majors.size || uiState.statuses.size || uiState.search;
+		const clearBtn = document.getElementById('slwClearFiltersBtn'); if(clearBtn) clearBtn.style.display = anyFilter ? 'inline-block' : 'none';
+	}
+	function updateSelectAllCb(rows){
+		const cb = document.getElementById('slwSelectAllCb'); if(!cb) return;
+		const visibleSelected = rows.filter(r=>uiState.selected.has(r.name)).length;
+		cb.checked = rows.length>0 && visibleSelected===rows.length;
+		cb.indeterminate = visibleSelected>0 && visibleSelected<rows.length;
+	}
+	function updateBatchBar(visibleCount){
+		const bar = document.getElementById('slwBatchBar'); if(!bar) return;
+		const n = uiState.selected.size;
+		bar.classList.toggle('slw-show', n>0);
+		const countEl=document.getElementById('slwBatchCount'); if(countEl) countEl.textContent = `已选 ${n} 项`;
+		const allLink = document.getElementById('slwSelectAllFilteredBtn');
+		if(allLink){
+			if(n>0 && n<visibleCount){ allLink.style.display='inline'; allLink.textContent = `全选当前筛选结果（${visibleCount}）`; }
+			else { allLink.style.display='none'; }
+		}
+	}
+
+	function renderPanel(){ renderDropdowns(); renderInsightStrip(); renderTable(); }
+
 	function refreshUI(){
-		renderList(); updateTotal();
+		renderPanel();
 		// 若学生选择弹窗开启, 同步刷新里面的列表(调用上层 renderStudentList)
 		try{ const modal=document.getElementById('studentModalBackdrop'); if(modal && modal.style.display==='flex' && typeof renderStudentList==='function'){ renderStudentList(); } }catch(_){ }
 	}
+
+	// ===== 弹窗辅助 =====
+	function openModal(id){ const el=document.getElementById(id); if(el) el.classList.add('slw-show'); }
+	function closeModal(id){ const el=document.getElementById(id); if(el) el.classList.remove('slw-show'); }
+
+	function openAddStudent(){ openEditStudent(null); }
+	function openEditStudentModal(name){ openEditStudent(name); }
+
+	let batchFieldKind = 'grade';
+	function openBatchField(field){
+		batchFieldKind = field;
+		const names = [...uiState.selected];
+		if(!names.length) return;
+		document.getElementById('slwBatchFieldTitle').textContent = field==='grade' ? '批量设置年级' : '批量设置专业';
+		document.getElementById('slwBatchFieldLabel').textContent = field==='grade' ? '新年级' : '新专业';
+		document.getElementById('slwBatchFieldCount').textContent = names.length;
+		const input = document.getElementById('slwBatchFieldInput'); input.value='';
+		const opts = [...new Set(getAll().map(s=>s[field]).filter(Boolean))].sort();
+		document.getElementById('slwBatchFieldOptions').innerHTML = opts.map(o=>`<option value="${escapeHtml(o)}">`).join('');
+		document.getElementById('slwBatchAffectedList').textContent = names.join('、');
+		openModal('slwBatchFieldModalBackdrop');
+		input.focus();
+	}
+
+	let archiveDirection = true; // true=归档 false=取消归档
+	function openArchiveConfirm(direction){
+		archiveDirection = direction;
+		const names = [...uiState.selected];
+		if(!names.length) return;
+		document.getElementById('slwArchiveModalTitle').textContent = direction ? '批量归档' : '批量取消归档';
+		document.getElementById('slwArchiveModalSub').textContent = direction
+			? '归档后学生将从常规视图中隐藏，但保留全部历史记录与排课数据，可随时在「状态」筛选中查看并恢复。'
+			: '取消归档后，这些学生会重新出现在常规视图与学生选择弹窗中。';
+		document.getElementById('slwArchiveModalBox').style.display = direction ? '' : 'none';
+		document.getElementById('slwConfirmArchiveBtn').textContent = direction ? '确认归档' : '确认取消归档';
+		document.getElementById('slwArchiveAffectedList').textContent = names.join('、');
+		openModal('slwArchiveModalBackdrop');
+	}
+
+	let pendingDeleteNames = [];
+	function openDeleteConfirm(names){
+		pendingDeleteNames = names;
+		if(!names.length) return;
+		document.getElementById('slwDeleteAffectedList').textContent = names.join('、');
+		document.getElementById('slwDeleteConfirmInput').value='';
+		document.getElementById('slwConfirmDeleteBtn').disabled = true;
+		openModal('slwDeleteModalBackdrop');
+	}
+
 	function bindGlobalButtons(){ if(!document.getElementById('openStudentLibraryBtn')){ const topBar=document.querySelector('header .top-actions')||document.querySelector('header'); if(topBar){ const btn=document.createElement('button'); btn.id='openStudentLibraryBtn'; btn.textContent='学生库'; btn.style.cssText='margin-left:8px;padding:6px 14px;background:#1e3a8a;color:#fff;border:1px solid #1e40af;border-radius:6px;cursor:pointer;font-size:13px;'; btn.onclick=openPanel; topBar.appendChild(btn);} } }
 	document.addEventListener('DOMContentLoaded', async () => {
 		// 先加载本地数据与待同步队列，保证未上行成功的本地录入不被云端覆盖
@@ -18912,94 +19294,228 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		initDom(); 
 		refreshUI(); 
 		
-		const openBtn=document.getElementById('openStudentLibraryBtn'); 
-		if(openBtn && !openBtn.dataset.bound){ 
-			openBtn.dataset.bound='1'; 
-			openBtn.addEventListener('click', openPanel); 
-		} 
-		
-		const closeBtn=document.getElementById('slCloseBtn'); 
-		if(closeBtn) closeBtn.onclick=closePanel; 
-		if(listEl && !listEl.dataset.bound){
-			listEl.dataset.bound = '1';
-			listEl.addEventListener('click', (e) => {
-				const btn = e.target.closest('button[data-act]');
-				if(!btn) return;
-				const row = btn.closest('.sl-row');
-				const name = row?.dataset?.name;
-				if(!name) return;
-				const act = btn.dataset.act;
-				if(act === 'delete'){
-					if(confirm('永久删除 ' + name + ' 及其时间段？此操作不可恢复')){
-						deleteStudent(name);
-						try{ if(window.supabaseClient){ supabaseClient.from('student_time_slots').delete().eq('student_name', name); } }catch(_){}
-					}
-				}else if(act === 'edit'){
-					openEditStudent(name);
+		const openBtn=document.getElementById('openStudentLibraryBtn');
+		if(openBtn && !openBtn.dataset.bound){
+			openBtn.dataset.bound='1';
+			openBtn.addEventListener('click', openPanel);
+		}
+
+		const closeBtn=document.getElementById('slwCloseBtn');
+		if(closeBtn) closeBtn.onclick=closePanel;
+
+		// 搜索
+		const searchInput = document.getElementById('slwSearchInput');
+		if(searchInput && !searchInput.dataset.bound){
+			searchInput.dataset.bound='1';
+			const debounce = (fn, wait=150) => { let t=null; return (...args)=>{ if(t) clearTimeout(t); t=setTimeout(()=>fn(...args), wait); }; };
+			searchInput.oninput = debounce(()=>{ uiState.search = searchInput.value; renderPanel(); }, 150);
+		}
+
+		// 年级/专业/状态下拉
+		['slwGradeDd','slwMajorDd','slwStatusDd'].forEach(ddId=>{
+			const dd = document.getElementById(ddId); const btn = document.getElementById(ddId+'Btn');
+			if(dd && btn && !btn.dataset.bound){
+				btn.dataset.bound='1';
+				btn.addEventListener('click', e=>{ e.stopPropagation(); document.querySelectorAll('#studentLibraryPanel .slw-dd.slw-open').forEach(o=>{ if(o!==dd) o.classList.remove('slw-open'); }); dd.classList.toggle('slw-open'); });
+			}
+		});
+		if(!document.body.dataset.slwDdOutsideBound){
+			document.body.dataset.slwDdOutsideBound='1';
+			document.addEventListener('click', ()=>document.querySelectorAll('#studentLibraryPanel .slw-dd.slw-open').forEach(o=>o.classList.remove('slw-open')));
+		}
+		document.querySelectorAll('#studentLibraryPanel .slw-dd-panel').forEach(p=>{ if(!p.dataset.bound){ p.dataset.bound='1'; p.addEventListener('click', e=>e.stopPropagation()); } });
+
+		if(panel && !panel.dataset.filterChangeBound){
+			panel.dataset.filterChangeBound='1';
+			panel.addEventListener('change', e=>{
+				if(e.target.matches('[data-slw-group]')){
+					const group = e.target.dataset.slwGroup, val = e.target.value;
+					const set = group==='grade'?uiState.grades:group==='major'?uiState.majors:uiState.statuses;
+					if(e.target.checked) set.add(val); else set.delete(val);
+					renderPanel();
 				}
 			});
 		}
-		
-		const addBtnEl=document.getElementById('slAddBtn'); 
-		if(addBtnEl) addBtnEl.onclick=()=>toggleAddForm(true); 
-		
-		const cancel=document.getElementById('slCancelAdd'); 
-		if(cancel) cancel.onclick=()=>toggleAddForm(false); 
-		
-		const submit=document.getElementById('slSubmitAdd'); 
-		if(submit) submit.onclick=()=>{ 
-			const nameEl=document.getElementById('slName'); 
-			const gradeEl=document.getElementById('slGrade'); 
-			const majorEl=document.getElementById('slMajor'); 
-			const name=(nameEl.value||'').trim(); 
-			if(!name){ 
-				alert('姓名必填'); 
-				nameEl.focus(); 
-				return;
-			} 
-			try{ 
-				addStudent({ name, grade:gradeEl.value.trim(), major:majorEl.value.trim() }); 
-				nameEl.value=gradeEl.value=majorEl.value=''; 
-				toggleAddForm(false);
-			}catch(e){ 
-				alert(e.message||e); 
-			} 
-		}; 
-		
-		if(searchEl){
-			const debounce = (fn, wait=150) => {
-				let t = null;
-				return (...args) => {
-					if(t) clearTimeout(t);
-					t = setTimeout(() => fn(...args), wait);
-				};
+
+		const clearFiltersBtn = document.getElementById('slwClearFiltersBtn');
+		if(clearFiltersBtn && !clearFiltersBtn.dataset.bound){
+			clearFiltersBtn.dataset.bound='1';
+			clearFiltersBtn.onclick=()=>{
+				uiState.search=''; uiState.grades.clear(); uiState.majors.clear(); uiState.statuses.clear();
+				const si=document.getElementById('slwSearchInput'); if(si) si.value='';
+				renderPanel();
 			};
-			searchEl.oninput = debounce(() => refreshUI(), 150);
 		}
+
+		// 洞察条 facet chip
+		const insightStrip = document.getElementById('slwInsightStrip');
+		if(insightStrip && !insightStrip.dataset.bound){
+			insightStrip.dataset.bound='1';
+			insightStrip.addEventListener('click', e=>{
+				const chip = e.target.closest('.slw-facet-chip'); if(!chip) return;
+				if(chip.dataset.slwQuickMajor){
+					const m = chip.dataset.slwQuickMajor;
+					if(uiState.majors.has(m)) uiState.majors.delete(m); else uiState.majors.add(m);
+					renderPanel();
+				}else if(chip.dataset.slwQuickBadgrade){
+					const badGrades = [...computeCounts('grade').keys()].filter(k=> k==='(未填写)' || isInvalidGrade(k));
+					const allOn = badGrades.every(g=>uiState.grades.has(g));
+					badGrades.forEach(g=> allOn ? uiState.grades.delete(g) : uiState.grades.add(g));
+					renderPanel();
+				}
+			});
+		}
+
+		// 表头排序
+		document.querySelectorAll('#studentLibraryPanel thead th[data-key]').forEach(th=>{
+			if(th.dataset.bound) return; th.dataset.bound='1';
+			th.addEventListener('click', ()=>{
+				const key = th.dataset.key;
+				if(uiState.sortKey===key) uiState.sortDir*=-1; else { uiState.sortKey=key; uiState.sortDir=1; }
+				renderTable();
+			});
+		});
+
+		// 表格：勾选 + 行内编辑/删除
+		if(tbodyEl && !tbodyEl.dataset.bound){
+			tbodyEl.dataset.bound='1';
+			tbodyEl.addEventListener('change', e=>{
+				if(e.target.classList.contains('slw-row-cb')){
+					const tr = e.target.closest('tr'); const name = tr?.dataset?.name; if(!name) return;
+					if(e.target.checked) uiState.selected.add(name); else uiState.selected.delete(name);
+					renderTable();
+				}
+			});
+			tbodyEl.addEventListener('click', e=>{
+				const btn = e.target.closest('button[data-slw-act]'); if(!btn) return;
+				const name = btn.dataset.name; if(!name) return;
+				if(btn.dataset.slwAct==='edit'){ openEditStudentModal(name); }
+				else if(btn.dataset.slwAct==='delete'){ openDeleteConfirm([name]); }
+			});
+		}
+
+		const selectAllCb = document.getElementById('slwSelectAllCb');
+		if(selectAllCb && !selectAllCb.dataset.bound){
+			selectAllCb.dataset.bound='1';
+			selectAllCb.addEventListener('change', e=>{
+				const rows = filteredRows();
+				if(e.target.checked) rows.forEach(r=>uiState.selected.add(r.name));
+				else rows.forEach(r=>uiState.selected.delete(r.name));
+				renderTable();
+			});
+		}
+		const selectAllFilteredBtn = document.getElementById('slwSelectAllFilteredBtn');
+		if(selectAllFilteredBtn && !selectAllFilteredBtn.dataset.bound){
+			selectAllFilteredBtn.dataset.bound='1';
+			selectAllFilteredBtn.onclick=()=>{ filteredRows().forEach(r=>uiState.selected.add(r.name)); renderTable(); };
+		}
+		const batchCancelBtn = document.getElementById('slwBatchCancelBtn');
+		if(batchCancelBtn && !batchCancelBtn.dataset.bound){
+			batchCancelBtn.dataset.bound='1';
+			batchCancelBtn.onclick=()=>{ uiState.selected.clear(); renderTable(); };
+		}
+
+		// 新增学生
+		const addBtn = document.getElementById('slwAddBtn');
+		if(addBtn && !addBtn.dataset.bound){ addBtn.dataset.bound='1'; addBtn.onclick=openAddStudent; }
+
+		// 通用弹窗关闭（取消按钮 + 点击遮罩）
+		document.querySelectorAll('[data-slw-close]').forEach(b=>{ if(b.dataset.bound) return; b.dataset.bound='1'; b.addEventListener('click', ()=>closeModal(b.dataset.slwClose)); });
+		document.querySelectorAll('.slw-modal-backdrop').forEach(bd=>{ if(bd.dataset.bound) return; bd.dataset.bound='1'; bd.addEventListener('click', e=>{ if(e.target===bd) bd.classList.remove('slw-show'); }); });
+
+		// 批量改年级/专业
+		const batchGradeBtn = document.getElementById('slwBatchGradeBtn');
+		if(batchGradeBtn && !batchGradeBtn.dataset.bound){ batchGradeBtn.dataset.bound='1'; batchGradeBtn.onclick=()=>openBatchField('grade'); }
+		const batchMajorBtn = document.getElementById('slwBatchMajorBtn');
+		if(batchMajorBtn && !batchMajorBtn.dataset.bound){ batchMajorBtn.dataset.bound='1'; batchMajorBtn.onclick=()=>openBatchField('major'); }
+		const batchFieldApplyBtn = document.getElementById('slwBatchFieldApplyBtn');
+		if(batchFieldApplyBtn && !batchFieldApplyBtn.dataset.bound){
+			batchFieldApplyBtn.dataset.bound='1';
+			batchFieldApplyBtn.onclick=async ()=>{
+				const val = document.getElementById('slwBatchFieldInput').value.trim();
+				if(!val){ alert('请输入新值'); return; }
+				const names = [...uiState.selected];
+				closeModal('slwBatchFieldModalBackdrop');
+				await batchSetField(names, batchFieldKind, val);
+				if(typeof toast==='function') toast(`已为 ${names.length} 名学生批量设置${batchFieldKind==='grade'?'年级':'专业'}`, 'success');
+				uiState.selected.clear(); renderPanel();
+			};
+		}
+
+		// 批量归档/取消归档
+		const batchArchiveBtn = document.getElementById('slwBatchArchiveBtn');
+		if(batchArchiveBtn && !batchArchiveBtn.dataset.bound){ batchArchiveBtn.dataset.bound='1'; batchArchiveBtn.onclick=()=>openArchiveConfirm(true); }
+		const batchUnarchiveBtn = document.getElementById('slwBatchUnarchiveBtn');
+		if(batchUnarchiveBtn && !batchUnarchiveBtn.dataset.bound){ batchUnarchiveBtn.dataset.bound='1'; batchUnarchiveBtn.onclick=()=>openArchiveConfirm(false); }
+		const confirmArchiveBtn = document.getElementById('slwConfirmArchiveBtn');
+		if(confirmArchiveBtn && !confirmArchiveBtn.dataset.bound){
+			confirmArchiveBtn.dataset.bound='1';
+			confirmArchiveBtn.onclick=async ()=>{
+				const names = [...uiState.selected];
+				closeModal('slwArchiveModalBackdrop');
+				await batchArchive(names, archiveDirection);
+				if(typeof toast==='function') toast(archiveDirection ? `已归档 ${names.length} 名学生` : `已取消归档 ${names.length} 名学生`, 'success');
+				uiState.selected.clear(); renderPanel();
+			};
+		}
+
+		// 批量/单条永久删除
+		const batchDeleteBtn = document.getElementById('slwBatchDeleteBtn');
+		if(batchDeleteBtn && !batchDeleteBtn.dataset.bound){ batchDeleteBtn.dataset.bound='1'; batchDeleteBtn.onclick=()=>openDeleteConfirm([...uiState.selected]); }
+		const deleteConfirmInput = document.getElementById('slwDeleteConfirmInput');
+		if(deleteConfirmInput && !deleteConfirmInput.dataset.bound){
+			deleteConfirmInput.dataset.bound='1';
+			deleteConfirmInput.addEventListener('input', e=>{ document.getElementById('slwConfirmDeleteBtn').disabled = e.target.value.trim().toUpperCase() !== 'DELETE'; });
+		}
+		const confirmDeleteBtn = document.getElementById('slwConfirmDeleteBtn');
+		if(confirmDeleteBtn && !confirmDeleteBtn.dataset.bound){
+			confirmDeleteBtn.dataset.bound='1';
+			confirmDeleteBtn.onclick=()=>{
+				const names = pendingDeleteNames;
+				closeModal('slwDeleteModalBackdrop');
+				batchDelete(names);
+				names.forEach(n=>uiState.selected.delete(n));
+				if(typeof toast==='function') toast(`已永久删除 ${names.length} 名学生`, 'success');
+				renderPanel();
+			};
+		}
+
+		// 导出所选
+		const batchExportBtn = document.getElementById('slwBatchExportBtn');
+		if(batchExportBtn && !batchExportBtn.dataset.bound){
+			batchExportBtn.dataset.bound='1';
+			batchExportBtn.onclick=()=>{
+				const names = [...uiState.selected];
+				if(!names.length){ if(typeof toast==='function') toast('请先勾选学生','warn'); return; }
+				exportCSVWithSlots(names.map(findByName).filter(Boolean), 'students_selected_with_slots_');
+			};
+		}
+
 		// 仅绑定含时间段 CSV 按钮
-		const exportCsvSlotsBtn=document.getElementById('slExportCsvSlotsBtn'); 
-		if(exportCsvSlotsBtn) exportCsvSlotsBtn.onclick=()=>exportCSVWithSlots();
-		
-		const importCsvSlotsBtn=document.getElementById('slImportCsvSlotsBtn'); 
-		const importSlotsFile=document.getElementById('slImportCsvSlotsFile');
-		if(importCsvSlotsBtn && importSlotsFile){ 
-			importCsvSlotsBtn.onclick=()=>importSlotsFile.click(); 
-			importSlotsFile.onchange=e=>{ 
-				const file=e.target.files && e.target.files[0]; 
-				if(!file) return; 
-				const reader=new FileReader(); 
-				reader.onload=async ev=>{ 
-					try{ 
-						await importCSVSlotsText(String(ev.target.result||'')); 
-						importSlotsFile.value=''; 
-					}catch(err){ 
-						alert('导入失败: '+(err.message||err)); 
-					} 
-				}; 
-				reader.readAsText(file,'utf-8'); 
-			}; 
+		const exportCsvSlotsBtn=document.getElementById('slwExportBtn');
+		if(exportCsvSlotsBtn && !exportCsvSlotsBtn.dataset.bound){ exportCsvSlotsBtn.dataset.bound='1'; exportCsvSlotsBtn.onclick=()=>exportCSVWithSlots(); }
+
+		const importCsvSlotsBtn=document.getElementById('slwImportBtn');
+		const importSlotsFile=document.getElementById('slwImportFile');
+		if(importCsvSlotsBtn && importSlotsFile && !importCsvSlotsBtn.dataset.bound){
+			importCsvSlotsBtn.dataset.bound='1';
+			importCsvSlotsBtn.onclick=()=>importSlotsFile.click();
+			importSlotsFile.onchange=e=>{
+				const file=e.target.files && e.target.files[0];
+				if(!file) return;
+				const reader=new FileReader();
+				reader.onload=async ev=>{
+					try{
+						await importCSVSlotsText(String(ev.target.result||''));
+						importSlotsFile.value='';
+					}catch(err){
+						alert('导入失败: '+(err.message||err));
+					}
+				};
+				reader.readAsText(file,'utf-8');
+			};
 		}
-		
+
 		// 延迟再次尝试填充（如果仍然为空）
 		setTimeout(async () => {
 			if (store.items.length === 0) {
@@ -19026,7 +19542,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			// 获取云端最新数据
 			const { data: cloudStudents, error } = await window.supabaseClient
 				.from('student_database')
-				.select('name,grade,major,updated_at,created_at')
+				.select('name,grade,major,archived,updated_at,created_at')
 				.order('updated_at', { ascending: false });
 			
 			if (error) {
@@ -19049,7 +19565,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 						grade: cloudStudent.grade || '',
 						major: cloudStudent.major || '',
 						remark: '',
-						archived: false,
+						archived: cloudStudent.archived === true,
 						created_at: cloudStudent.created_at ? new Date(cloudStudent.created_at).getTime() : now(),
 						updated_at: cloudStudent.updated_at ? new Date(cloudStudent.updated_at).getTime() : now()
 					};
