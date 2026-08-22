@@ -221,7 +221,7 @@ table#schedule{border-collapse:separate;border-spacing:0;min-width:1100px;width:
         <button class="btn-info" id="btnSupabaseConfig" title="配置 Supabase 连接信息">⚙ 配置 Supabase</button>
         <button class="btn-success" id="btnSyncSchedules" title="将所有学生完整课表覆盖同步到 student_schedules">☁ 替换同步完整课表</button>
         <button class="btn-success" id="btnSyncPractice" title="将所有学生练琴时间段同步到 student_time_slots" style="background:#16a34a;">🎹 同步练琴时段</button>
-        <button class="btn-warning" id="btnSyncStudentDb" title="将课表识别出的年级/专业同步到学生库 student_database（仅更新已存在的学生，不新建）">🎓 同步年级/专业到学生库</button>
+        <button class="btn-warning" id="btnSyncStudentDb" title="将课表识别出的年级/专业同步到学生库 student_database：已存在的学生覆盖旧值，不存在的学生自动新建">🎓 同步年级/专业到学生库</button>
         <span id="syncStatus" style="font-size:0.8rem;color:#666;margin-left:8px;"></span>
       </div>
 
@@ -229,7 +229,7 @@ table#schedule{border-collapse:separate;border-spacing:0;min-width:1100px;width:
       <div id="dbSyncModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
         <div style="background:#fff;border-radius:14px;padding:24px 26px;width:760px;max-width:95vw;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.2);">
           <h3 style="margin-bottom:6px;font-size:1.1rem;">🎓 同步年级/专业到学生库 — 变更预览</h3>
-          <p style="font-size:.8rem;color:#888;margin-bottom:14px;">仅更新 <b>student_database</b> 中已存在、且检测到变化的学生；未在学生库中找到、或姓名重复的学生会被跳过，不会新建或误改。</p>
+          <p style="font-size:.8rem;color:#888;margin-bottom:14px;"><b>student_database</b> 中已存在的学生会被覆盖为课表识别出的年级/专业；不存在的学生会被新建（专业需按标题行 "G10 钢琴 姓名" 格式书写才能识别，否则新建为"未填写"占位）；姓名重复的记录会被跳过，避免误改。</p>
           <div id="dbSyncSummary" style="font-size:.85rem;color:#444;margin-bottom:10px;"></div>
           <div style="overflow:auto;border:1px solid var(--border);border-radius:8px;flex:1;">
             <table style="width:100%;border-collapse:collapse;font-size:.8rem;">
@@ -570,6 +570,19 @@ const MAJOR_COURSE_KEYWORDS = [
   '视唱练耳', 'solfege', '乐理', 'theory', '音乐史', 'history', '配器', '指挥'
   , '主修课', '主修', 'major', '1to1 major', '1to1'
 ];
+
+// 课表标题行专业关键词 → student_database.major 标准值（教研室名称）
+// 学校在标题行按 "G10 钢琴 罗舒筠" 格式写专业时，靠这张表精确识别，不依赖猜测
+const TITLE_MAJOR_MAP = {
+  '钢琴':'钢琴教研室', '小提琴':'小提琴教研室', '大提琴':'大提琴教研室', '中提琴':'中提琴教研室',
+  '低音提琴':'木管教研室', '竖琴':'木管教研室', '吉他':'吉他教研室',
+  '长笛':'木管教研室', '单簧管':'木管教研室', '双簧管':'木管教研室', '大管':'木管教研室',
+  '萨克斯':'木管教研室', '笛子':'木管教研室', '箫':'木管教研室', '唢呐':'木管教研室',
+  '小号':'铜管教研室', '圆号':'铜管教研室', '长号':'铜管教研室', '大号':'铜管教研室',
+  '打击乐':'打击乐教研室', '声乐':'声乐教研室'
+};
+// 按关键词长度降序，确保"大提琴"不会被"大"这类更短的前缀提前吃掉
+const TITLE_MAJOR_KEYWORDS_SORTED = Object.keys(TITLE_MAJOR_MAP).sort((a,b)=>b.length-a.length);
 
 // 老师姓名关键词 (常见老师称谓)
 const TEACHER_KEYWORDS = [
@@ -1069,14 +1082,14 @@ function parseStudentBlocksInSheet(rows){
       const titleRow = rows[i];
       // 可能的下一行表头
       if(i+1<rows.length && isHeaderRow(rows[i+1])){
-        const {grade,name} = extractGradeAndName(titleRow[0]);
+        const {grade,major,name} = extractGradeMajorAndName(titleRow[0]);
         const studentId = `${grade||''}_${name}`.trim();
         // 查找块结束
         let j=i+2;
         while(j<rows.length && !isPotentialNewBlock(rows,j)) j++;
         const block = rows.slice(i+2,j); // 课表主体（时间行）
         const headerRow = rows[i+1];
-        processOneStudentBlock(studentId,name,grade,headerRow,block);
+        processOneStudentBlock(studentId,name,grade,major,headerRow,block);
         count++;
         i=j;
         continue;
@@ -1097,7 +1110,7 @@ function parseStudentBlocksInSheet(rows){
         const block=rows.slice(h+1).filter(r=>r && r[0]);
         const pseudoName='未命名';
         const studentId='G0_'+pseudoName+ '_' + Date.now();
-        processOneStudentBlock(studentId,pseudoName,'G0',headerRow,block);
+        processOneStudentBlock(studentId,pseudoName,'G0','',headerRow,block);
         return 1;
       }
     }
@@ -1138,22 +1151,30 @@ function isPotentialNewBlock(rows,idx){
   return isStudentTitleRow(rows[idx]);
 }
 
-// 提取年级+姓名： 行首如 "G10 马天翼" 或 "G9-1魏嘉增"（含班级编号）
-function extractGradeAndName(str){
+// 提取年级+专业+姓名： 行首如 "G10 马天翼" / "G9-1魏嘉增"（含班级编号）
+// 也支持在年级后加专业： "G10 钢琴 罗舒筠"，专业未按此格式书写时自动向后兼容为空
+function extractGradeMajorAndName(str){
   let s = (str||'').trim();
   // 支持格式：G10 马天翼 / G7王奕然 / G9-1魏嘉增 / G9-2刘作翰
   const m = s.match(/^(G\d{1,2})(?:-(\d+))?\s*(.+)$/i);
-  if(m){
-    const gradeNum = m[1].toUpperCase();
-    const classNum = m[2]; // 班级编号（如 9-1 中的 1），可能为 undefined
-    const grade = classNum ? `${gradeNum}-${classNum}` : gradeNum;
-    return { grade, name:m[3].trim() };
+  if(!m) return { grade:'', major:'', name:s };
+  const gradeNum = m[1].toUpperCase();
+  const classNum = m[2]; // 班级编号（如 9-1 中的 1），可能为 undefined
+  const grade = classNum ? `${gradeNum}-${classNum}` : gradeNum;
+  let rest = m[3].trim();
+
+  for(const kw of TITLE_MAJOR_KEYWORDS_SORTED){
+    const re = new RegExp(`^${kw}\\s+(.+)$`);
+    const mm = rest.match(re);
+    if(mm){
+      return { grade, major: TITLE_MAJOR_MAP[kw], name: mm[1].trim() };
+    }
   }
-  return { grade:'', name:s };
+  return { grade, major:'', name: rest }; // 未按新格式写专业，向后兼容旧课表
 }
 
 // 处理一位学生的块
-function processOneStudentBlock(studentId,name,grade,headerRow,blockRows){
+function processOneStudentBlock(studentId,name,grade,major,headerRow,blockRows){
   console.warn('[ParseInfo] 处理学生块:', studentId, '行数:', blockRows.length);
   // headerRow: [TIME 时间, MON..., TUE..., WED..., THUR..., FRI...]
   // 需要遍历 blockRows 的每一行：
@@ -1190,10 +1211,13 @@ function processOneStudentBlock(studentId,name,grade,headerRow,blockRows){
       id: studentId,
       name,
       grade,
-      major: '',   // 原文件无明确专业，这里留空，可按需扩展
+      major: major || '',   // 来自标题行 "G10 钢琴 姓名" 格式；未按此格式书写则留空
       cells:{}     // key = timeKey + '_' + day
     };
     state.students.push(stu);
+  } else if(major){
+    // 多文件合并导入：标题行是权威来源，只要这次解析出专业就覆盖旧值
+    stu.major = major;
   }
   // 合并数据
   Object.entries(cellsMap).forEach(([slotIndex,dayObj])=>{
@@ -1212,29 +1236,6 @@ function processOneStudentBlock(studentId,name,grade,headerRow,blockRows){
       }
     });
   });
-  
-  // 推断学生主修专业（如果之前为空）
-  if(!stu.major || stu.major.trim() === ''){
-    const majorCourses = Object.values(stu.cells)
-      .filter(cell => cell.majorCourse && cell.text)
-      .map(cell => extractCourseType(cell.text))
-      .filter(course => course);
-    
-    if(majorCourses.length > 0){
-      // 统计出现最频繁的主修课程
-      const courseCount = {};
-      majorCourses.forEach(course => {
-        courseCount[course] = (courseCount[course] || 0) + 1;
-      });
-      
-      const mostFrequent = Object.entries(courseCount)
-        .sort(([,a], [,b]) => b - a)[0];
-      
-      if(mostFrequent){
-        stu.major = mostFrequent[0];
-      }
-    }
-  }
 }
 
 /* ================== 统一时间轴构建 & 表格渲染 =================== */
@@ -2328,46 +2329,11 @@ document.getElementById('btnSyncSchedules').addEventListener('click', syncSchedu
 document.getElementById('btnSyncPractice').addEventListener('click', syncPracticeSlots);
 
 /* =============== 按钮三：同步年级/专业到学生库 student_database =============== */
-// 只更新 student_database 中已存在、且检测到变化的学生；不新建、不覆盖姓名重复的学生。
+// 已存在的学生：覆盖年级/专业（仅当课表解析出新值时才覆盖，不会用空值抹掉已有数据）。
+// 不存在的学生：新建（专业未按 "G10 钢琴 姓名" 格式书写时，新建为"未填写"占位，需人工补充）。
 // student_database.name 无唯一约束，因此匹配到多条同名记录时一律跳过，避免误改错误的一行。
 
-// 课程关键词 → 学生库专业教研室 标准名称（与 student_database.major 现有惯例保持一致）
-const DEPT_KEYWORD_GROUPS = {
-  '钢琴教研室':   ['钢琴','piano'],
-  '小提琴教研室': ['小提琴','violin'],
-  '大提琴教研室': ['大提琴','cello'],
-  '中提琴教研室': ['中提琴','viola'],
-  '木管教研室':   ['长笛','flute','单簧管','clarinet','双簧管','oboe','大管','bassoon','笛子','箫','唢呐','葫芦丝','巴乌','萨克斯','saxophone'],
-  '铜管教研室':   ['小号','trumpet','圆号','horn','长号','trombone','大号','tuba'],
-  '打击乐教研室': ['打击乐','percussion','架子鼓','drum','马林巴','marimba','定音鼓','timpani'],
-  '声乐教研室':   ['声乐','vocal','美声','民族','流行','合唱','choir','歌唱'],
-  '吉他教研室':   ['吉他','guitar']
-};
-
-// 将 extractCourseType() 返回的原始关键词归类到具体教研室；无法归类（如作曲/乐理/主修课等泛称）返回 null
-function mapCourseKeywordToDept(keyword){
-  if(!keyword) return null;
-  const k = keyword.toLowerCase();
-  for(const [dept, kws] of Object.entries(DEPT_KEYWORD_GROUPS)){
-    if(kws.some(w => k.includes(w.toLowerCase()))) return dept;
-  }
-  return null;
-}
-
-// 统计该学生课表中所有主修课格子，按教研室分类计数，取出现最多的教研室
-function computeDeptForStudent(stu){
-  const counts = {};
-  Object.values(stu.cells).forEach(cell=>{
-    if(!cell.majorCourse || !cell.text) return;
-    const dept = mapCourseKeywordToDept(extractCourseType(cell.text));
-    if(!dept) return;
-    counts[dept] = (counts[dept]||0) + 1;
-  });
-  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
-  return sorted.length ? sorted[0][0] : null;
-}
-
-let _dbSyncWriteQueue = []; // 预览确认后待执行的写入列表
+let _dbSyncWriteQueue = []; // 预览确认后待执行的写入队列，每项 {op:'insert'|'update', name, patch}
 
 async function syncGradeMajorToStudentDatabase(){
   if(state.students.length===0){ notify('没有学生数据可同步','warning'); return; }
@@ -2379,12 +2345,12 @@ async function syncGradeMajorToStudentDatabase(){
   btn.disabled = true;
   statusEl.textContent = '🎓 正在比对学生库数据…';
 
-  // 1. 计算每位学生的候选年级/专业（都为空则跳过，没有可同步的信息）
+  // 1. 计算每位学生的候选年级/专业（课表标题行 "G10 钢琴 姓名" 格式解析得到；专业留空则表示未按此格式书写）
   const candidates = state.students.map(stu=>({
     name:  stu.name,
     grade: (stu.grade||'').trim(),
-    dept:  computeDeptForStudent(stu)
-  })).filter(c => c.grade || c.dept);
+    major: (stu.major||'').trim()
+  })).filter(c => c.grade || c.major);
 
   if(candidates.length===0){
     btn.disabled=false;
@@ -2418,28 +2384,37 @@ async function syncGradeMajorToStudentDatabase(){
     return;
   }
 
-  // 3. 逐个计算状态与差异
+  // 3. 逐个计算状态与差异：新建 / 更新 / 无变化 / 姓名重复-跳过
   const previewRows = [];
   const writeQueue = [];
   candidates.forEach(c=>{
     const dupCount = nameCountMap.get(c.name) || 0;
-    if(dupCount === 0){
-      previewRows.push({ ...c, status:'学生库未找到-跳过' });
-      return;
-    }
+
     if(dupCount > 1){
       previewRows.push({ ...c, status:'姓名重复-跳过' });
       return;
     }
+
+    if(dupCount === 0){
+      // 新建：major 为学生库 NOT NULL 字段，未识别到专业时用占位值，需人工补充
+      const majorForInsert = c.major || '未填写';
+      previewRows.push({ ...c, status:'新建', newGrade:c.grade, newMajor:majorForInsert, majorUnknown: !c.major });
+      writeQueue.push({ op:'insert', name:c.name, patch: {
+        name: c.name, grade: c.grade || '', major: majorForInsert, archived: false
+      }});
+      return;
+    }
+
+    // dupCount === 1：更新
     const existing = existingMap.get(c.name);
     const newGrade = c.grade && c.grade !== existing.grade ? c.grade : null;
-    const newMajor = c.dept  && c.dept  !== existing.major ? c.dept  : null;
+    const newMajor = c.major && c.major !== existing.major ? c.major : null; // 未解析出专业时恒为 null，不会抹掉已有专业
     if(!newGrade && !newMajor){
       previewRows.push({ ...c, status:'无变化', existing });
       return;
     }
-    previewRows.push({ ...c, status:'将更新', existing, newGrade, newMajor });
-    writeQueue.push({ name:c.name, patch: {
+    previewRows.push({ ...c, status:'更新', existing, newGrade, newMajor });
+    writeQueue.push({ op:'update', name:c.name, patch: {
       ...(newGrade ? { grade:newGrade } : {}),
       ...(newMajor ? { major:newMajor } : {})
     }});
@@ -2448,39 +2423,41 @@ async function syncGradeMajorToStudentDatabase(){
   btn.disabled = false;
   statusEl.textContent = '';
   _dbSyncWriteQueue = writeQueue;
-  renderDbSyncPreview(previewRows, writeQueue.length);
+  renderDbSyncPreview(previewRows, writeQueue);
 }
 
-function renderDbSyncPreview(rows, willUpdateCount){
+function renderDbSyncPreview(rows, writeQueue){
   const tbody = document.getElementById('dbSyncTableBody');
   const summary = document.getElementById('dbSyncSummary');
-  const statusOrder = { '将更新':0, '无变化':1, '学生库未找到-跳过':2, '姓名重复-跳过':3 };
+  const statusOrder = { '新建':0, '更新':1, '无变化':2, '姓名重复-跳过':3 };
   rows.sort((a,b)=> (statusOrder[a.status]??9) - (statusOrder[b.status]??9) || a.name.localeCompare(b.name,'zh-CN'));
 
   const statusColor = {
-    '将更新':'#B45309', '无变化':'#666',
-    '学生库未找到-跳过':'#999', '姓名重复-跳过':'#DC2626'
+    '新建':'#1D4ED8', '更新':'#B45309', '无变化':'#666', '姓名重复-跳过':'#DC2626'
   };
 
   tbody.innerHTML = rows.map(r=>{
     const gradeCell = r.existing
       ? `${esc(r.existing.grade||'—')} → ${r.newGrade ? '<b>'+esc(r.newGrade)+'</b>' : esc(r.existing.grade||'—')}`
-      : esc(r.grade||'—');
+      : `— → <b>${esc(r.newGrade||r.grade||'—')}</b>`;
     const majorCell = r.existing
       ? `${esc(r.existing.major||'—')} → ${r.newMajor ? '<b>'+esc(r.newMajor)+'</b>' : esc(r.existing.major||'—')}`
-      : esc(r.dept||'—');
+      : `— → <b>${esc(r.newMajor||r.major||'—')}</b>${r.majorUnknown ? ' <span style="color:#DC2626;">（专业未识别，需手动补充）</span>' : ''}`;
+    let statusLabel = r.status;
     return `<tr>
       <td style="padding:6px 10px;border-bottom:1px solid #eee;">${esc(r.name)}</td>
-      <td style="padding:6px 10px;border-bottom:1px solid #eee;color:${statusColor[r.status]||'#333'};font-weight:600;">${r.status}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #eee;color:${statusColor[r.status]||'#333'};font-weight:600;">${statusLabel}</td>
       <td style="padding:6px 10px;border-bottom:1px solid #eee;">${gradeCell}</td>
       <td style="padding:6px 10px;border-bottom:1px solid #eee;">${majorCell}</td>
     </tr>`;
   }).join('');
 
-  summary.textContent = `共比对 ${rows.length} 名学生，其中 ${willUpdateCount} 名将被更新。`;
+  const insertCount = writeQueue.filter(w=>w.op==='insert').length;
+  const updateCount = writeQueue.filter(w=>w.op==='update').length;
+  summary.textContent = `共比对 ${rows.length} 名学生，其中 ${insertCount} 名将被新建，${updateCount} 名将被更新。`;
   const confirmBtn = document.getElementById('btnConfirmDbSync');
-  confirmBtn.disabled = willUpdateCount === 0;
-  confirmBtn.textContent = willUpdateCount === 0 ? '没有需要更新的学生' : `确认执行同步（${willUpdateCount} 人）`;
+  confirmBtn.disabled = writeQueue.length === 0;
+  confirmBtn.textContent = writeQueue.length === 0 ? '没有需要写入的学生' : `确认执行同步（新建${insertCount} / 更新${updateCount}）`;
   document.getElementById('dbSyncModal').style.display = 'flex';
 }
 
@@ -2499,20 +2476,30 @@ async function confirmDbSync(){
   const statusEl = document.getElementById('syncStatus');
   confirmBtn.disabled = true;
 
-  let success=0, failed=0;
+  let inserted=0, updated=0, failed=0;
   for(let i=0;i<queue.length;i++){
     const item = queue[i];
-    statusEl.textContent = `🎓 同步学生库 ${i+1} / ${queue.length}（${item.name}）…`;
+    const verb = item.op === 'insert' ? '新建' : '更新';
+    statusEl.textContent = `🎓 ${verb}学生库 ${i+1} / ${queue.length}（${item.name}）…`;
     try{
-      const res = await fetch(`${endpoint}?name=eq.${encodeURIComponent(item.name)}`, {
-        method: 'PATCH',
-        headers: { ...headers, 'Prefer':'return=minimal' },
-        body: JSON.stringify(item.patch)
-      });
-      if(res.ok || res.status===204){
-        success++;
+      let res;
+      if(item.op === 'insert'){
+        res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { ...headers, 'Prefer':'return=minimal' },
+          body: JSON.stringify(item.patch)
+        });
       }else{
-        console.error(`学生库更新失败 [${item.name}]:`, res.status, await res.text());
+        res = await fetch(`${endpoint}?name=eq.${encodeURIComponent(item.name)}`, {
+          method: 'PATCH',
+          headers: { ...headers, 'Prefer':'return=minimal' },
+          body: JSON.stringify(item.patch)
+        });
+      }
+      if(res.ok || res.status===204 || res.status===201){
+        if(item.op==='insert') inserted++; else updated++;
+      }else{
+        console.error(`学生库${verb}失败 [${item.name}]:`, res.status, await res.text());
         failed++;
       }
     }catch(err){
@@ -2524,10 +2511,10 @@ async function confirmDbSync(){
   document.getElementById('dbSyncModal').style.display='none';
   _dbSyncWriteQueue = [];
   if(failed===0){
-    statusEl.textContent = `✅ 学生库同步完成，共更新 ${success} 名学生`;
-    notify(`🎓 学生库年级/专业同步完成！共更新 ${success} 名学生`,'success',4000);
+    statusEl.textContent = `✅ 学生库同步完成：新建 ${inserted} 位，更新 ${updated} 位`;
+    notify(`🎓 学生库同步完成！新建 ${inserted} 位，更新 ${updated} 位`,'success',4500);
   }else{
-    statusEl.textContent = `⚠ 学生库同步：成功 ${success}，失败 ${failed}（见控制台）`;
+    statusEl.textContent = `⚠ 学生库同步：新建 ${inserted}，更新 ${updated}，失败 ${failed}（见控制台）`;
     notify('学生库同步部分失败','warning',5000);
   }
 }
