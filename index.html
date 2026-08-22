@@ -265,6 +265,7 @@
 		#studentLibraryPanel .slw-badge.slw-grade{ background:var(--surface-alt); border:1px solid var(--outline); color:var(--text-dim); }
 		#studentLibraryPanel .slw-badge.slw-grade.slw-empty{ border-style:dashed; color:var(--slw-text-faint); font-style:italic; font-weight:500; }
 		#studentLibraryPanel .slw-tag{ display:inline-flex; align-items:center; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:600; white-space:nowrap; background:var(--slw-accent-soft); color:#8fb4ff; }
+		#studentLibraryPanel .slw-tag.slw-empty{ background:var(--surface-alt); border:1px dashed var(--outline); color:var(--slw-text-faint); font-style:italic; font-weight:500; }
 		#studentLibraryPanel .slw-status-pill{ font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px; }
 		#studentLibraryPanel .slw-status-pill.slw-active{ color:#9fe4b6; background:var(--slw-ok-soft); }
 		#studentLibraryPanel .slw-status-pill.slw-archived{ color:var(--slw-text-faint); background:var(--surface-alt); border:1px solid var(--outline); }
@@ -19111,6 +19112,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		const majorKeys = [...majorCounts.keys()].filter(k=>k!=='(未填写)').sort((a,b)=>majorCounts.get(b)-majorCounts.get(a));
 		const emptyGradeTotal = getAll().filter(s=>!s.grade).length;
 		const invalidGradeTotal = getAll().filter(s=>isInvalidGrade(s.grade)).length;
+		const emptyMajorTotal = getAll().filter(s=>!s.major).length;
 		const strip = document.getElementById('slwInsightStrip');
 		if(!strip) return;
 		let html = '<span class="slw-insight-label">按专业查看</span>';
@@ -19120,6 +19122,9 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		});
 		if(emptyGradeTotal + invalidGradeTotal > 0){
 			html += `<span class="slw-facet-chip slw-warn" data-slw-quick-badgrade="1">⚠ 年级异常/空缺 <span class="slw-n">${emptyGradeTotal + invalidGradeTotal}</span></span>`;
+		}
+		if(emptyMajorTotal > 0){
+			html += `<span class="slw-facet-chip slw-warn" data-slw-quick-badmajor="1">⚠ 专业空缺 <span class="slw-n">${emptyMajorTotal}</span></span>`;
 		}
 		strip.innerHTML = html;
 	}
@@ -19139,13 +19144,14 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			tbodyEl.innerHTML = `<tr><td colspan="7"><div class="slw-empty-state">没有匹配的学生 — 试试清除筛选条件</div></td></tr>`;
 		}else{
 			tbodyEl.innerHTML = rows.map(s=>{
-				const flag = isInvalidGrade(s.grade) || !s.grade;
+				const flag = isInvalidGrade(s.grade) || !s.grade || !s.major;
 				const gradeCls = !s.grade ? 'slw-empty' : '';
+				const majorCls = !s.major ? 'slw-empty' : '';
 				return `<tr data-name="${escapeHtml(s.name)}" class="${uiState.selected.has(s.name)?'slw-selected':''} ${flag?'slw-flag':''} ${s.archived?'slw-archived':''}">
 					<td><input type="checkbox" class="slw-row-cb" ${uiState.selected.has(s.name)?'checked':''}/></td>
 					<td><div class="slw-name-cell"><span class="slw-avatar">${escapeHtml(s.name.slice(0,1))}</span>${escapeHtml(s.name)}</div></td>
 					<td><span class="slw-badge slw-grade ${gradeCls}">${escapeHtml(s.grade || '未填写')}${isInvalidGrade(s.grade)?' ⚠':''}</span></td>
-					<td><span class="slw-tag">${escapeHtml(s.major||'未填写')}</span></td>
+					<td><span class="slw-tag ${majorCls}">${escapeHtml(s.major||'未填写')}</span></td>
 					<td class="slw-updated-cell">${relTime(s.updated_at)}</td>
 					<td><span class="slw-status-pill ${s.archived?'slw-archived':'slw-active'}">${s.archived?'已归档':'在读'}</span></td>
 					<td>
@@ -19361,6 +19367,9 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					const badGrades = [...computeCounts('grade').keys()].filter(k=> k==='(未填写)' || isInvalidGrade(k));
 					const allOn = badGrades.every(g=>uiState.grades.has(g));
 					badGrades.forEach(g=> allOn ? uiState.grades.delete(g) : uiState.grades.add(g));
+					renderPanel();
+				}else if(chip.dataset.slwQuickBadmajor){
+					if(uiState.majors.has('(未填写)')) uiState.majors.delete('(未填写)'); else uiState.majors.add('(未填写)');
 					renderPanel();
 				}
 			});
