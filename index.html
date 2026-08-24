@@ -14455,12 +14455,13 @@
 	});
 	function getRoomGridVirtualRenderConfig() {
 		const params = new URLSearchParams(location.search || '');
-		// 之前这里要求 location.protocol==='file:' 才会启用虚拟渲染，导致这个已经做好、
-		// 有压测基准的优化在线上 https:// 部署环境从来没真正生效过——133 个琴房这种规模下，
-		// 编辑模式每次渲染都要重建整个网格的完整 DOM，这正是"点编辑后卡到几乎无法操作"的根因。
-		// 现在默认按房间数阈值启用，只保留一个显式关闭的逃生舱（?room_grid_virtual=0 或控制台设 window.__enableRoomGridVirtualRender=false）。
-		const explicitlyDisabled = params.get('room_grid_virtual') === '0' || window.__enableRoomGridVirtualRender === false;
-		const enabled = !explicitlyDisabled;
+		// 曾短暂默认开启过虚拟渲染（见 git 历史），但编辑模式下上下滚动会出现显示异常——
+		// 说明这套虚拟滚动在真实交互场景下有未修好的 bug，之前只在 file:// 本地压测过，
+		// 从没在生产环境的真实编辑流程里跑过。正确性优先于速度，先退回默认关闭，
+		// 仍可通过 ?room_grid_virtual=1 或控制台 window.__enableRoomGridVirtualRender=true 手动开启用于排查。
+		const queryEnabled = params.get('room_grid_virtual') === '1';
+		const runtimeEnabled = window.__enableRoomGridVirtualRender === true;
+		const enabled = queryEnabled || runtimeEnabled;
 		const minRoomsRaw = Number(params.get('room_grid_virtual_min'));
 		const chunkSizeRaw = Number(params.get('room_grid_virtual_chunk'));
 		const minRooms = Number.isFinite(minRoomsRaw) && minRoomsRaw >= 20 ? Math.floor(minRoomsRaw) : ROOM_GRID_VIRTUAL_DEFAULTS.minRooms;
