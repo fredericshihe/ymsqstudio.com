@@ -18755,6 +18755,11 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		document.getElementById('slwEditModalTitle').textContent = stu ? '编辑学生' : '新增学生';
 		function close(){ wrap.classList.remove('slw-show'); }
 		progBox.style.display='none'; progText.textContent='同步中...'; progBar.style.width='0%'; progBar.style.background='';
+		// 快捷选项：列出学生库里已有的年级/专业，可直接选，也可以照常手动输入自定义值
+		const majorOpts = [...new Set(getAll().map(s=>s.major).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh-Hans-CN'));
+		document.getElementById('slwMajorOptions').innerHTML = majorOpts.map(o=>`<option value="${escapeHtml(o)}">`).join('');
+		const gradeOpts = [...new Set(getAll().map(s=>s.grade).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh-Hans-CN'));
+		document.getElementById('slwGradeOptions').innerHTML = gradeOpts.map(o=>`<option value="${escapeHtml(o)}">`).join('');
 		wrap.classList.add('slw-show'); nameInput.value=stu?stu.name:''; gradeInput.value=stu?(stu.grade||''):''; majorInput.value=stu?(stu.major||''):''; nameInput.focus();
 		let saving = false;
 		saveBtn.onclick=async ()=>{
