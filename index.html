@@ -19070,7 +19070,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	// ===== 筛选/排序/多选状态 =====
 	const uiState = { search:'', grades:new Set(), majors:new Set(), statuses:new Set(), sortKey:'name', sortDir:1, selected:new Set() };
 
-	function isInvalidGrade(g){ return !!g && !/^G(?:[1-9]|1[0-2])(-\d+)?$/.test(g); }
+	function isInvalidGrade(g){ return !!g && !/^G(?:[1-9]|1[0-2])([-.]\d+)?$/.test(g); }
 	function computeCounts(field){ const m=new Map(); getAll().forEach(s=>{ const k=s[field]||'(未填写)'; m.set(k,(m.get(k)||0)+1); }); return m; }
 	function computeStatusCounts(){ const all=getAll(); return { active: all.filter(s=>!s.archived).length, archived: all.filter(s=>s.archived).length }; }
 
