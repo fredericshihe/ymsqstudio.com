@@ -19218,8 +19218,21 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 
 	function renderPanel(){ renderDropdowns(); renderInsightStrip(); renderTable(); }
 
+	// 旧系统的 Store.students（顶部全局搜索框用它）是独立于 StudentLibrary 的一份缓存，
+	// 不会随本地新增/编辑/删除自动更新——这里统一在每次 refreshUI 时把它和 store.items 对齐，
+	// 避免"刚新增的学生搜索框搜不到，要等下次整体刷新"的问题
+	function syncStoreStudentsFromLibrary(){
+		if(!(window.Store && Array.isArray(window.Store.students))) return;
+		window.Store.students.splice(0, window.Store.students.length);
+		store.items.forEach(item => {
+			window.Store.students.push({ name: item.name, grade: item.grade, major: item.major });
+		});
+		if(window.rebuildStudentIndex){ window.rebuildStudentIndex(); }
+	}
+
 	function refreshUI(){
 		renderPanel();
+		syncStoreStudentsFromLibrary();
 		// 若学生选择弹窗开启, 同步刷新里面的列表(调用上层 renderStudentList)
 		try{ const modal=document.getElementById('studentModalBackdrop'); if(modal && modal.style.display==='flex' && typeof renderStudentList==='function'){ renderStudentList(); } }catch(_){ }
 	}
