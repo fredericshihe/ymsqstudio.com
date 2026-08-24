@@ -20052,10 +20052,32 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			console.log('[PracticeAlerts] AlertStore.list 长度:', AlertStore.list.length);
 			AlertStore._lastFullReload = Date.now();
 			persistSilenced(); // 保存以云端数据为准的静默状态
-			scheduleRenderAlerts(); 
-		}catch(e){ 
-			console.error('[PracticeAlerts] fetchExistingAlerts 异常:', e); 
+			await pruneOrphanedAlerts();
+			scheduleRenderAlerts();
+		}catch(e){
+			console.error('[PracticeAlerts] fetchExistingAlerts 异常:', e);
 		}
+	}
+
+	// 兜底清理：提醒的 student_name 是创建时的快照，不会跟着学生库改名/数据修正联动更新。
+	// 无论孤儿提醒是怎么产生的（改名、手工修数据、历史脏数据……），只要它指向的姓名已经不在
+	// 当前学生库里，就没有任何正常途径能让它被消解——这里统一按"忽略"处理，避免脏名字长期挂在提醒列表里。
+	async function pruneOrphanedAlerts(){
+		try{
+			// 只有学生名册已经真正加载时才校验，避免名册还没加载完就把全部提醒误判为孤儿而错误忽略
+			const activeStudents = window.getAllActiveStudents ? window.getAllActiveStudents() : null;
+			if(!activeStudents || activeStudents.length === 0) return;
+			const activeNames = new Set(activeStudents.map(s=>s.name));
+			const orphans = AlertStore.list.filter(a => a.student_name && !activeNames.has(a.student_name));
+			if(!orphans.length) return;
+			console.warn('[PracticeAlerts] 发现', orphans.length, '条提醒对应的学生姓名已不在当前学生库中，自动忽略:', orphans.map(a=>a.student_name));
+			const ids = orphans.map(a=>a.id);
+			const { error } = await supabaseClient.from('practice_alerts').update({ ignored:true }).in('id', ids);
+			if(error){ console.warn('[PracticeAlerts] 自动忽略孤儿提醒失败', error.message); return; }
+			const orphanIdSet = new Set(ids.map(String));
+			AlertStore.list = AlertStore.list.filter(a => !orphanIdSet.has(String(a.id)));
+			orphanIdSet.forEach(id => AlertStore.byId.delete(id));
+		}catch(e){ console.warn('[PracticeAlerts] pruneOrphanedAlerts 异常', e); }
 	}
 		function getActivePractice(student){ // approximate current ongoing log
 				// 优先使用 practiceLogs（如果有后台写入）
