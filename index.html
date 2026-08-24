@@ -412,6 +412,8 @@
 		.room-card.edit-mode .delete-btn:hover{background:#ff3742;transform:scale(1.1);}
 		.room-card.edit-mode .edit-row{
 			display:flex;align-items:center;gap:8px;margin-bottom:6px;
+			/* 给右上角的删除按钮（20px+6px定位）留出独立空间，避免和琴房类型选择器叠在一起 */
+			padding-right:28px;
 		}
 		.room-card.edit-mode .room-name.compact{
 			flex:1;min-width:0;border:1px dashed var(--outline);
