@@ -397,11 +397,13 @@
 			transform:translateY(0);
 			box-shadow:0 2px 6px rgba(220,53,69,0.2);
 		}
-		/* contain:content（见基础 .room-card 规则）隐含 contain:paint，会按卡片圆角裁切子元素，
-		   即使这里设了 overflow:visible 也拦不住——必须显式关掉 paint 包含，删除按钮才能正常露出卡片外 */
-		.room-card.edit-mode{position:relative;pointer-events:auto;overflow:visible;contain:layout style;}
+		/* 之前为了让删除按钮露出卡片外（top/right 用负值），把 contain:paint 关掉了，
+		   但 .room-card 的 contain:content 是 133 张卡片这种规模下真正重要的渲染隔离，
+		   编辑模式一关它们全部失去隔离，是"点编辑后特别卡"的一个成因。
+		   改成让按钮完全落在卡片内部，就不用再牺牲 containment 了。 */
+		.room-card.edit-mode{position:relative;pointer-events:auto;}
 		.room-card.edit-mode .delete-btn{
-			position:absolute;top:-8px;right:-8px;width:20px;height:20px;
+			position:absolute;top:6px;right:6px;width:20px;height:20px;
 			border-radius:50%;background:#ff4757;border:2px solid #fff;
 			color:#fff;font-size:14px;font-weight:bold;cursor:pointer;
 			display:flex;align-items:center;justify-content:center;
@@ -14506,7 +14508,11 @@
 		return htmlParts.filter(item => !/room-type-separator/.test(item));
 	}
 	function upsertRoomGridVirtualSummary(grid, rendered, total) {
-		if (!grid) return;
+		// 这是压测/调试用的进度文字（"[VIRTUAL] rendered=X/Y"），会作为一个真实的网格子项插进
+		// roomGrid 里——之前默认关闭虚拟渲染时从没人发现，一旦启用就会在真实页面上露出这行调试文字，
+		// 且每次追加新 chunk 都会重新排到网格末尾，看起来就像滚动时内容跳动/显示异常。
+		// 只在显式开启压测模式时才显示。
+		if (!grid || !window.__roomGridVirtualDebugSummary) return;
 		let summaryEl = grid.querySelector('[data-room-grid-virtual-summary="1"]');
 		if (!summaryEl) {
 			summaryEl = document.createElement('div');
