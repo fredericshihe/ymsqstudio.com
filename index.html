@@ -16383,9 +16383,10 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		if(q) arr=arr.filter(s=> matchPinyin(s.name, q) || (s.major||'').toLowerCase().includes(q));
 		
 		// 对于三角钢琴，单人登记时过滤掉非钢琴教研室的学生；多人登记时显示所有学生
+		// 用 includes 而非严格相等，兼容双专业写法（如 "钢琴教研室/小提琴教研室"）
 		const inMultiSelectMode = window.studentModalState && window.studentModalState.multiSelectMode;
 		if(isGrand && !inMultiSelectMode) {
-			arr = arr.filter(s => s.major === '钢琴教研室');
+			arr = arr.filter(s => (s.major||'').includes('钢琴教研室'));
 		}
 		
 		// 优先展示该琴房最近7天登记(练琴)次数最多的学生，其余按默认姓名顺序
@@ -19118,7 +19119,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		let html = '<span class="slw-insight-label">按专业查看</span>';
 		majorKeys.forEach(k=>{
 			const active = uiState.majors.has(k) ? 'slw-active' : '';
-			html += `<span class="slw-facet-chip ${active}" data-slw-quick-major="${escapeHtml(k)}">${escapeHtml(k.replace('教研室',''))} <span class="slw-n">${majorCounts.get(k)}</span></span>`;
+			html += `<span class="slw-facet-chip ${active}" data-slw-quick-major="${escapeHtml(k)}">${escapeHtml(k.replace(/教研室/g,''))} <span class="slw-n">${majorCounts.get(k)}</span></span>`;
 		});
 		if(emptyGradeTotal + invalidGradeTotal > 0){
 			html += `<span class="slw-facet-chip slw-warn" data-slw-quick-badgrade="1">⚠ 年级异常/空缺 <span class="slw-n">${emptyGradeTotal + invalidGradeTotal}</span></span>`;

@@ -575,14 +575,35 @@ const MAJOR_COURSE_KEYWORDS = [
 // 学校在标题行按 "G10 钢琴 罗舒筠" 格式写专业时，靠这张表精确识别，不依赖猜测
 const TITLE_MAJOR_MAP = {
   '钢琴':'钢琴教研室', '小提琴':'小提琴教研室', '大提琴':'大提琴教研室', '中提琴':'中提琴教研室',
-  '低音提琴':'木管教研室', '竖琴':'木管教研室', '吉他':'吉他教研室',
+  '低音提琴':'木管教研室', '竖琴':'木管教研室', '古典吉他':'吉他教研室', '吉他':'吉他教研室',
   '长笛':'木管教研室', '单簧管':'木管教研室', '双簧管':'木管教研室', '大管':'木管教研室',
   '萨克斯':'木管教研室', '笛子':'木管教研室', '箫':'木管教研室', '唢呐':'木管教研室',
   '小号':'铜管教研室', '圆号':'铜管教研室', '长号':'铜管教研室', '大号':'铜管教研室',
   '打击乐':'打击乐教研室', '声乐':'声乐教研室'
 };
-// 按关键词长度降序，确保"大提琴"不会被"大"这类更短的前缀提前吃掉
+// 按关键词长度降序，确保"大提琴"不会被"大"这类更短的前缀提前吃掉，也保证"古典吉他"优先于"吉他"匹配
 const TITLE_MAJOR_KEYWORDS_SORTED = Object.keys(TITLE_MAJOR_MAP).sort((a,b)=>b.length-a.length);
+
+// 双专业分隔符：钢琴/小提琴、钢琴、小提琴、钢琴+小提琴 等写法都视为多专业
+const MAJOR_SEP_RE = /[\/／、，,+]/;
+
+// 将标题行专业片段（可能是单专业或用分隔符连接的双/多专业）解析为教研室名称列表
+// 片段中每一部分都必须能匹配到已知专业关键词，否则整体判定为无法识别（返回 null），交由调用方回退处理
+function resolveMajorSegment(segment){
+  if(!segment) return null;
+  const parts = segment.split(MAJOR_SEP_RE).map(p=>p.trim()).filter(Boolean);
+  if(parts.length===0) return null;
+  const offices = [];
+  for(const part of parts){
+    let matchedOffice = null;
+    for(const kw of TITLE_MAJOR_KEYWORDS_SORTED){
+      if(part === kw || part.includes(kw)){ matchedOffice = TITLE_MAJOR_MAP[kw]; break; }
+    }
+    if(!matchedOffice) return null; // 有一部分无法识别，整体放弃，走旧逻辑/留空
+    offices.push(matchedOffice);
+  }
+  return [...new Set(offices)].join('/');
+}
 
 // 老师姓名关键词 (常见老师称谓)
 const TEACHER_KEYWORDS = [
@@ -1163,6 +1184,16 @@ function extractGradeMajorAndName(str){
   const grade = classNum ? `${gradeNum}-${classNum}` : gradeNum;
   let rest = m[3].trim();
 
+  // 优先整体解析"专业(可能含分隔符的双/多专业) + 空格 + 姓名"，支持如 "钢琴/小提琴 梁书一"
+  const tokenMatch = rest.match(/^(\S+)\s+(.+)$/);
+  if(tokenMatch){
+    const office = resolveMajorSegment(tokenMatch[1]);
+    if(office){
+      return { grade, major: office, name: tokenMatch[2].trim() };
+    }
+  }
+
+  // 回退：逐关键词匹配（兼容旧格式/未被上面整体匹配覆盖的写法）
   for(const kw of TITLE_MAJOR_KEYWORDS_SORTED){
     const re = new RegExp(`^${kw}\\s+(.+)$`);
     const mm = rest.match(re);
