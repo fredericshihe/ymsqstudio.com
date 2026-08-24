@@ -746,7 +746,8 @@
 	.schedule-btn:hover{background:rgba(99,179,237,.28);border-color:rgba(99,179,237,.58);color:#c2e8ff;}
 
 	/* ========== 课表弹窗（深色高对比模式） ========== */
-	#scheduleModalBackdrop{background:rgba(0,0,0,.85);backdrop-filter:blur(5px);}
+	/* z-index 需高于学生库面板(3100)及其内部弹窗(3150)，否则从学生库里点"课表"会被盖在下面 */
+	#scheduleModalBackdrop{background:rgba(0,0,0,.85);backdrop-filter:blur(5px);z-index:3200;}
 	#scheduleModalBackdrop .modal{
 		width:min(1200px,96vw);
 		height:92dvh;max-height:860px;
@@ -17078,6 +17079,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 					.from('student_schedules')
 					.select('*')
 					.eq('name', name)
+					.order('updated_at', { ascending: false, nullsFirst: false })
 					.limit(1);
 				if(typeof query.abortSignal === 'function'){
 					query = query.abortSignal(scheduleAbort.signal);
@@ -19068,7 +19070,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	// ===== 筛选/排序/多选状态 =====
 	const uiState = { search:'', grades:new Set(), majors:new Set(), statuses:new Set(), sortKey:'name', sortDir:1, selected:new Set() };
 
-	function isInvalidGrade(g){ return !!g && !/^G(?:[1-9]|1[0-2])$/.test(g); }
+	function isInvalidGrade(g){ return !!g && !/^G(?:[1-9]|1[0-2])(-\d+)?$/.test(g); }
 	function computeCounts(field){ const m=new Map(); getAll().forEach(s=>{ const k=s[field]||'(未填写)'; m.set(k,(m.get(k)||0)+1); }); return m; }
 	function computeStatusCounts(){ const all=getAll(); return { active: all.filter(s=>!s.archived).length, archived: all.filter(s=>s.archived).length }; }
 
@@ -19167,7 +19169,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					<td><span class="slw-status-pill ${s.archived?'slw-archived':'slw-active'}">${s.archived?'已归档':'在读'}</span></td>
 					<td>
 						<div class="slw-row-actions">
-							<button class="slw-row-icon-btn" title="查看课表" data-slw-act="schedule" data-name="${escapeHtml(s.name)}">🗓</button>
+							<button class="schedule-btn" title="查看课表" data-slw-act="schedule" data-name="${escapeHtml(s.name)}">课表</button>
 							<button class="slw-row-icon-btn" title="编辑" data-slw-act="edit" data-name="${escapeHtml(s.name)}">✎</button>
 							<button class="slw-row-icon-btn slw-del" title="删除" data-slw-act="delete" data-name="${escapeHtml(s.name)}">🗑</button>
 						</div>

@@ -1168,15 +1168,16 @@ function isPotentialNewBlock(rows,idx){
   return isStudentTitleRow(rows[idx]);
 }
 
-// 提取年级+专业+姓名： 行首如 "G10 马天翼" / "G9-1魏嘉增"（含班级编号）
+// 提取年级+专业+姓名： 行首如 "G10 马天翼" / "G9-1魏嘉增" / "G10.1魏嘉增"（含班级编号，"-"和"."写法都支持）
 // 也支持在年级后加专业： "G10 钢琴 罗舒筠"，专业未按此格式书写时自动向后兼容为空
 function extractGradeMajorAndName(str){
   let s = (str||'').trim();
-  // 支持格式：G10 马天翼 / G7王奕然 / G9-1魏嘉增 / G9-2刘作翰
-  const m = s.match(/^(G\d{1,2})(?:-(\d+))?\s*(.+)$/i);
+  // 支持格式：G10 马天翼 / G7王奕然 / G9-1魏嘉增 / G9-2刘作翰 / G10.1魏嘉增
+  const m = s.match(/^(G\d{1,2})(?:[-.](\d+))?\s*(.+)$/i);
   if(!m) return { grade:'', major:'', name:s };
   const gradeNum = m[1].toUpperCase();
-  const classNum = m[2]; // 班级编号（如 9-1 中的 1），可能为 undefined
+  const classNum = m[2]; // 班级编号（如 9-1 或 10.1 中的 1），可能为 undefined
+  // 统一归一化为 "-" 分隔（与学生库现有 G9-1 格式保持一致），不管原文写的是 "-" 还是 "."
   const grade = classNum ? `${gradeNum}-${classNum}` : gradeNum;
   let rest = m[3].trim();
 
@@ -2132,9 +2133,10 @@ async function syncSchedules() {
     };
 
     try {
-      // 1. 先删除该学生旧记录
+      // 1. 先删除该学生旧记录（按姓名删，而不是按 id=年级_姓名 删——年级变化会导致 id 变化，
+      // 按 id 删会删不到旧记录，留下一条陈旧的重复行，导致查询课表时可能读到没更新的旧数据）
       const delRes = await fetch(
-        `${endpoint}?id=eq.${encodeURIComponent(stu.id)}`,
+        `${endpoint}?name=eq.${encodeURIComponent(stu.name)}`,
         { method: 'DELETE', headers }
       );
 
