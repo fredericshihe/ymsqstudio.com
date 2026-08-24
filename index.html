@@ -397,7 +397,9 @@
 			transform:translateY(0);
 			box-shadow:0 2px 6px rgba(220,53,69,0.2);
 		}
-		.room-card.edit-mode{position:relative;pointer-events:auto;overflow:visible;}
+		/* contain:content（见基础 .room-card 规则）隐含 contain:paint，会按卡片圆角裁切子元素，
+		   即使这里设了 overflow:visible 也拦不住——必须显式关掉 paint 包含，删除按钮才能正常露出卡片外 */
+		.room-card.edit-mode{position:relative;pointer-events:auto;overflow:visible;contain:layout style;}
 		.room-card.edit-mode .delete-btn{
 			position:absolute;top:-8px;right:-8px;width:20px;height:20px;
 			border-radius:50%;background:#ff4757;border:2px solid #fff;
@@ -414,14 +416,19 @@
 			padding:4px 6px;border-radius:4px;cursor:text;
 		}
 		.room-card.edit-mode .piano-type-selector{
-			flex-shrink:0;min-width:80px;padding:4px 6px;
-			background:var(--surface);border:1px solid var(--outline);
+			flex-shrink:0;min-width:80px;padding:4px 20px 4px 6px;
+			background-color:var(--surface);border:1px solid var(--outline);
 			border-radius:4px;font-size:12px;color:var(--text);
 			cursor:pointer;outline:none;transition:var(--transition);
+			/* 去掉浏览器原生 select 的立体渐变/阴影外观，换成扁平样式+自绘小箭头，可读性更好 */
+			appearance:none;-webkit-appearance:none;-moz-appearance:none;
+			box-shadow:none;
+			background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+			background-repeat:no-repeat;background-position:right 7px center;
 		}
 		.room-card.edit-mode .piano-type-selector:hover,
 		.room-card.edit-mode .piano-type-selector:focus{
-			border-color:var(--accent);background:rgba(76,141,255,0.05);
+			border-color:var(--accent);background-color:rgba(76,141,255,0.05);box-shadow:none;
 		}
 		.room-card.edit-mode .room-name{border:1px dashed var(--outline);padding:4px 6px;border-radius:4px;cursor:text;}
 		.room-card.edit-mode .remark{border:1px dashed var(--outline);padding:4px 6px;border-radius:4px;cursor:text;min-height:24px;}
