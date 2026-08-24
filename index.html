@@ -1035,6 +1035,7 @@
 				<div class="filters" id="floorFilters"></div>
 				<div class="filters" id="typeFilters"></div>
 				<div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
+					<button id="btnAddRoom" class="add-room-btn" title="新增琴房" style="padding:6px 14px;display:none;">🎹 新增琴房</button>
 					<button id="btnEditRooms" class="edit-mode-btn" title="编辑琴房" style="padding:6px 14px;">编辑</button>
 				</div>
 				<div class="meta-stat" id="metaCounts"></div>
@@ -14399,12 +14400,12 @@
 		}
 		
 		let floorHTML = floors.map(f=>`<button data-floor="${f}" data-active="${Store.filters.floor===f?1:0}">${f==='ALL'?'全部楼层':f+'楼'}</button>`).join('');
-		
-		if (Store.editMode) {
-			floorHTML += `<button id="btnAddRoom" class="add-room-btn" title="新增琴房">🎹 新增琴房</button>`;
-		}
-		
+
 		floorWrap.innerHTML = floorHTML;
+		// "新增琴房" 现在是工具栏里紧挨着"编辑"按钮的静态按钮（见页面顶部 HTML），不再和楼层筛选按钮混在一起，
+		// 这里只负责跟着编辑模式切换显隐
+		const addRoomBtn = document.getElementById('btnAddRoom');
+		if (addRoomBtn) addRoomBtn.style.display = Store.editMode ? '' : 'none';
 		typeWrap.innerHTML = ['ALL','GRAND','UPRIGHT','NONE'].map(t=>`<button data-type="${t}" data-active="${Store.filters.type===t?1:0}">${labelType(t)}</button>`).join('');
 		
 		floorWrap.querySelectorAll('button').forEach(b=>{
@@ -14421,10 +14422,6 @@
 			Store.filters.type=b.dataset.type;
 			renderRooms();
 		});
-		
-		if (Store.editMode) {
-			bind('btnAddRoom', showAddRoomModal);
-		}
 		
 		window.__roomFiltersRenderSignature = nextSignature;
 	}
@@ -16791,6 +16788,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		// 聚焦房间名称输入框
 		setTimeout(() => document.getElementById('addRoomName').focus(), 0);
 	}
+	window.showAddRoomModal = showAddRoomModal;
 
 	function closeAddRoomModal(){
 		document.getElementById('addRoomModalBackdrop').style.display = 'none';
@@ -20769,7 +20767,8 @@ document.addEventListener('DOMContentLoaded', () => {
 	
 	// 绑定所有按钮
 	bind('btnEditRooms', window.toggleEditMode);
-	
+	bind('btnAddRoom', () => window.showAddRoomModal && window.showAddRoomModal());
+
 	console.log('[INIT] 按钮绑定完成');
 	
 	// 🔧 页面完全加载后进行数据一致性检查（仅在特定条件下）
