@@ -239,8 +239,17 @@ table#schedule{border-collapse:separate;border-spacing:0;min-width:1100px;width:
               <tbody id="dbSyncTableBody"></tbody>
             </table>
           </div>
+          <div id="dbSyncProgressWrap" style="display:none;margin-top:14px;">
+            <div style="display:flex;justify-content:space-between;font-size:.78rem;color:#666;margin-bottom:5px;">
+              <span id="dbSyncProgressText">正在同步…</span>
+              <span id="dbSyncProgressCount"></span>
+            </div>
+            <div style="height:8px;background:#eee;border-radius:4px;overflow:hidden;">
+              <div id="dbSyncProgressBar" style="height:100%;width:0%;background:var(--warning-color);transition:width .15s ease;"></div>
+            </div>
+          </div>
           <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
-            <button onclick="document.getElementById('dbSyncModal').style.display='none'" style="padding:9px 18px;background:#eee;color:#333;border:none;border-radius:8px;cursor:pointer;font-weight:600;">取消</button>
+            <button id="btnCancelDbSync" onclick="document.getElementById('dbSyncModal').style.display='none'" style="padding:9px 18px;background:#eee;color:#333;border:none;border-radius:8px;cursor:pointer;font-weight:600;">取消</button>
             <button id="btnConfirmDbSync" style="padding:9px 18px;background:var(--warning-color);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">确认执行同步</button>
           </div>
         </div>
@@ -2430,6 +2439,19 @@ function esc(s){
   return String(s==null?'':s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
 
+// 并发执行队列，限制同时在飞请求数，每完成一项都回调上报进度
+async function runWithConcurrency(items, limit, worker, onProgress){
+  let cursor = 0, done = 0;
+  async function runOne(){
+    while(cursor < items.length){
+      const idx = cursor++;
+      try{ await worker(items[idx], idx); } finally { done++; onProgress(done, items.length); }
+    }
+  }
+  const workers = Array.from({ length: Math.min(limit, items.length) }, runOne);
+  await Promise.all(workers);
+}
+
 async function confirmDbSync(){
   const queue = _dbSyncWriteQueue;
   if(!queue || queue.length===0) return;
@@ -2438,14 +2460,32 @@ async function confirmDbSync(){
   const endpoint = `${cfg.url}/rest/v1/student_database`;
 
   const confirmBtn = document.getElementById('btnConfirmDbSync');
-  const statusEl = document.getElementById('syncStatus');
+  const cancelBtn  = document.getElementById('btnCancelDbSync');
+  const statusEl   = document.getElementById('syncStatus');
+  const progWrap   = document.getElementById('dbSyncProgressWrap');
+  const progText   = document.getElementById('dbSyncProgressText');
+  const progCount  = document.getElementById('dbSyncProgressCount');
+  const progBar    = document.getElementById('dbSyncProgressBar');
+
   confirmBtn.disabled = true;
+  cancelBtn.disabled = true;
+  progWrap.style.display = 'block';
+  progText.textContent = '正在同步到学生库…';
+  progCount.textContent = `0 / ${queue.length}`;
+  progBar.style.width = '0%';
 
   let inserted=0, updated=0, failed=0;
-  for(let i=0;i<queue.length;i++){
-    const item = queue[i];
+
+  const updateProgress = (done, total) => {
+    const pct = total ? Math.round((done/total)*100) : 100;
+    progCount.textContent = `${done} / ${total}`;
+    progBar.style.width = pct + '%';
+    confirmBtn.textContent = `同步中… ${done}/${total}`;
+    statusEl.textContent = `🎓 正在同步学生库 ${done} / ${total}…`;
+  };
+
+  await runWithConcurrency(queue, 6, async (item) => {
     const verb = item.op === 'insert' ? '新建' : '更新';
-    statusEl.textContent = `🎓 ${verb}学生库 ${i+1} / ${queue.length}（${item.name}）…`;
     try{
       let res;
       if(item.op === 'insert'){
@@ -2471,8 +2511,12 @@ async function confirmDbSync(){
       console.error(`学生库网络错误 [${item.name}]:`, err);
       failed++;
     }
-  }
+  }, updateProgress);
 
+  progWrap.style.display = 'none';
+  confirmBtn.disabled = false;
+  confirmBtn.textContent = '确认执行同步';
+  cancelBtn.disabled = false;
   document.getElementById('dbSyncModal').style.display='none';
   _dbSyncWriteQueue = [];
   if(failed===0){
