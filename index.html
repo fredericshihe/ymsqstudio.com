@@ -14455,9 +14455,12 @@
 	});
 	function getRoomGridVirtualRenderConfig() {
 		const params = new URLSearchParams(location.search || '');
-		const queryEnabled = params.get('room_grid_virtual') === '1';
-		const runtimeEnabled = window.__enableRoomGridVirtualRender === true;
-		const enabled = location.protocol === 'file:' && (queryEnabled || runtimeEnabled);
+		// 之前这里要求 location.protocol==='file:' 才会启用虚拟渲染，导致这个已经做好、
+		// 有压测基准的优化在线上 https:// 部署环境从来没真正生效过——133 个琴房这种规模下，
+		// 编辑模式每次渲染都要重建整个网格的完整 DOM，这正是"点编辑后卡到几乎无法操作"的根因。
+		// 现在默认按房间数阈值启用，只保留一个显式关闭的逃生舱（?room_grid_virtual=0 或控制台设 window.__enableRoomGridVirtualRender=false）。
+		const explicitlyDisabled = params.get('room_grid_virtual') === '0' || window.__enableRoomGridVirtualRender === false;
+		const enabled = !explicitlyDisabled;
 		const minRoomsRaw = Number(params.get('room_grid_virtual_min'));
 		const chunkSizeRaw = Number(params.get('room_grid_virtual_chunk'));
 		const minRooms = Number.isFinite(minRoomsRaw) && minRoomsRaw >= 20 ? Math.floor(minRoomsRaw) : ROOM_GRID_VIRTUAL_DEFAULTS.minRooms;
@@ -19083,7 +19086,17 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	const uiState = { search:'', grades:new Set(), majors:new Set(), statuses:new Set(), sortKey:'name', sortDir:1, selected:new Set() };
 
 	function isInvalidGrade(g){ return !!g && !/^G(?:[1-9]|1[0-2])([-.]\d+)?$/.test(g); }
-	function computeCounts(field){ const m=new Map(); getAll().forEach(s=>{ const k=s[field]||'(未填写)'; m.set(k,(m.get(k)||0)+1); }); return m; }
+	// 专业字段可能是双专业组合，如 "钢琴教研室/小提琴教研室"——统计和筛选都要按 "/" 拆开逐个算，
+	// 否则双专业学生只会被计入一个独立的组合桶，用单一教研室筛选/查看时会被漏掉
+	function majorParts(s){ return s ? String(s).split('/') : ['(未填写)']; }
+	function computeCounts(field){
+		const m=new Map();
+		getAll().forEach(s=>{
+			const parts = field==='major' ? majorParts(s.major) : [s[field]||'(未填写)'];
+			parts.forEach(k=> m.set(k,(m.get(k)||0)+1) );
+		});
+		return m;
+	}
 	function computeStatusCounts(){ const all=getAll(); return { active: all.filter(s=>!s.archived).length, archived: all.filter(s=>s.archived).length }; }
 
 	function filteredRows(){
@@ -19091,7 +19104,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		let rows = getAll().filter(s=>{
 			if(kw && !s.name.toLowerCase().includes(kw) && !(window.matchPinyin && matchPinyin(s.name, kw))) return false;
 			if(uiState.grades.size && !uiState.grades.has(s.grade||'(未填写)')) return false;
-			if(uiState.majors.size && !uiState.majors.has(s.major||'(未填写)')) return false;
+			if(uiState.majors.size && !majorParts(s.major).some(p=>uiState.majors.has(p))) return false;
 			if(uiState.statuses.size){ const st = s.archived ? 'archived':'active'; if(!uiState.statuses.has(st)) return false; }
 			return true;
 		});
