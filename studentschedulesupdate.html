@@ -108,10 +108,8 @@ table#schedule{border-collapse:separate;border-spacing:0;min-width:1100px;width:
 
 .cell.practice-only{background:linear-gradient(135deg,#E8F5E8,#C8E6C9) !important;color:#1B5E20;font-weight:600}
 .cell.practice-mixed{background:linear-gradient(135deg,#FFE9D6,#FFC999) !important;color:#6D3B00;font-weight:600}
-.cell.rest{background:linear-gradient(135deg,#6C757D,#495057)!important;color:#fff;font-weight:600;cursor:not-allowed}
+.cell.rest{background:linear-gradient(135deg,#6C757D,#495057)!important;color:#fff;font-weight:600}
 .cell.major-course{background:linear-gradient(135deg,#E3F2FD,#BBDEFB) !important;color:#0D47A1;font-weight:600}
-.cell.selected-outline{box-shadow:0 0 0 2px var(--primary-color) inset}
-.cell:hover:not(.rest){background:#F0F8FF;cursor:pointer}
 .cell.hidden{visibility:hidden !important;pointer-events:none !important}
 
 .corner-badge{
@@ -166,8 +164,8 @@ table#schedule{border-collapse:separate;border-spacing:0;min-width:1100px;width:
         <label>导入文件</label>
         <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" multiple />
         <select id="importMode">
-          <option value="merge">叠加导入（默认）</option>
-          <option value="replace">清空替换</option>
+          <option value="replace" selected>清空替换（默认）</option>
+          <option value="merge">叠加导入</option>
         </select>
         <button class="btn-info" id="btnImport">开始解析</button>
         <button class="btn-warning" id="btnClearAll">清空全部</button>
@@ -190,7 +188,6 @@ table#schedule{border-collapse:separate;border-spacing:0;min-width:1100px;width:
         <select id="studentSelect"><option value="">请选择学生</option></select>
         <button id="btnPrev">上一个</button>
         <button id="btnNext">下一个</button>
-        <button class="btn-danger" id="btnClearCurrent">清空当前练琴标记</button>
         <label style="margin-left:8px;">过滤</label>
         <select id="filterMode">
           <option value="all">全部显示</option>
@@ -219,9 +216,7 @@ table#schedule{border-collapse:separate;border-spacing:0;min-width:1100px;width:
       <div class="control-row" id="supabaseRow">
         <label>云端同步</label>
         <button class="btn-info" id="btnSupabaseConfig" title="配置 Supabase 连接信息">⚙ 配置 Supabase</button>
-        <button class="btn-success" id="btnSyncSchedules" title="将所有学生完整课表覆盖同步到 student_schedules">☁ 替换同步完整课表</button>
-        <button class="btn-success" id="btnSyncPractice" title="将所有学生练琴时间段同步到 student_time_slots" style="background:#16a34a;">🎹 同步练琴时段</button>
-        <button class="btn-warning" id="btnSyncStudentDb" title="将课表识别出的年级/专业同步到学生库 student_database：已存在的学生覆盖旧值，不存在的学生自动新建">🎓 同步年级/专业到学生库</button>
+        <button class="btn-success" id="btnSyncAll" title="依次同步完整课表、练琴时段到云端，并按需更新学生库年级/专业">☁ 同步到云端</button>
         <span id="syncStatus" style="font-size:0.8rem;color:#666;margin-left:8px;"></span>
       </div>
 
@@ -285,9 +280,10 @@ table#schedule{border-collapse:separate;border-spacing:0;min-width:1100px;width:
         • 可一次导入多个 Excel 或 CSV 文件；<br>
         • 系统会自动识别学生并生成对应课表；<br>
         • 支持普通课表和时间段表两种导入格式；<br>
-        • 可点击或拖拽，批量标记练琴时间；<br>
+        • 练琴时段由课表原文自动识别，本工具仅用于查看和同步，不支持手动改动；<br>
         • 可按学生或老师快速查看课表；<br>
-        • 支持中文、拼音首字母搜索，并可导出 Excel / CSV。
+        • 支持中文、拼音首字母搜索，并可导出 Excel / CSV；<br>
+        • 默认「清空替换」导入模式，每次导入以本次文件为准。
       </div>
     </div>
 
@@ -1341,14 +1337,8 @@ function renderTable(){
         if(slotIndex===7){ td.classList.add('rest'); td.textContent='大课间'; }
       }
 
-      // 点击/拖拽选择
-      if((!cellData || !cellData.rest) && slotIndex!==4 && slotIndex!==7){
-        td.addEventListener('mousedown',e=>startDragMark(td,e));
-        td.addEventListener('mouseenter',e=>dragEnter(td,e));
-        td.addEventListener('mouseup',endDragMark);
-      } else {
-        td.style.cursor='not-allowed';
-      }
+      // 纯展示：不再支持点击/拖拽标记练琴，练琴状态完全来自课表原文自动识别
+      td.style.cursor='default';
 
       // 过滤模式
       applyFilterToCell(td,cellData);
@@ -1528,93 +1518,6 @@ function updateTeacherInfoPanel(){
     return total + studentEntry.schedule.length;
   }, 0);
   document.getElementById('teacherTotalHours').textContent=totalHours;
-}
-
-/* =============== 练琴标记交互（拖拽批量） =============== */
-let dragActive=false;
-let dragMode='add'; // add or remove
-let visitedDuringDrag=new Set();
-
-function startDragMark(td,e){
-  e.preventDefault();
-  if(state.currentIndex<0) return;
-  const {time, day, slotIndex} = td.dataset;
-  
-  // 检查当前状态：如果已经是练琴状态，则删除选中
-  const stu=state.students[state.currentIndex];
-  const key=`${slotIndex}_${day}`;
-  const cell=stu.cells[key];
-  
-  if(cell && cell.practice){
-    // 如果已经被高亮选中，再次点击删除选中状态
-    togglePractice(td, false);
-    dragMode = 'remove';
-  } else {
-    // 如果未选中，则添加练琴状态
-    togglePractice(td, true);
-    dragMode = 'add';
-  }
-  
-  dragActive=true;
-  visitedDuringDrag.add(key);
-  document.body.style.userSelect='none';
-}
-
-function dragEnter(td,e){
-  if(!dragActive) return;
-  const {time,day,slotIndex} = td.dataset;
-  const key=`${slotIndex}_${day}`;
-  if(visitedDuringDrag.has(key)) return;
-  visitedDuringDrag.add(key);
-  togglePractice(td, dragMode==='add');
-}
-
-function endDragMark(){
-  if(!dragActive) return;
-  dragActive=false;
-  visitedDuringDrag.clear();
-  document.body.style.userSelect='';
-  saveLocal();
-  updateStudentInfoPanel();
-}
-
-document.addEventListener('mouseup',endDragMark);
-document.addEventListener('mouseleave',endDragMark);
-
-function togglePractice(td,forceAdd){
-  const {time, day, slotIndex} = td.dataset;
-  const stu=state.students[state.currentIndex];
-  const key = `${slotIndex}_${day}`;
-  if(!stu.cells[key]){
-    // 空 -> 新建
-    stu.cells[key]={
-      slotIndex:parseInt(slotIndex,10),time,NORMAL_TIME:time,day:parseInt(day,10),text:td.textContent.trim(),practice:false,rest:([4,7].includes(parseInt(slotIndex,10)))
-    };
-  }
-  const cell=stu.cells[key];
-  if(cell.rest) return;
-  if(forceAdd===true){
-    cell.practice=true;
-  }else if(forceAdd===false){
-    cell.practice=false;
-  }else{
-    cell.practice=!cell.practice;
-  }
-  // 视觉
-  td.classList.remove('practice-only','practice-mixed');
-  td.querySelector('.corner-badge')?.remove();
-  if(cell.practice){
-    if(cell.text){
-      td.classList.add('practice-mixed');
-    } else {
-      td.classList.add('practice-only');
-    }
-    addCellBadge(td,'🎹');
-  }
-  else {
-    // 取消
-  }
-  applyFilterToCell(td,cell);
 }
 
 /* =============== 导出 Excel/CSV =============== */
@@ -1911,16 +1814,6 @@ document.getElementById('btnClearAll').addEventListener('click',()=>{
   document.getElementById('currentTeacher').style.display='none';
   saveLocal();
   notify('已清空','success');
-});
-
-document.getElementById('btnClearCurrent').addEventListener('click',()=>{
-  if(state.currentIndex<0) { notify('请先选择学生','warning'); return; }
-  if(!confirm('确定清空当前学生全部练琴标记（不删除原文字）？')) return;
-  const stu=state.students[state.currentIndex];
-  Object.values(stu.cells).forEach(c=> c.practice=false );
-  renderTable();
-  saveLocal();
-  notify('已清空该学生练琴标记','success');
 });
 
 document.getElementById('btnExportExcel').addEventListener('click',exportData);
@@ -2223,8 +2116,6 @@ async function syncSchedules() {
 
   const statusEl  = document.getElementById('syncStatus');
   const endpoint  = `${cfg.url}/rest/v1/${cfg.table}`;
-  const btn       = document.getElementById('btnSyncSchedules');
-  btn.disabled    = true;
 
   let success = 0, failed = 0;
 
@@ -2273,7 +2164,6 @@ async function syncSchedules() {
     }
   }
 
-  btn.disabled = false;
   if (failed === 0) {
     statusEl.textContent = `✅ 完整课表替换同步完成，共 ${success} 名学生`;
     notify(`☁ 完整课表替换同步完成！共 ${success} 名学生`, 'success', 4000);
@@ -2291,8 +2181,6 @@ async function syncPracticeSlots() {
 
   const statusEl    = document.getElementById('syncStatus');
   const endpoint    = `${cfg.url}/rest/v1/student_time_slots`;
-  const btn         = document.getElementById('btnSyncPractice');
-  btn.disabled      = true;
 
   let totalInserted = 0, failed = 0;
   const total       = state.students.length;
@@ -2346,7 +2234,6 @@ async function syncPracticeSlots() {
     }
   }
 
-  btn.disabled = false;
   if (failed === 0) {
     statusEl.textContent = `✅ 练琴时段同步完成，共 ${totalInserted} 条记录`;
     notify(`🎹 练琴时段同步完成！共 ${totalInserted} 条`, 'success', 4000);
@@ -2355,9 +2242,6 @@ async function syncPracticeSlots() {
     notify(`练琴时段同步部分失败`, 'warning', 5000);
   }
 }
-
-document.getElementById('btnSyncSchedules').addEventListener('click', syncSchedules);
-document.getElementById('btnSyncPractice').addEventListener('click', syncPracticeSlots);
 
 /* =============== 按钮三：同步年级/专业到学生库 student_database =============== */
 // 已存在的学生：覆盖年级/专业（仅当课表解析出新值时才覆盖，不会用空值抹掉已有数据）。
@@ -2371,9 +2255,7 @@ async function syncGradeMajorToStudentDatabase(){
   const ctx = getSupabaseContext(); if(!ctx) return;
   const { cfg, headers } = ctx;
 
-  const btn = document.getElementById('btnSyncStudentDb');
   const statusEl = document.getElementById('syncStatus');
-  btn.disabled = true;
   statusEl.textContent = '🎓 正在比对学生库数据…';
 
   // 1. 计算每位学生的候选年级/专业（课表标题行 "G10 钢琴 姓名" 格式解析得到；专业留空则表示未按此格式书写）
@@ -2384,7 +2266,6 @@ async function syncGradeMajorToStudentDatabase(){
   })).filter(c => c.grade || c.major);
 
   if(candidates.length===0){
-    btn.disabled=false;
     statusEl.textContent='';
     notify('未从课表中识别到可同步的年级/专业信息','warning');
     return;
@@ -2409,7 +2290,6 @@ async function syncGradeMajorToStudentDatabase(){
       });
     }
   }catch(err){
-    btn.disabled=false;
     statusEl.textContent='';
     notify(`比对学生库失败：${err.message}`,'error',5000);
     return;
@@ -2451,9 +2331,13 @@ async function syncGradeMajorToStudentDatabase(){
     }});
   });
 
-  btn.disabled = false;
   statusEl.textContent = '';
   _dbSyncWriteQueue = writeQueue;
+
+  if(writeQueue.length === 0){
+    notify('🎓 学生库年级/专业与课表一致，无需变更','success',3000);
+    return;
+  }
   renderDbSyncPreview(previewRows, writeQueue);
 }
 
@@ -2550,7 +2434,24 @@ async function confirmDbSync(){
   }
 }
 
-document.getElementById('btnSyncStudentDb').addEventListener('click', syncGradeMajorToStudentDatabase);
+/* =============== 统一入口：一键同步到云端（依次执行三步） =============== */
+// ① 替换同步完整课表 → student_schedules
+// ② 同步练琴时段 → student_time_slots
+// ③ 比对年级/专业 → 无变化则静默完成；有新建/覆盖则弹出预览表，需再点「确认执行同步」
+async function syncAllToCloud(){
+  if(state.students.length===0){ notify('没有学生数据可同步','warning'); return; }
+  const btn = document.getElementById('btnSyncAll');
+  btn.disabled = true;
+  try{
+    await syncSchedules();
+    await syncPracticeSlots();
+    await syncGradeMajorToStudentDatabase();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('btnSyncAll').addEventListener('click', syncAllToCloud);
 document.getElementById('btnConfirmDbSync').addEventListener('click', confirmDbSync);
 
 </script>

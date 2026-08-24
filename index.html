@@ -830,6 +830,8 @@
 	.sc-practice-mix{background:#331e12!important;color:#fdba74!important;font-weight:600;}
 	/* 主修课：深蓝背景，亮蓝文字 */
 	.sc-major{background:#172554!important;color:#93c5fd!important;font-weight:600;}
+	/* 音乐团体课（核心音乐素养/音乐鉴赏/表演课等）：深紫背景，浅紫文字，区别于一对一主修课和普通文化课 */
+	.sc-group{background:#3b0764!important;color:#d8b4fe!important;font-weight:600;}
 	/* 当前正在进行的课程高亮 */
 	.sc-current{
 		position:relative;
@@ -870,6 +872,7 @@
 	.sl-practice{background:#2a2215;border-color:#fbbf24!important;}
 	.sl-practice-mix{background:#331e12;border-color:#fdba74!important;}
 	.sl-major{background:#172554;border-color:#60a5fa!important;}
+	.sl-group{background:#3b0764;border-color:#c084fc!important;}
 	.sl-normal{background:#0f172a;border-color:#475569!important;}
 
 	/* 空/错误状态 */
@@ -16989,9 +16992,12 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 	const SCHED_DAY_NAMES = ['周一','周二','周三','周四','周五'];
 	const SCHED_REST_KW = ['coffee time','lunch','午餐','午休','lunch break','dinner','晚餐','大课间','间点','课间操','午间音乐会','lunchtime'];
 	const SCHED_PRACTICE_KW = ['练琴','practice session','practice','练习'];
+	// 音乐校特有的团体理论/鉴赏/表演课，区别于一对一主修课，也区别于语文数学等文化课
+	const SCHED_GROUP_MUSIC_KW = ['核心音乐素养','core musicianship','音乐鉴赏','music appreciation','表演课','performance class','音乐素养','musicianship'];
 
 	function schedIsRest(txt){ if(!txt) return false; const l=txt.toLowerCase(); return SCHED_REST_KW.some(k=>l.includes(k)); }
 	function schedIsPractice(txt){ if(!txt) return false; const l=txt.toLowerCase(); return SCHED_PRACTICE_KW.some(k=>l.includes(k)); }
+	function schedIsGroupMusicCourse(txt){ if(!txt) return false; const l=txt.toLowerCase(); return SCHED_GROUP_MUSIC_KW.some(k=>l.includes(k)); }
 	function lockBodyScroll(){
 		window.__bodyScrollLockCount = (window.__bodyScrollLockCount || 0) + 1;
 		if(window.__bodyScrollLockCount === 1){
@@ -17104,10 +17110,11 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 					</div>
 					<div class="sched-wrap" id="schedWrap"></div>
 					<div class="sched-legend">
-						<div class="sl-item"><div class="sl-dot sl-rest"></div> 休息 / 午餐</div>
+						<div class="sl-item"><div class="sl-dot sl-rest"></div> 休息 / 课间 / 午餐</div>
 						<div class="sl-item"><div class="sl-dot sl-practice"></div> 练琴</div>
 						<div class="sl-item"><div class="sl-dot sl-practice-mix"></div> 练琴 + 课程</div>
 						<div class="sl-item"><div class="sl-dot sl-major"></div> 主修课 / 特别课</div>
+						<div class="sl-item"><div class="sl-dot sl-group"></div> 音乐团体课</div>
 						<div class="sl-item"><div class="sl-dot sl-normal"></div> 普通课程</div>
 					</div>`;
 
@@ -17133,6 +17140,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		// 初始加载
 		loadScheduleData();
 	}
+	window.showStudentSchedule = showStudentSchedule;
 
 	// 核心渲染：将 cells 对象渲染为课表 table
 	function buildSchedTable(cells) {
@@ -17252,6 +17260,8 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 					cls = 'sc-practice';
 				} else if (cell.majorCourse) {
 					cls = 'sc-major';
+				} else if (schedIsGroupMusicCourse(txt)) {
+					cls = 'sc-group';
 				}
 
 				html += `<td class="${cls}${currentClass}">${escapeHtml(txt)}</td>`;
@@ -19157,6 +19167,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					<td><span class="slw-status-pill ${s.archived?'slw-archived':'slw-active'}">${s.archived?'已归档':'在读'}</span></td>
 					<td>
 						<div class="slw-row-actions">
+							<button class="slw-row-icon-btn" title="查看课表" data-slw-act="schedule" data-name="${escapeHtml(s.name)}">🗓</button>
 							<button class="slw-row-icon-btn" title="编辑" data-slw-act="edit" data-name="${escapeHtml(s.name)}">✎</button>
 							<button class="slw-row-icon-btn slw-del" title="删除" data-slw-act="delete" data-name="${escapeHtml(s.name)}">🗑</button>
 						</div>
@@ -19401,6 +19412,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				const name = btn.dataset.name; if(!name) return;
 				if(btn.dataset.slwAct==='edit'){ openEditStudentModal(name); }
 				else if(btn.dataset.slwAct==='delete'){ openDeleteConfirm([name]); }
+				else if(btn.dataset.slwAct==='schedule'){ if(window.showStudentSchedule) window.showStudentSchedule(name); }
 			});
 		}
 
