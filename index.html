@@ -198,6 +198,8 @@
 		#studentLibraryPanel .slw-facet-chip.slw-warn{ background:var(--slw-warn-soft); border-color:rgba(255,179,71,.4); color:#ffd8a0; }
 		#studentLibraryPanel .slw-facet-chip.slw-warn .slw-n{ color:#ffe3b8; }
 		#studentLibraryPanel .slw-facet-chip.slw-warn:hover{ border-color:var(--warn); }
+		#studentLibraryPanel .slw-facet-chip.slw-warn.slw-active{ background:var(--slw-accent-soft); border-color:var(--accent); color:#cfe1ff; box-shadow:0 0 0 1px rgba(76,141,255,.18); }
+		#studentLibraryPanel .slw-facet-chip.slw-warn.slw-active .slw-n{ color:#eaf2ff; }
 
 		#studentLibraryPanel .slw-toolbar{ display:flex; align-items:center; gap:10px; padding:12px 22px; flex-wrap:wrap; border-bottom:1px solid var(--outline); flex-shrink:0; position:relative; }
 		#studentLibraryPanel .slw-search-box{ position:relative; flex:1; min-width:200px; max-width:280px; }
@@ -19644,8 +19646,10 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			const active = uiState.majors.has(k) ? 'slw-active' : '';
 			html += `<span class="slw-facet-chip ${active}" data-slw-quick-major="${escapeHtml(k)}">${escapeHtml(k.replace(/教研室/g,''))} <span class="slw-n">${majorCounts.get(k)}</span></span>`;
 		});
+		const badGradeKeys = [...gradeCounts.keys()].filter(k=>k==='(未填写)' || isInvalidGrade(k));
+		const badGradeSelected = badGradeKeys.some(k=>uiState.grades.has(k));
 		if(emptyGradeTotal + invalidGradeTotal > 0){
-			html += `<span class="slw-facet-chip slw-warn" data-slw-quick-badgrade="1">⚠ 年级异常/空缺 <span class="slw-n">${emptyGradeTotal + invalidGradeTotal}</span></span>`;
+			html += `<span class="slw-facet-chip slw-warn ${badGradeSelected?'slw-active':''}" data-slw-quick-badgrade="1" aria-pressed="${badGradeSelected?'true':'false'}">⚠ 年级异常/空缺 <span class="slw-n">${emptyGradeTotal + invalidGradeTotal}</span></span>`;
 		}
 		if(emptyMajorTotal > 0){
 			html += `<span class="slw-facet-chip slw-warn" data-slw-quick-badmajor="1">⚠ 专业空缺 <span class="slw-n">${emptyMajorTotal}</span></span>`;
