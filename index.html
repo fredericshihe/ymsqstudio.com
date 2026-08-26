@@ -1037,6 +1037,7 @@
 			<!-- 跳转按钮 -->
 			<button onclick="window.open('practiceanalyse.html', '_blank')" class="ghost" title="打开练琴分析">📊 练琴分析</button>
 			<button onclick="window.open('admin_coins.html', '_blank')" class="ghost" title="音符币管理后台">🎵 音符币</button>
+			<button id="btnChangePassword" class="ghost" title="修改登录密码">修改密码</button>
 			<button id="btnToggleSlotCheck" class="ghost" title="切换登记时段检测">时段检测: 关</button>
 			<button id="btnPracticeLogSearch" class="ghost" title="查询学生练琴记录">查练琴记录</button>
 			<!-- 已移除刷新按钮 -->
@@ -17998,7 +17999,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 	 *************************************************/
 	async function bootstrap(){
 		try{ 
-			await initSupabase(); 
+			if(!supabaseClient || !supabaseReady) await initSupabase();
 		}catch(e){
 			logWarn('Supabase 初始化失败 (离线模式)', e.message);
 			updateSyncStatus('error', '离线模式');
@@ -18226,23 +18227,22 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 
 	// 直接调用 bootstrap 改为受登录控制
 	// bootstrap();
-	// 登录门控逻辑（纯前端固定密码）改为：APP_PASS_HASH = SHA256(明文密码) 无盐
-	const PLAIN_PASS = 'ymsq2022';
-	let APP_PASS_HASH = '';
 	let appBooted = false;
-	function sha256Hex(str){
-		return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)).then(buf=>{
-			return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-		});
+	function showLogin(){ const overlay=document.getElementById('authOverlay'); if(overlay) overlay.style.display='flex'; }
+	function hideLogin(){ const overlay=document.getElementById('authOverlay'); if(overlay) overlay.style.display='none'; }
+	async function ensureAuthBackend(){
+		if(supabaseClient) return true;
+		try{ await initSupabase(); }catch(_e){ }
+		return !!supabaseClient;
 	}
-	function showLogin(){ document.getElementById('authOverlay').style.display='flex'; }
-	function hideLogin(){ document.getElementById('authOverlay').style.display='none'; }
 	// 已移除登出按钮逻辑
 	async function tryAuto(){
-		if(localStorage.getItem('yms_auth')==='1'){
-			hideLogin(); if(!appBooted){ appBooted=true; bootstrap(); }
-		}else{
-			showLogin();
+		showLogin();
+		const backendReady = await ensureAuthBackend();
+		showLogin();
+		if(!backendReady){
+			const msg=document.getElementById('loginMsg');
+			if(msg) msg.textContent='后端连接失败，暂时无法验证密码';
 		}
 	}
 	async function handleLogin(e){
@@ -18252,35 +18252,66 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		const msg=document.getElementById('loginMsg');
 		btn.disabled=true; msg.textContent='验证中...';
 		try{
+			if(!await ensureAuthBackend()) throw new Error('后端连接失败');
 			const ok = await verifyPassword(pwd);
 			if(ok){
-				localStorage.setItem('yms_auth','1');
 				hideLogin(); if(!appBooted){ appBooted=true; bootstrap(); }
 				msg.textContent='';
 			}else{
 				msg.textContent='密码错误';
 			}
+		}catch(error){
+			msg.textContent=error?.message==='后端连接失败' ? error.message : '验证失败，请稍后重试';
 		}finally{
 			btn.disabled=false;
 		}
 	}
 	// logout 入口移除，仍保留函数以防外部引用
-	function logout(){ localStorage.removeItem('yms_auth'); appBooted=false; showLogin(); }
+	function logout(){ appBooted=false; showLogin(); }
 	async function verifyPassword(pwd){
-		if(!pwd) return false;
-		// 若 hash 还未准备，等待
-		let waitCount=0; while(!APP_PASS_HASH && waitCount<100){ await new Promise(r=>setTimeout(r,30)); waitCount++; }
-		const h = await sha256Hex(pwd);
-		return h===APP_PASS_HASH;
+		if(!pwd || !supabaseClient) return false;
+		const { data, error } = await supabaseClient.rpc('verify_piano_room_password', { p_password: pwd });
+		if(error) throw error;
+		return data === true;
 	}
-	// 预计算无盐哈希
-	sha256Hex(PLAIN_PASS).then(h=>{ APP_PASS_HASH=h; console.log('APP_PASS_HASH(unsalted)=',h); });
+	async function handlePasswordChange(e){
+		e.preventDefault();
+		const form=e.currentTarget;
+		const btn=form.querySelector('button[type="submit"]');
+		const msg=document.getElementById('passwordChangeMsg');
+		const oldPassword=document.getElementById('oldPassword').value;
+		const newPassword=document.getElementById('newPassword').value;
+		const confirmPassword=document.getElementById('confirmPassword').value;
+		if(newPassword!==confirmPassword){ msg.textContent='两次输入的新密码不一致'; return; }
+		btn.disabled=true; msg.textContent='提交中...';
+		try{
+			if(!await ensureAuthBackend()) throw new Error('后端连接失败');
+			const {data,error}=await supabaseClient.rpc('change_piano_room_password', { p_old_password: oldPassword, p_new_password: newPassword });
+			if(error) throw error;
+			if(!data?.success){ msg.textContent=data?.error || '密码修改失败'; return; }
+			form.reset(); closePasswordModal(); toast('登录密码已修改', 'success');
+		}catch(error){ msg.textContent=error?.message==='后端连接失败' ? error.message : '密码修改失败，请稍后重试'; }
+		finally{ btn.disabled=false; }
+	}
+	function openPasswordModal(){
+		const modal=document.getElementById('passwordModalBackdrop');
+		if(modal){ modal.style.display='flex'; document.getElementById('oldPassword')?.focus(); }
+	}
+	function closePasswordModal(){
+		const modal=document.getElementById('passwordModalBackdrop');
+		if(modal) modal.style.display='none';
+		const msg=document.getElementById('passwordChangeMsg'); if(msg) msg.textContent='';
+	}
 	// 延迟到下一个事件循环，确保 DOM 已有遮罩
 	setTimeout(tryAuto,0);
 	document.addEventListener('DOMContentLoaded', ()=>{
 		try{ restoreSilenced(); }catch(_e){}
 		const f=document.getElementById('loginForm');
 		if(f && !f.dataset.bound){ f.dataset.bound='1'; f.addEventListener('submit', handleLogin); }
+		const changeBtn=document.getElementById('btnChangePassword');
+		if(changeBtn && !changeBtn.dataset.bound){ changeBtn.dataset.bound='1'; changeBtn.addEventListener('click', openPasswordModal); }
+		const changeForm=document.getElementById('passwordChangeForm');
+		if(changeForm && !changeForm.dataset.bound){ changeForm.dataset.bound='1'; changeForm.addEventListener('submit', handlePasswordChange); }
 	});
 
 	</script>
@@ -18296,7 +18327,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 						<span class="sub">Yehudi Menuhin School</span>
 					</div>
 				</div>
-				<form id="loginForm" autocomplete="off" onsubmit="handleLogin(event)">
+				<form id="loginForm" autocomplete="off">
 					<label class="field">
 						<span class="label">密码</span>
 						<input id="loginPassword" type="password" inputmode="text" autocomplete="new-password" placeholder="输入访问密码" required />
@@ -18307,6 +18338,21 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 				</form>
 			</div>
 			<div class="login-footer">© <span id="yearNow"></span> YMS Practice Rooms</div>
+		</div>
+	</div>
+
+	<div id="passwordModalBackdrop" class="modal-backdrop" style="display:none;z-index:10001;" role="dialog" aria-modal="true" aria-labelledby="passwordModalTitle">
+		<div class="modal" style="width:420px;max-width:92%;">
+			<div class="modal-header"><h3 id="passwordModalTitle">修改登录密码</h3><button type="button" class="ghost" onclick="closePasswordModal()" aria-label="关闭">✕</button></div>
+			<form id="passwordChangeForm">
+				<div class="modal-body">
+					<label class="form-field"><span>旧密码</span><input id="oldPassword" type="password" autocomplete="current-password" required /></label>
+					<label class="form-field"><span>新密码</span><input id="newPassword" type="password" autocomplete="new-password" minlength="6" required /></label>
+					<label class="form-field"><span>确认新密码</span><input id="confirmPassword" type="password" autocomplete="new-password" minlength="6" required /></label>
+					<div id="passwordChangeMsg" class="login-msg" aria-live="polite"></div>
+				</div>
+				<div class="modal-footer"><button type="button" class="ghost" onclick="closePasswordModal()">取消</button><button type="submit" class="primary">保存密码</button></div>
+			</form>
 		</div>
 	</div>
 
@@ -18334,6 +18380,9 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 	#authOverlay .login-msg{min-height:18px;font-size:13px;color:#ff7a7a;font-weight:500;}
 	#authOverlay .hint{margin-top:-6px;font-size:11px;letter-spacing:.5px;color:#667582;text-align:center;}
 	#authOverlay .login-footer{margin-top:40px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#46515a;}
+	#passwordModalBackdrop .form-field{display:flex;flex-direction:column;gap:6px;color:var(--text-dim);font-size:13px;}
+	#passwordModalBackdrop input{width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--outline);border-radius:8px;padding:10px 12px;color:var(--text);font:inherit;}
+	#passwordModalBackdrop .login-msg{min-height:18px;color:var(--danger);font-size:13px;}
 	@media (max-width:520px){#authOverlay .login-panel{padding:34px 30px 30px;width:330px;border-radius:20px;}#authOverlay .logo-mark{width:50px;height:50px;font-size:24px;}#authOverlay .brand-text h1{font-size:20px;}}
 	</style>
 
@@ -18344,7 +18393,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 	document.addEventListener('DOMContentLoaded',()=>{
 		const f=document.getElementById('loginForm');
 		if(!f) return;
-		f.addEventListener('submit', handleLogin);
+		if(!f.dataset.bound){ f.dataset.bound='1'; f.addEventListener('submit', handleLogin); }
 		document.getElementById('loginPassword').addEventListener('keydown',e=>{ if(e.key==='Enter'){ f.requestSubmit(); }});
 	});
 	</script>
