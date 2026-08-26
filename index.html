@@ -1311,7 +1311,7 @@
 	</div>
 
 	<!-- Toast 容器 -->
-	<div id="toastContainer" style="position:fixed;pointer-events:none;bottom:0;left:0;right:0;display:flex;flex-direction:column;align-items:flex-end;gap:10px;padding:0 24px 24px;z-index:500;"></div>
+	<div id="toastContainer" style="position:fixed;pointer-events:none;bottom:0;left:0;right:0;display:flex;flex-direction:column;align-items:flex-end;gap:10px;padding:0 24px 24px;z-index:5000;"></div>
 
 	<script>
 	// 其它已有脚本...
@@ -17025,13 +17025,30 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		'13:00-13:50','14:00-14:50','14:50-15:10','15:10-16:00','16:10-17:00','17:10-18:00'
 	];
 	const SCHED_DAY_NAMES = ['周一','周二','周三','周四','周五'];
-	const SCHED_REST_KW = ['coffee time','lunch','午餐','午休','lunch break','dinner','晚餐','大课间','间点','课间操','午间音乐会','lunchtime'];
-	const SCHED_PRACTICE_KW = ['练琴','practice session','practice','练习'];
+	const SCHED_REST_KW = ['课间操','coffee time','午餐','lunch','午间音乐会','晚餐','dinner','间点','休息','午休','lunch break','大课间','课间','lunchtime'];
+	const SCHED_PRACTICE_KW = ['练琴','practice session','practice','练习','个人练习'];
+	const SCHED_MAJOR_COURSE_KW = [
+		'钢琴','piano','钢琴课','钢琴个课','钢琴小课','钢琴大课',
+		'小提琴','violin','小提琴课','小提琴个课','小提琴小课','小提琴大课',
+		'大提琴','cello','大提琴课','大提琴个课','大提琴小课','大提琴大课',
+		'中提琴','viola','低音提琴','double bass','竖琴','harp','吉他','guitar',
+		'古筝','二胡','琵琶','古琴','扬琴','中阮','柳琴','三弦',
+		'长笛','flute','单簧管','clarinet','双簧管','oboe','大管','巴松','bassoon',
+		'萨克斯','saxophone','小号','trumpet','圆号','horn','长号','trombone','大号','tuba',
+		'笛子','箫','唢呐','葫芦丝','巴乌',
+		'打击乐','percussion','架子鼓','drum','马林巴','marimba','定音鼓','timpani',
+		'手风琴','电子琴','管风琴',
+		'声乐','vocal','美声','民族','流行','合唱','choir','歌唱',
+		'作曲','composition','和声','harmony','复调','counterpoint','曲式','analysis',
+		'视唱练耳','solfege','乐理','theory','音乐史','history','配器','指挥',
+		'专业课程','专业课','专业','主修课','主修','major','1to1 major','1to1'
+	];
 	// 音乐校特有的团体理论/鉴赏/表演课，区别于一对一主修课，也区别于语文数学等文化课
 	const SCHED_GROUP_MUSIC_KW = ['核心音乐素养','core musicianship','音乐鉴赏','music appreciation','表演课','performance class','音乐素养','musicianship'];
 
 	function schedIsRest(txt){ if(!txt) return false; const l=txt.toLowerCase(); return SCHED_REST_KW.some(k=>l.includes(k)); }
 	function schedIsPractice(txt){ if(!txt) return false; const l=txt.toLowerCase(); return SCHED_PRACTICE_KW.some(k=>l.includes(k)); }
+	function schedIsMajorCourse(txt){ if(!txt) return false; const l=txt.toLowerCase(); return SCHED_MAJOR_COURSE_KW.some(k=>l.includes(k)); }
 	function schedIsGroupMusicCourse(txt){ if(!txt) return false; const l=txt.toLowerCase(); return SCHED_GROUP_MUSIC_KW.some(k=>l.includes(k)); }
 	function normalizeScheduleTimeValue(raw){
 		if(!raw) return '';
@@ -17053,7 +17070,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		const text = String(cell?.text || '');
 		if(cell?.rest || schedIsRest(text)) return 'rest';
 		if(cell?.practice || schedIsPractice(text)) return 'practice';
-		if(cell?.majorCourse) return 'major';
+		if(cell?.majorCourse || schedIsMajorCourse(text)) return 'major';
 		if(schedIsGroupMusicCourse(text)) return 'group';
 		return 'course';
 	}
@@ -17141,18 +17158,27 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		const normalizedText = String(text || '').trim();
 		const inferredRest = schedIsRest(normalizedText);
 		const inferredPractice = schedIsPractice(normalizedText);
+		const inferredMajor = schedIsMajorCourse(normalizedText);
+		const inferredGroup = schedIsGroupMusicCourse(normalizedText);
+		const selectedKind = kind || 'auto';
 		cell.text = normalizedText;
-		cell.kind = kind || 'course';
-		cell.practice = kind === 'practice' || (kind === 'auto' && inferredPractice);
-		cell.rest = kind === 'rest' || (kind === 'auto' && inferredRest);
-		cell.majorCourse = kind === 'major';
-		if(kind === 'group') cell.majorCourse = false;
-		if(kind === 'course'){
+		if(selectedKind === 'auto'){
+			cell.kind = inferredRest ? 'rest' : inferredPractice ? 'practice' : inferredMajor ? 'major' : inferredGroup ? 'group' : 'course';
+			cell.practice = inferredPractice;
+			cell.rest = inferredRest;
+			cell.majorCourse = inferredMajor;
+			return;
+		}
+		cell.kind = selectedKind;
+		cell.practice = selectedKind === 'practice';
+		cell.rest = selectedKind === 'rest';
+		cell.majorCourse = selectedKind === 'major';
+		if(selectedKind === 'group') cell.majorCourse = false;
+		if(selectedKind === 'course'){
 			cell.practice = false;
 			cell.rest = false;
 			cell.majorCourse = false;
 		}
-		if(kind === 'auto' && !normalizedText){ cell.practice=false; cell.rest=false; cell.majorCourse=false; }
 	}
 	function lockBodyScroll(){
 		window.__bodyScrollLockCount = (window.__bodyScrollLockCount || 0) + 1;
@@ -17273,7 +17299,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 					<option value="practice">练琴</option>
 					<option value="rest">休息</option>
 					<option value="course">普通课程</option>
-					<option value="major">主修课 / 特别课</option>
+					<option value="major">主修课 / 专业课</option>
 					<option value="group">音乐团体课</option>
 				</select>
 				<div class="editor-actions"><button type="button" data-editor-cancel>取消</button><button type="button" class="primary" data-editor-save>应用</button></div>`;
@@ -17281,8 +17307,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			const textarea = popup.querySelector('textarea');
 			const select = popup.querySelector('select');
 			textarea.value = cell.text || '';
-			select.value = cell.kind || scheduleEditorCellKind(cell);
-			if(!select.querySelector(`option[value="${select.value}"]`)) select.value = 'auto';
+			select.value = 'auto';
 			const rect = td.getBoundingClientRect();
 			const top = Math.min(window.innerHeight - 20, rect.bottom + 8);
 			popup.style.left = `${Math.max(14, Math.min(window.innerWidth - popup.offsetWidth - 14, rect.left))}px`;
@@ -17397,16 +17422,27 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			renderEditorGrid();
 		};
 		const saveEditor = async () => {
-			if(!editorModel || !scheduleRow || !editorDirty) return;
+			if(!editorModel || !scheduleRow) return;
+			if(!editorDirty){ toast('没有检测到待保存的修改，请先点击单元格内的“应用”', 'info'); return; }
 			const saveBtn = document.getElementById('scheduleSaveBtn');
 			if(saveBtn) saveBtn.disabled = true;
+			const status = document.getElementById('scheduleEditStatus');
+			if(status) status.textContent = '保存中...';
 			const cells = materializeScheduleEditorCells(editorModel);
+			const saveAbort = new AbortController();
+			let saveTimedOut = false;
+			const saveTimer = setTimeout(()=>{
+				saveTimedOut = true;
+				saveAbort.abort();
+			}, 15000);
 			try{
-				const {data,error} = await supabaseClient.rpc('save_student_schedule', {
+				let saveRequest = supabaseClient.rpc('save_student_schedule', {
 					p_schedule_id: String(scheduleRow.id),
 					p_expected_revision: Number(scheduleRow.revision || 1),
 					p_cells: cells
 				});
+				if(typeof saveRequest.abortSignal === 'function') saveRequest = saveRequest.abortSignal(saveAbort.signal);
+				const {data,error} = await saveRequest;
 				if(error) throw error;
 				const saved = Array.isArray(data) ? data[0] : data;
 				if(!saved?.cells) throw new Error('后端没有返回保存后的课表');
@@ -17417,22 +17453,30 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 				editorHistory = [];
 				editorHistoryIndex = -1;
 				removeCellEditor();
-				await loadScheduleData();
+				if(status) status.textContent = '保存成功，正在刷新...';
+				const reloaded = await loadScheduleData();
+				if(!reloaded){
+					toast('课表已保存，但界面刷新失败，请点击更新时间确认', 'warn');
+					return;
+				}
 				try{ await window.PracticeAlerts?.refreshSlots?.(true); }catch(alertError){ console.warn('[课表编辑] 刷新练琴提醒失败', alertError); }
 				try{ await window.PracticeAlerts?.recalcToday?.(true); }catch(alertError){ console.warn('[课表编辑] 重算练琴提醒失败', alertError); }
 				window.dispatchEvent(new CustomEvent('student-schedule-updated', {detail:{id:scheduleRow.id,name:scheduleRow.name}}));
 				toast('课表与练琴时段已同步', 'success');
 			}catch(error){
-				if(error?.code === '40001') toast('课表已被其他人修改，请刷新后重试', 'error');
+				if(saveTimedOut || error?.name === 'AbortError') toast('保存请求超时，请刷新课表后重试', 'error');
+				else if(error?.code === 'P0001' || error?.code === '40001' || error?.message?.includes('课表已被其他人修改')) toast('课表已被其他人修改，请刷新后重试', 'error');
 				else if(error?.code === 'PGRST202' || error?.code === '42883') toast('课表编辑接口尚未部署，请先执行 Supabase 迁移', 'error');
 				else toast(`课表保存失败：${error.message || error}`, 'error');
 				updateEditorToolbar();
+			}finally{
+				clearTimeout(saveTimer);
 			}
 		};
 
 		const loadScheduleData = async () => {
-			if(scheduleLoading) return;
-			if(editorDirty && !confirm('课表有未保存修改，确定刷新吗？')) return;
+			if(scheduleLoading) return false;
+			if(editorDirty && !confirm('课表有未保存修改，确定刷新吗？')) return false;
 			editorMode = false;
 			editorDirty = false;
 			editorModel = null;
@@ -17441,7 +17485,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			if(scheduleAbort){ scheduleAbort.abort(); }
 			scheduleAbort = new AbortController();
 			const body = document.getElementById('scheduleModalBody');
-			if (!body) { scheduleLoading = false; return; }
+			if (!body) { scheduleLoading = false; return false; }
 			body.innerHTML = `<div class="sched-empty"><div class="se-icon">⏳</div>正在加载课表...</div>`;
 			try {
 				let query = supabaseClient
@@ -17452,9 +17496,9 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 					.limit(1);
 				if(typeof query.abortSignal === 'function') query = query.abortSignal(scheduleAbort.signal);
 				const { data, error } = await query;
-				if (!document.getElementById('scheduleModalBody')) return;
-				if (error) { body.innerHTML = `<div class="sched-empty"><div class="se-icon">❌</div>加载失败：${escapeHtml(error.message)}</div>`; return; }
-				if (!data || data.length === 0) { body.innerHTML = `<div class="sched-empty"><div class="se-icon">📭</div>数据库中暂无 <b>${escapeHtml(name)}</b> 的课表</div>`; return; }
+				if (!document.getElementById('scheduleModalBody')) return false;
+				if (error) { body.innerHTML = `<div class="sched-empty"><div class="se-icon">❌</div>加载失败：${escapeHtml(error.message)}</div>`; return false; }
+				if (!data || data.length === 0) { body.innerHTML = `<div class="sched-empty"><div class="se-icon">📭</div>数据库中暂无 <b>${escapeHtml(name)}</b> 的课表</div>`; return false; }
 
 				scheduleRow = data[0];
 				const updatedAt = scheduleRow.updated_at
@@ -17481,7 +17525,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 						<div class="sl-item"><div class="sl-dot sl-rest"></div> 休息 / 课间 / 午餐</div>
 						<div class="sl-item"><div class="sl-dot sl-practice"></div> 练琴</div>
 						<div class="sl-item"><div class="sl-dot sl-practice-mix"></div> 练琴 + 课程</div>
-						<div class="sl-item"><div class="sl-dot sl-major"></div> 主修课 / 特别课</div>
+						<div class="sl-item"><div class="sl-dot sl-major"></div> 主修课 / 专业课</div>
 						<div class="sl-item"><div class="sl-dot sl-group"></div> 音乐团体课</div>
 						<div class="sl-item"><div class="sl-dot sl-normal"></div> 普通课程</div>
 					</div>`;
@@ -17493,10 +17537,12 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 				body.querySelector('#scheduleCancelBtn').onclick = () => leaveEditor(false);
 				body.querySelector('.s-updated').onclick = loadScheduleData;
 				updateEditorToolbar();
+				return true;
 			} catch (err) {
-				if(err?.name === 'AbortError') return;
+				if(err?.name === 'AbortError') return false;
 				const currentBody = document.getElementById('scheduleModalBody');
 				if (currentBody) currentBody.innerHTML = `<div class="sched-empty"><div class="se-icon">⚠️</div>加载异常：${escapeHtml(err.message)}</div>`;
+				return false;
 			} finally {
 				scheduleLoading = false;
 			}
