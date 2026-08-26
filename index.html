@@ -825,6 +825,7 @@
 
 	/* 课表主区域 */
 	.sched-wrap{flex:1 1 0;min-height:0;padding:12px 18px 10px;overflow:auto;background:#0f172a;}
+	.sched-wrap.is-schedule-refreshing{opacity:.55;transition:opacity .18s ease;}
 	.sched-wrap > table.sched-table{height:100%;}
 	.sched-table{
 		border-collapse:collapse;width:100%;min-width:780px;
@@ -17454,7 +17455,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 				editorHistoryIndex = -1;
 				removeCellEditor();
 				if(status) status.textContent = '保存成功，正在刷新...';
-				const reloaded = await loadScheduleData();
+				const reloaded = await loadScheduleData({preserveView:true});
 				if(!reloaded){
 					toast('课表已保存，但界面刷新失败，请点击更新时间确认', 'warn');
 					return;
@@ -17474,7 +17475,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			}
 		};
 
-		const loadScheduleData = async () => {
+		const loadScheduleData = async (options = {}) => {
 			if(scheduleLoading) return false;
 			if(editorDirty && !confirm('课表有未保存修改，确定刷新吗？')) return false;
 			editorMode = false;
@@ -17486,7 +17487,8 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			scheduleAbort = new AbortController();
 			const body = document.getElementById('scheduleModalBody');
 			if (!body) { scheduleLoading = false; return false; }
-			body.innerHTML = `<div class="sched-empty"><div class="se-icon">⏳</div>正在加载课表...</div>`;
+			const preserveView = options.preserveView === true || !!body.querySelector('#schedWrap');
+			if(!preserveView) body.innerHTML = `<div class="sched-empty"><div class="se-icon">⏳</div>正在加载课表...</div>`;
 			try {
 				let query = supabaseClient
 					.from('student_schedules')
@@ -17497,13 +17499,26 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 				if(typeof query.abortSignal === 'function') query = query.abortSignal(scheduleAbort.signal);
 				const { data, error } = await query;
 				if (!document.getElementById('scheduleModalBody')) return false;
-				if (error) { body.innerHTML = `<div class="sched-empty"><div class="se-icon">❌</div>加载失败：${escapeHtml(error.message)}</div>`; return false; }
-				if (!data || data.length === 0) { body.innerHTML = `<div class="sched-empty"><div class="se-icon">📭</div>数据库中暂无 <b>${escapeHtml(name)}</b> 的课表</div>`; return false; }
+				if (error) { if(!preserveView) body.innerHTML = `<div class="sched-empty"><div class="se-icon">❌</div>加载失败：${escapeHtml(error.message)}</div>`; return false; }
+				if (!data || data.length === 0) { if(!preserveView) body.innerHTML = `<div class="sched-empty"><div class="se-icon">📭</div>数据库中暂无 <b>${escapeHtml(name)}</b> 的课表</div>`; return false; }
 
 				scheduleRow = data[0];
 				const updatedAt = scheduleRow.updated_at
 					? new Date(scheduleRow.updated_at).toLocaleString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
 					: '未知时间';
+				if(preserveView && body.querySelector('#schedWrap')){
+					const updatedLabel = body.querySelector('.s-updated');
+					if(updatedLabel) updatedLabel.innerHTML = `更新于 ${updatedAt} <span style="font-size:12px;">↻</span>`;
+					const wrap = body.querySelector('#schedWrap');
+					wrap.classList.add('is-schedule-refreshing');
+					requestAnimationFrame(()=>{
+						if(!wrap.isConnected) return;
+						wrap.innerHTML = buildSchedTable(scheduleRow.cells);
+						requestAnimationFrame(()=>wrap.classList.remove('is-schedule-refreshing'));
+					});
+					updateEditorToolbar();
+					return true;
+				}
 				body.innerHTML = `
 					<div class="sched-info-bar">
 						<span class="s-name">${escapeHtml(scheduleRow.name)}</span>
