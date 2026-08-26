@@ -2221,14 +2221,14 @@ function getSupabaseContext() {
   };
 }
 
-// ── 按钮一：替换同步完整课表 → student_schedules（先删后插，确保完整覆盖）──
+// ── 按钮一：替换同步完整课表与练琴时段 ──
 async function syncSchedules() {
   if (state.students.length === 0) { notify('没有学生数据可同步', 'warning'); return; }
   const ctx = getSupabaseContext(); if (!ctx) return;
   const { cfg, headers } = ctx;
 
   const statusEl  = document.getElementById('syncStatus');
-  const endpoint  = `${cfg.url}/rest/v1/${cfg.table}`;
+  const endpoint  = `${cfg.url}/rest/v1/rpc/upsert_student_schedule`;
 
   let success = 0, failed = 0;
 
@@ -2236,33 +2236,16 @@ async function syncSchedules() {
     const stu = state.students[i];
     statusEl.textContent = `☁ 替换同步课表 ${i + 1} / ${state.students.length}（${stu.name}）…`;
 
-    const payload = {
-      id:         stu.id,
-      name:       stu.name,
-      grade:      stu.grade  || '',
-      cells:      stu.cells,
-      updated_at: new Date().toISOString()
-    };
-
     try {
-      // 1. 先删除该学生旧记录（按姓名删，而不是按 id=年级_姓名 删——年级变化会导致 id 变化，
-      // 按 id 删会删不到旧记录，留下一条陈旧的重复行，导致查询课表时可能读到没更新的旧数据）
-      const delRes = await fetch(
-        `${endpoint}?name=eq.${encodeURIComponent(stu.name)}`,
-        { method: 'DELETE', headers }
-      );
-
-      if (!delRes.ok && delRes.status !== 204) {
-        console.error(`删除旧课表失败 [${stu.name}]:`, delRes.status, await delRes.text());
-        failed++;
-        continue;
-      }
-
-      // 2. 再插入新记录
       const insRes = await fetch(endpoint, {
         method:  'POST',
         headers: { ...headers, 'Prefer': 'return=minimal' },
-        body:    JSON.stringify(payload)
+        body:    JSON.stringify({
+          p_schedule_id: stu.id,
+          p_name: stu.name,
+          p_grade: stu.grade || '',
+          p_cells: stu.cells
+        })
       });
 
       if (insRes.ok || insRes.status === 201 || insRes.status === 200) {
@@ -2289,6 +2272,8 @@ async function syncSchedules() {
 
 // ── 按钮二：同步练琴时间段 → student_time_slots ──
 async function syncPracticeSlots() {
+  notify('练琴时段已随完整课表原子同步', 'info', 2500);
+  return;
   if (state.students.length === 0) { notify('没有学生数据可同步', 'warning'); return; }
   const ctx = getSupabaseContext(); if (!ctx) return;
   const { cfg, headers } = ctx;
@@ -2584,17 +2569,15 @@ async function confirmDbSync(){
   }
 }
 
-/* =============== 统一入口：一键同步到云端（依次执行三步） =============== */
-// ① 替换同步完整课表 → student_schedules
-// ② 同步练琴时段 → student_time_slots
-// ③ 比对年级/专业 → 无变化则静默完成；有新建/覆盖则弹出预览表，需再点「确认执行同步」
+/* =============== 统一入口：一键同步到云端 =============== */
+// ① 原子同步完整课表与练琴时段
+// ② 比对年级/专业 → 无变化则静默完成；有新建/覆盖则弹出预览表，需再点「确认执行同步」
 async function syncAllToCloud(){
   if(state.students.length===0){ notify('没有学生数据可同步','warning'); return; }
   const btn = document.getElementById('btnSyncAll');
   btn.disabled = true;
   try{
     await syncSchedules();
-    await syncPracticeSlots();
     await syncGradeMajorToStudentDatabase();
   } finally {
     btn.disabled = false;

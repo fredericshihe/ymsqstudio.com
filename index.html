@@ -805,6 +805,23 @@
 	}
 	.sched-info-bar .s-updated:hover{color:#94a3b8;}
 	.sched-info-bar .s-updated:active{opacity:.7;}
+	.sched-edit-tools{display:flex;align-items:center;gap:6px;margin-left:8px;}
+	.sched-edit-tools button{border:1px solid #475569;border-radius:7px;padding:5px 9px;background:#273548;color:#cbd5e1;font-size:11px;cursor:pointer;}
+	.sched-edit-tools button:hover{background:#334155;color:#fff;}
+	.sched-edit-tools button.primary{background:#2563eb;border-color:#3b82f6;color:#fff;}
+	.sched-edit-tools button.danger{background:#3f1d2e;border-color:#7f1d1d;color:#fecaca;}
+	.sched-edit-tools button:disabled{opacity:.45;cursor:not-allowed;}
+	.sched-edit-status{font-size:10.5px;color:#94a3b8;white-space:nowrap;}
+	.sched-table.is-editing td[data-editor-cell]{cursor:grab;transition:background .15s,box-shadow .15s;}
+	.sched-table.is-editing td[data-editor-cell]:hover{box-shadow:inset 0 0 0 2px rgba(96,165,250,.6);}
+	.sched-table.is-editing td[data-editor-cell].is-dragging{opacity:.45;cursor:grabbing;}
+	.sched-table.is-editing td[data-editor-cell].is-drop-target{box-shadow:inset 0 0 0 3px #fbbf24;background:#493b12!important;}
+	.sched-cell-editor{position:fixed;z-index:3300;width:min(360px,calc(100vw - 28px));padding:12px;background:#1e293b;border:1px solid #475569;border-radius:10px;box-shadow:0 18px 50px rgba(0,0,0,.55);}
+	.sched-cell-editor textarea{width:100%;min-height:108px;box-sizing:border-box;resize:vertical;border:1px solid #64748b;border-radius:7px;background:#0f172a;color:#f8fafc;padding:8px;font:12px/1.45 inherit;}
+	.sched-cell-editor select{width:100%;margin-top:8px;border:1px solid #64748b;border-radius:7px;background:#0f172a;color:#f8fafc;padding:7px;font-size:12px;}
+	.sched-cell-editor .editor-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:9px;}
+	.sched-cell-editor button{border:1px solid #475569;border-radius:7px;padding:6px 10px;background:#334155;color:#e2e8f0;cursor:pointer;font-size:11px;}
+	.sched-cell-editor button.primary{background:#2563eb;border-color:#3b82f6;color:#fff;}
 
 	/* 课表主区域 */
 	.sched-wrap{flex:1 1 0;min-height:0;padding:12px 18px 10px;overflow:auto;background:#0f172a;}
@@ -17016,6 +17033,127 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 	function schedIsRest(txt){ if(!txt) return false; const l=txt.toLowerCase(); return SCHED_REST_KW.some(k=>l.includes(k)); }
 	function schedIsPractice(txt){ if(!txt) return false; const l=txt.toLowerCase(); return SCHED_PRACTICE_KW.some(k=>l.includes(k)); }
 	function schedIsGroupMusicCourse(txt){ if(!txt) return false; const l=txt.toLowerCase(); return SCHED_GROUP_MUSIC_KW.some(k=>l.includes(k)); }
+	function normalizeScheduleTimeValue(raw){
+		if(!raw) return '';
+		const match = String(raw).replace(/：/g, ':').match(/(\d{1,2}:\d{2})\s*[-—－–]\s*(\d{1,2}:\d{2})/);
+		if(!match) return '';
+		const pad = value => {
+			const [hour, minute] = value.split(':').map(Number);
+			return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+		};
+		return `${pad(match[1])}-${pad(match[2])}`;
+	}
+	function scheduleTimeStartMinutes(timeRange){
+		const [hour, minute] = timeRange.split('-')[0].split(':').map(Number);
+		return hour * 60 + minute;
+	}
+	function schedulePlacementKey(time, day){ return `${time}|${day}`; }
+	function scheduleEditorCellKind(cell){
+		if(cell?.kind) return cell.kind;
+		const text = String(cell?.text || '');
+		if(cell?.rest || schedIsRest(text)) return 'rest';
+		if(cell?.practice || schedIsPractice(text)) return 'practice';
+		if(cell?.majorCourse) return 'major';
+		if(schedIsGroupMusicCourse(text)) return 'group';
+		return 'course';
+	}
+	function createScheduleEditorModel(cells){
+		const rawTimes = new Set();
+		const rawDays = new Set();
+		const source = {};
+		Object.entries(cells || {}).forEach(([key, cell])=>{
+			const match = key.match(/^(\d+)_(\d+)$/);
+			if(!match) return;
+			const slotIndex = Number(match[1]);
+			const day = Number(match[2]);
+			const time = normalizeScheduleTimeValue(cell?.time) || SCHED_NORMAL_SLOTS[slotIndex];
+			if(!time || day < 0 || day > 6) return;
+			rawTimes.add(time); rawDays.add(day);
+			const placement = schedulePlacementKey(time, day);
+			const next = {
+				...(cell || {}),
+				time,
+				day,
+				slotIndex,
+				text: String(cell?.text || ''),
+				kind: scheduleEditorCellKind(cell)
+			};
+			if(!source[placement] || (!source[placement].text && next.text)) source[placement] = next;
+		});
+		const hasDynamicTimes = [...rawTimes].some(time=>!SCHED_NORMAL_SLOTS.includes(time));
+		const axis = (hasDynamicTimes ? [...rawTimes] : [...SCHED_NORMAL_SLOTS])
+			.sort((a,b)=>scheduleTimeStartMinutes(a)-scheduleTimeStartMinutes(b) || a.localeCompare(b));
+		const dayCount = Math.max(...rawDays, 4) + 1;
+		const draft = {};
+		axis.forEach((time, slotIndex)=>{
+			for(let day=0; day<dayCount; day++){
+				const placement = schedulePlacementKey(time, day);
+				const cell = source[placement] || {};
+				draft[placement] = {
+					...cell,
+					time,
+					day,
+					slotIndex,
+					text: String(cell.text || ''),
+					practice: cell.practice === true,
+					rest: cell.rest === true,
+					majorCourse: cell.majorCourse === true,
+					kind: cell.kind || scheduleEditorCellKind(cell)
+				};
+			}
+		});
+		return {axis, dayCount, draft};
+	}
+	function materializeScheduleEditorCells(model){
+		const cells = {};
+		model.axis.forEach((time, slotIndex)=>{
+			for(let day=0; day<model.dayCount; day++){
+				const placement = schedulePlacementKey(time, day);
+				const cell = model.draft[placement] || {};
+				cells[`${slotIndex}_${day}`] = {
+					...cell,
+					slotIndex,
+					time,
+					day,
+					text: String(cell.text || ''),
+					practice: cell.practice === true,
+					rest: cell.rest === true,
+					majorCourse: cell.majorCourse === true,
+					kind: cell.kind || 'course'
+				};
+			}
+		});
+		return cells;
+	}
+	function cloneScheduleEditorDraft(draft){
+		const copy = {};
+		Object.entries(draft || {}).forEach(([key, cell])=>{ copy[key] = {...cell}; });
+		return copy;
+	}
+	function scheduleEditorSnapshot(model){ return JSON.stringify({axis:model.axis,dayCount:model.dayCount,draft:model.draft}); }
+	function restoreScheduleEditorSnapshot(model, snapshot){
+		const parsed = JSON.parse(snapshot);
+		model.axis = parsed.axis;
+		model.dayCount = parsed.dayCount;
+		model.draft = parsed.draft;
+	}
+	function applyScheduleEditorKind(cell, text, kind){
+		const normalizedText = String(text || '').trim();
+		const inferredRest = schedIsRest(normalizedText);
+		const inferredPractice = schedIsPractice(normalizedText);
+		cell.text = normalizedText;
+		cell.kind = kind || 'course';
+		cell.practice = kind === 'practice' || (kind === 'auto' && inferredPractice);
+		cell.rest = kind === 'rest' || (kind === 'auto' && inferredRest);
+		cell.majorCourse = kind === 'major';
+		if(kind === 'group') cell.majorCourse = false;
+		if(kind === 'course'){
+			cell.practice = false;
+			cell.rest = false;
+			cell.majorCourse = false;
+		}
+		if(kind === 'auto' && !normalizedText){ cell.practice=false; cell.rest=false; cell.majorCourse=false; }
+	}
 	function lockBodyScroll(){
 		window.__bodyScrollLockCount = (window.__bodyScrollLockCount || 0) + 1;
 		if(window.__bodyScrollLockCount === 1){
@@ -17058,11 +17196,26 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		lockBodyScroll();
 
 		let closed = false;
+		let scheduleLoading = false;
+		let scheduleAbort = null;
+		let scheduleRow = null;
+		let editorMode = false;
+		let editorDirty = false;
+		let editorModel = null;
+		let editorHistory = [];
+		let editorHistoryIndex = -1;
+		let activeCellEditor = null;
+
+		const removeCellEditor = () => {
+			if(activeCellEditor){ activeCellEditor.remove(); activeCellEditor = null; }
+		};
 		const escHandler = (e) => { if (e.key === 'Escape') { closeModal(); } };
 
 		const closeModal = () => {
 			if(closed) return;
+			if(editorDirty && !confirm('课表有未保存修改，确定关闭吗？')) return;
 			closed = true;
+			removeCellEditor();
 			if(scheduleAbort){ scheduleAbort.abort(); scheduleAbort = null; }
 			document.removeEventListener('keydown', escHandler);
 			unlockBodyScroll();
@@ -17072,25 +17225,224 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		backdrop.onclick = (e) => { if (e.target === backdrop) closeModal(); };
 		document.addEventListener('keydown', escHandler);
 
-		let scheduleLoading = false;
-		let scheduleAbort = null;
-		// 定义加载函数
+		const editorIsDifferent = () => {
+			if(!editorModel || !editorHistory.length) return false;
+			return scheduleEditorSnapshot(editorModel) !== editorHistory[0];
+		};
+		const updateEditorToolbar = () => {
+			const editBtn = document.getElementById('scheduleEditBtn');
+			const saveBtn = document.getElementById('scheduleSaveBtn');
+			const cancelBtn = document.getElementById('scheduleCancelBtn');
+			const undoBtn = document.getElementById('scheduleUndoBtn');
+			const redoBtn = document.getElementById('scheduleRedoBtn');
+			const status = document.getElementById('scheduleEditStatus');
+			if(!editBtn || !saveBtn || !cancelBtn || !undoBtn || !redoBtn || !status) return;
+			editBtn.style.display = editorMode ? 'none' : '';
+			saveBtn.style.display = editorMode ? '' : 'none';
+			cancelBtn.style.display = editorMode ? '' : 'none';
+			undoBtn.style.display = editorMode ? '' : 'none';
+			redoBtn.style.display = editorMode ? '' : 'none';
+			saveBtn.disabled = !editorDirty;
+			undoBtn.disabled = editorHistoryIndex <= 0;
+			redoBtn.disabled = editorHistoryIndex < 0 || editorHistoryIndex >= editorHistory.length - 1;
+			status.textContent = editorMode ? (editorDirty ? '有未保存修改' : '编辑中') : '';
+		};
+		const recordEditorChange = mutator => {
+			if(!editorModel) return;
+			const before = scheduleEditorSnapshot(editorModel);
+			mutator();
+			const after = scheduleEditorSnapshot(editorModel);
+			if(before === after) return;
+			editorHistory = editorHistory.slice(0, editorHistoryIndex + 1);
+			editorHistory.push(after);
+			editorHistoryIndex = editorHistory.length - 1;
+			editorDirty = editorIsDifferent();
+			renderEditorGrid();
+		};
+		const openCellEditor = td => {
+			removeCellEditor();
+			const placement = td.dataset.editorKey;
+			if(!placement || !editorModel) return;
+			const cell = editorModel.draft[placement] || {};
+			const popup = document.createElement('div');
+			popup.className = 'sched-cell-editor';
+			popup.innerHTML = `
+				<textarea aria-label="课表内容"></textarea>
+				<select aria-label="课表类型">
+					<option value="auto">自动识别</option>
+					<option value="practice">练琴</option>
+					<option value="rest">休息</option>
+					<option value="course">普通课程</option>
+					<option value="major">主修课 / 特别课</option>
+					<option value="group">音乐团体课</option>
+				</select>
+				<div class="editor-actions"><button type="button" data-editor-cancel>取消</button><button type="button" class="primary" data-editor-save>应用</button></div>`;
+			document.body.appendChild(popup);
+			const textarea = popup.querySelector('textarea');
+			const select = popup.querySelector('select');
+			textarea.value = cell.text || '';
+			select.value = cell.kind || scheduleEditorCellKind(cell);
+			if(!select.querySelector(`option[value="${select.value}"]`)) select.value = 'auto';
+			const rect = td.getBoundingClientRect();
+			const top = Math.min(window.innerHeight - 20, rect.bottom + 8);
+			popup.style.left = `${Math.max(14, Math.min(window.innerWidth - popup.offsetWidth - 14, rect.left))}px`;
+			popup.style.top = `${Math.max(14, top - popup.offsetHeight > 14 ? top : rect.top - popup.offsetHeight - 8)}px`;
+			activeCellEditor = popup;
+			const close = () => { if(activeCellEditor === popup) removeCellEditor(); };
+			popup.querySelector('[data-editor-cancel]').onclick = close;
+			popup.querySelector('[data-editor-save]').onclick = () => {
+				recordEditorChange(()=>{
+					const target = editorModel.draft[placement] || {time:placement.split('|')[0],day:Number(placement.split('|').pop())};
+					applyScheduleEditorKind(target, textarea.value, select.value);
+					editorModel.draft[placement] = target;
+				});
+				close();
+			};
+			textarea.onkeydown = e => {
+				if((e.metaKey || e.ctrlKey) && e.key === 'Enter') popup.querySelector('[data-editor-save]').click();
+				if(e.key === 'Escape') close();
+			};
+			textarea.focus();
+		};
+		const swapEditorCells = (from, to) => {
+			if(!editorModel || !from || !to || from === to) return;
+			recordEditorChange(()=>{
+				const source = editorModel.draft[from] || {};
+				const target = editorModel.draft[to] || {};
+				const transfer = (payload, placement, fallback) => ({
+					...fallback,
+					...payload,
+					time: placement.split('|')[0],
+					day: Number(placement.split('|').pop()),
+					text: String(payload.text || ''),
+					practice: payload.practice === true,
+					rest: payload.rest === true,
+					majorCourse: payload.majorCourse === true,
+					kind: payload.kind || 'course'
+				});
+				editorModel.draft[from] = transfer(target, from, source);
+				editorModel.draft[to] = transfer(source, to, target);
+			});
+		};
+		const bindEditorGrid = () => {
+			const wrap = document.getElementById('schedWrap');
+			if(!wrap || !editorMode) return;
+			wrap.ondblclick = e => {
+				const td = e.target.closest('td[data-editor-cell]');
+				if(td) openCellEditor(td);
+			};
+			wrap.ondragstart = e => {
+				const td = e.target.closest('td[data-editor-cell]');
+				if(!td) return;
+				e.dataTransfer.effectAllowed = 'move';
+				e.dataTransfer.setData('text/plain', td.dataset.editorKey);
+				td.classList.add('is-dragging');
+			};
+			wrap.ondragover = e => {
+				const td = e.target.closest('td[data-editor-cell]');
+				if(!td) return;
+				e.preventDefault();
+				td.classList.add('is-drop-target');
+			};
+			wrap.ondragleave = e => { const td=e.target.closest('td[data-editor-cell]'); if(td) td.classList.remove('is-drop-target'); };
+			wrap.ondrop = e => {
+				e.preventDefault();
+				const td = e.target.closest('td[data-editor-cell]');
+				const from = e.dataTransfer.getData('text/plain');
+				if(td) td.classList.remove('is-drop-target');
+				if(td && from) swapEditorCells(from, td.dataset.editorKey);
+			};
+			wrap.ondragend = () => { wrap.querySelectorAll('.is-dragging,.is-drop-target').forEach(el=>el.classList.remove('is-dragging','is-drop-target')); };
+		};
+		const renderEditorGrid = () => {
+			const wrap = document.getElementById('schedWrap');
+			if(!wrap || !editorModel) return;
+			wrap.innerHTML = buildSchedTable(materializeScheduleEditorCells(editorModel), {editable:true});
+			bindEditorGrid();
+			updateEditorToolbar();
+		};
+		const enterEditor = () => {
+			if(!scheduleRow) return;
+			editorModel = createScheduleEditorModel(scheduleRow.cells || {});
+			editorHistory = [scheduleEditorSnapshot(editorModel)];
+			editorHistoryIndex = 0;
+			editorMode = true;
+			editorDirty = false;
+			renderEditorGrid();
+			updateEditorToolbar();
+		};
+		const leaveEditor = (force=false) => {
+			if(!force && editorDirty && !confirm('课表有未保存修改，确定取消吗？')) return;
+			removeCellEditor();
+			editorMode = false;
+			editorDirty = false;
+			editorModel = null;
+			editorHistory = [];
+			editorHistoryIndex = -1;
+			if(scheduleRow){ const wrap=document.getElementById('schedWrap'); if(wrap) wrap.innerHTML=buildSchedTable(scheduleRow.cells); }
+			updateEditorToolbar();
+		};
+		const undoEditor = () => {
+			if(!editorModel || editorHistoryIndex <= 0) return;
+			editorHistoryIndex--;
+			restoreScheduleEditorSnapshot(editorModel, editorHistory[editorHistoryIndex]);
+			editorDirty = editorIsDifferent();
+			renderEditorGrid();
+		};
+		const redoEditor = () => {
+			if(!editorModel || editorHistoryIndex >= editorHistory.length - 1) return;
+			editorHistoryIndex++;
+			restoreScheduleEditorSnapshot(editorModel, editorHistory[editorHistoryIndex]);
+			editorDirty = editorIsDifferent();
+			renderEditorGrid();
+		};
+		const saveEditor = async () => {
+			if(!editorModel || !scheduleRow || !editorDirty) return;
+			const saveBtn = document.getElementById('scheduleSaveBtn');
+			if(saveBtn) saveBtn.disabled = true;
+			const cells = materializeScheduleEditorCells(editorModel);
+			try{
+				const {data,error} = await supabaseClient.rpc('save_student_schedule', {
+					p_schedule_id: String(scheduleRow.id),
+					p_expected_revision: Number(scheduleRow.revision || 1),
+					p_cells: cells
+				});
+				if(error) throw error;
+				const saved = Array.isArray(data) ? data[0] : data;
+				if(!saved?.cells) throw new Error('后端没有返回保存后的课表');
+				scheduleRow = {...scheduleRow, ...saved};
+				editorMode = false;
+				editorDirty = false;
+				editorModel = null;
+				editorHistory = [];
+				editorHistoryIndex = -1;
+				removeCellEditor();
+				await loadScheduleData();
+				try{ await window.PracticeAlerts?.refreshSlots?.(true); }catch(alertError){ console.warn('[课表编辑] 刷新练琴提醒失败', alertError); }
+				try{ await window.PracticeAlerts?.recalcToday?.(true); }catch(alertError){ console.warn('[课表编辑] 重算练琴提醒失败', alertError); }
+				window.dispatchEvent(new CustomEvent('student-schedule-updated', {detail:{id:scheduleRow.id,name:scheduleRow.name}}));
+				toast('课表与练琴时段已同步', 'success');
+			}catch(error){
+				if(error?.code === '40001') toast('课表已被其他人修改，请刷新后重试', 'error');
+				else if(error?.code === 'PGRST202' || error?.code === '42883') toast('课表编辑接口尚未部署，请先执行 Supabase 迁移', 'error');
+				else toast(`课表保存失败：${error.message || error}`, 'error');
+				updateEditorToolbar();
+			}
+		};
+
 		const loadScheduleData = async () => {
 			if(scheduleLoading) return;
+			if(editorDirty && !confirm('课表有未保存修改，确定刷新吗？')) return;
+			editorMode = false;
+			editorDirty = false;
+			editorModel = null;
 			scheduleLoading = true;
+			removeCellEditor();
 			if(scheduleAbort){ scheduleAbort.abort(); }
 			scheduleAbort = new AbortController();
 			const body = document.getElementById('scheduleModalBody');
 			if (!body) { scheduleLoading = false; return; }
-			
-			// 显示加载中（如果是刷新）
-			if (body.querySelector('.sched-info-bar')) {
-				const updateEl = body.querySelector('.s-updated');
-				if (updateEl) updateEl.textContent = '正在更新...';
-			} else {
-				body.innerHTML = `<div class="sched-empty"><div class="se-icon">⏳</div>正在加载课表...</div>`;
-			}
-
+			body.innerHTML = `<div class="sched-empty"><div class="se-icon">⏳</div>正在加载课表...</div>`;
 			try {
 				let query = supabaseClient
 					.from('student_schedules')
@@ -17098,31 +17450,28 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 					.eq('name', name)
 					.order('updated_at', { ascending: false, nullsFirst: false })
 					.limit(1);
-				if(typeof query.abortSignal === 'function'){
-					query = query.abortSignal(scheduleAbort.signal);
-				}
+				if(typeof query.abortSignal === 'function') query = query.abortSignal(scheduleAbort.signal);
 				const { data, error } = await query;
+				if (!document.getElementById('scheduleModalBody')) return;
+				if (error) { body.innerHTML = `<div class="sched-empty"><div class="se-icon">❌</div>加载失败：${escapeHtml(error.message)}</div>`; return; }
+				if (!data || data.length === 0) { body.innerHTML = `<div class="sched-empty"><div class="se-icon">📭</div>数据库中暂无 <b>${escapeHtml(name)}</b> 的课表</div>`; return; }
 
-				if (!document.getElementById('scheduleModalBody')) return; // 弹窗已关闭
-
-				if (error) {
-					body.innerHTML = `<div class="sched-empty"><div class="se-icon">❌</div>加载失败：${escapeHtml(error.message)}</div>`;
-					return;
-				}
-				if (!data || data.length === 0) {
-					body.innerHTML = `<div class="sched-empty"><div class="se-icon">📭</div>数据库中暂无 <b>${escapeHtml(name)}</b> 的课表</div>`;
-					return;
-				}
-
-				const row = data[0];
-				const updatedAt = row.updated_at
-					? new Date(row.updated_at).toLocaleString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
+				scheduleRow = data[0];
+				const updatedAt = scheduleRow.updated_at
+					? new Date(scheduleRow.updated_at).toLocaleString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
 					: '未知时间';
-
 				body.innerHTML = `
 					<div class="sched-info-bar">
-						<span class="s-name">${escapeHtml(row.name)}</span>
-						${row.grade ? `<span class="s-grade">${escapeHtml(row.grade)}</span>` : ''}
+						<span class="s-name">${escapeHtml(scheduleRow.name)}</span>
+						${scheduleRow.grade ? `<span class="s-grade">${escapeHtml(scheduleRow.grade)}</span>` : ''}
+						<div class="sched-edit-tools">
+							<button id="scheduleEditBtn">编辑课表</button>
+							<button id="scheduleUndoBtn" style="display:none">撤销</button>
+							<button id="scheduleRedoBtn" style="display:none">重做</button>
+							<button id="scheduleSaveBtn" class="primary" style="display:none">保存</button>
+							<button id="scheduleCancelBtn" class="danger" style="display:none">取消</button>
+							<span id="scheduleEditStatus" class="sched-edit-status"></span>
+						</div>
 						<span class="s-updated" title="点击刷新" style="cursor:pointer;display:flex;align-items:center;gap:4px;">
 							更新于 ${updatedAt} <span style="font-size:12px;">↻</span>
 						</span>
@@ -17136,33 +17485,29 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 						<div class="sl-item"><div class="sl-dot sl-group"></div> 音乐团体课</div>
 						<div class="sl-item"><div class="sl-dot sl-normal"></div> 普通课程</div>
 					</div>`;
-
-				document.getElementById('schedWrap').innerHTML = buildSchedTable(row.cells);
-				
-				// 绑定刷新事件
-				const refreshBtn = body.querySelector('.s-updated');
-				if(refreshBtn) {
-					refreshBtn.onclick = () => {
-						loadScheduleData();
-					};
-				}
-
+				document.getElementById('schedWrap').innerHTML = buildSchedTable(scheduleRow.cells);
+				body.querySelector('#scheduleEditBtn').onclick = enterEditor;
+				body.querySelector('#scheduleUndoBtn').onclick = undoEditor;
+				body.querySelector('#scheduleRedoBtn').onclick = redoEditor;
+				body.querySelector('#scheduleSaveBtn').onclick = saveEditor;
+				body.querySelector('#scheduleCancelBtn').onclick = () => leaveEditor(false);
+				body.querySelector('.s-updated').onclick = loadScheduleData;
+				updateEditorToolbar();
 			} catch (err) {
 				if(err?.name === 'AbortError') return;
-				const body = document.getElementById('scheduleModalBody');
-				if (body) body.innerHTML = `<div class="sched-empty"><div class="se-icon">⚠️</div>加载异常：${escapeHtml(err.message)}</div>`;
+				const currentBody = document.getElementById('scheduleModalBody');
+				if (currentBody) currentBody.innerHTML = `<div class="sched-empty"><div class="se-icon">⚠️</div>加载异常：${escapeHtml(err.message)}</div>`;
 			} finally {
 				scheduleLoading = false;
 			}
 		};
 
-		// 初始加载
 		loadScheduleData();
 	}
 	window.showStudentSchedule = showStudentSchedule;
 
 	// 核心渲染：将 cells 对象渲染为课表 table
-	function buildSchedTable(cells) {
+	function buildSchedTable(cells, options = {}) {
 		if (!cells || typeof cells !== 'object' || Array.isArray(cells)) {
 			// 非标准格式降级显示
 			return `<p style="padding:12px 0 6px;color:#94a3b8;font-size:11px;">原始数据：</p>
@@ -17174,7 +17519,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		const isSlotKeyFormat = keys.length > 0 && /^\d+_\d+$/.test(keys[0]);
 
 		if (isSlotKeyFormat) {
-			return buildSchedFromSlotMap(cells);
+			return buildSchedFromSlotMap(cells, options);
 		}
 
 		// 降级：原始 JSON
@@ -17217,7 +17562,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 	}
 
 	// 标准 slotIndex_dayIndex 格式渲染
-	function buildSchedFromSlotMap(cells) {
+	function buildSchedFromSlotMap(cells, options = {}) {
 		const rowsByTime = new Map();
 		const usedDays  = new Set();
 		const normalizeScheduleTime = (raw) => {
@@ -17243,7 +17588,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			if (!rowsByTime.has(timeLabel)) rowsByTime.set(timeLabel, new Map());
 			const row = rowsByTime.get(timeLabel);
 			const existing = row.get(di);
-			if (!existing || (!existing.text && cell?.text)) row.set(di, cell);
+			if (!existing || (!existing.cell?.text && cell?.text)) row.set(di, {cell, key});
 			usedDays.add(di);
 		});
 
@@ -17257,7 +17602,8 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		const dayCount = maxDay + 1;
 		const dayNames = ['周一','周二','周三','周四','周五','周六','周日'].slice(0, dayCount);
 
-		let html = '<table class="sched-table"><thead><tr>';
+		const tableClass = options.editable ? 'sched-table is-editing' : 'sched-table';
+		let html = `<table class="${tableClass}"><thead><tr>`;
 		html += '<th class="s-time-head">时间段</th>';
 		dayNames.forEach(d => { html += `<th>${d}</th>`; });
 		html += '</tr></thead><tbody>';
@@ -17271,7 +17617,11 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			html += `<td class="s-time">${escapeHtml(timeLabel)}</td>`;
 
 			for (let di = 0; di < dayCount; di++) {
-				const cell = row.get(di);
+				const entry = row.get(di);
+				const cell = entry?.cell;
+				const editorAttrs = options.editable
+					? ` data-editor-cell="1" data-editor-key="${escapeHtml(normalizeScheduleTimeValue(timeLabel) + '|' + di)}" draggable="true"`
+					: '';
 				
 				// 判断是否为当前正在进行的课程
 				const isNow = isCurrentSlot(timeLabel, di);
@@ -17282,9 +17632,9 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 					const legacyIndex = SCHED_NORMAL_SLOTS.indexOf(timeLabel);
 					const fallback = hasDynamicTimes ? '' : SLOT_DEFAULT[legacyIndex];
 					if (fallback) {
-						html += `<td class="sc-rest${currentClass}">${escapeHtml(fallback)}</td>`;
+						html += `<td class="sc-rest${currentClass}"${editorAttrs}>${escapeHtml(fallback)}</td>`;
 					} else {
-						html += `<td class="${currentClass}"></td>`;
+						html += `<td class="${currentClass}"${editorAttrs}></td>`;
 					}
 					continue;
 				}
@@ -17292,19 +17642,19 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 				const txt = (cell.text || '').trim();
 				let cls = '';
 
-				if (cell.rest || schedIsRest(txt)) {
+				if (cell.kind === 'rest' || cell.rest || schedIsRest(txt)) {
 					cls = 'sc-rest';
-				} else if (cell.practice && txt) {
+				} else if ((cell.kind === 'practice' || cell.practice) && txt) {
 					cls = 'sc-practice-mix';
-				} else if (cell.practice || schedIsPractice(txt)) {
+				} else if (cell.kind === 'practice' || cell.practice || schedIsPractice(txt)) {
 					cls = 'sc-practice';
-				} else if (cell.majorCourse) {
+				} else if (cell.kind === 'major' || cell.majorCourse) {
 					cls = 'sc-major';
-				} else if (schedIsGroupMusicCourse(txt)) {
+				} else if (cell.kind === 'group' || schedIsGroupMusicCourse(txt)) {
 					cls = 'sc-group';
 				}
 
-				html += `<td class="${cls}${currentClass}">${escapeHtml(txt)}</td>`;
+				html += `<td class="${cls}${currentClass}"${editorAttrs}>${escapeHtml(txt)}</td>`;
 			}
 
 			html += '</tr>';
