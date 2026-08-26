@@ -18380,8 +18380,11 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 	#authOverlay .login-btn:hover{filter:brightness(1.07);transform:translateY(-2px);box-shadow:0 10px 26px -10px rgba(47,118,195,.65);}
 	#authOverlay .login-btn:active{transform:translateY(0);}
 	#authOverlay .login-btn:disabled{opacity:.55;cursor:not-allowed;}
-	#authOverlay .login-secondary-btn{background:transparent;border:1px solid #344553;border-radius:14px;padding:11px 0;font-size:13px;color:#9fb1c0;cursor:pointer;transition:.25s;}
-	#authOverlay .login-secondary-btn:hover{border-color:#5e7d98;color:#e6edf3;background:rgba(255,255,255,.04);}
+	#authOverlay .login-secondary-btn{align-self:center;margin-top:-9px;padding:5px 12px;border:0;border-radius:999px;background:transparent;color:#8293a3;font-size:12px;font-weight:500;line-height:1.4;letter-spacing:.2px;cursor:pointer;transition:color .2s ease,background .2s ease,transform .2s ease;}
+	#authOverlay .login-secondary-btn:hover{color:#d7e5f2;background:rgba(255,255,255,.07);transform:translateY(-1px);}
+	#authOverlay .login-secondary-btn:focus-visible{outline:2px solid rgba(101,161,235,.8);outline-offset:3px;}
+	.toolbar #btnChangePassword{padding-inline:11px;color:#b9c9d7;}
+	.toolbar #btnChangePassword:hover{color:#e4edf5;background:rgba(255,255,255,.06);}
 	#authOverlay .login-msg{min-height:18px;font-size:13px;color:#ff7a7a;font-weight:500;}
 	#authOverlay .hint{margin-top:-6px;font-size:11px;letter-spacing:.5px;color:#667582;text-align:center;}
 	#authOverlay .login-footer{margin-top:40px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#46515a;}
