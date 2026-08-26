@@ -810,6 +810,7 @@ async function rpc(fnName,params={}){
 }
 const fetchHealth=()=>api('v_baseline_health?select=*').then(r=>r[0]||null);
 const fetchStudents=()=>api('student_baseline?select=*&order=composite_score.desc.nullslast');
+const fetchStudentDirectory=()=>api('student_database?select=id,name,major,grade,archived,updated_at&archived=eq.false&order=name.asc&limit=10000');
 const fetchHistory=n=>api(`student_score_history?student_name=eq.${encodeURIComponent(n)}&select=snapshot_date,composite_score,raw_score,baseline_score,trend_score,momentum_score,accum_score,outlier_rate,short_session_rate,mean_duration,record_count&order=snapshot_date.asc&limit=52`);
 const fetchSessions=n=>api(`practice_sessions?student_name=eq.${encodeURIComponent(n)}&select=session_start,session_end,raw_duration,cleaned_duration,room_name,is_outlier,outlier_reason&order=session_start.desc&limit=20`);
 const fetchWeekSessions=n=>api(`practice_sessions?student_name=eq.${encodeURIComponent(n)}&select=session_start,cleaned_duration&session_start=gte.${encodeURIComponent(getWeekMondayLocalISO())}&order=session_start.asc&limit=500`);
@@ -954,6 +955,73 @@ const fetchCurrentWeekScores=()=>api(
   `student_score_history?snapshot_date=eq.${getWeekMonday()}&select=student_name,composite_score,raw_score`
 ).catch(()=>[]);
 
+function mergeStudentDirectory(baselines=[], directory=[]){
+  const baselineRows=Array.isArray(baselines)?baselines:[];
+  const profiles=(Array.isArray(directory)?directory:[])
+    .map(row=>({
+      id:row?.id||null,
+      name:String(row?.name??'').trim(),
+      major:String(row?.major??'').trim(),
+      grade:String(row?.grade??'').trim(),
+      updated_at:row?.updated_at||null
+    }))
+    .filter(row=>row.name);
+  const profileByName=new Map(profiles.map(row=>[row.name,row]));
+  const usedNames=new Set();
+  const merged=[];
+  let orphanBaselineCount=0;
+  baselineRows.forEach(base=>{
+    const row={...base};
+    const profile=profileByName.get(String(base?.student_name??''));
+    if(profile){
+      row.student_name=profile.name;
+      row.student_major=profile.major;
+      row.student_grade=profile.grade;
+      row.student_profile_id=profile.id;
+      row.student_profile_updated_at=profile.updated_at;
+      row.student_profile_source='student_database';
+      usedNames.add(profile.name);
+      merged.push(row);
+    }else{
+      orphanBaselineCount++;
+    }
+  });
+
+  if(orphanBaselineCount){
+    console.warn(`[students] ${orphanBaselineCount} 条基线记录未在当前学生库中找到，已从分析页隐藏`);
+  }
+
+  profiles.forEach(profile=>{
+    if(usedNames.has(profile.name))return;
+    merged.push({
+      student_name:profile.name,
+      student_major:profile.major,
+      student_grade:profile.grade,
+      student_profile_id:profile.id,
+      student_profile_updated_at:profile.updated_at,
+      student_profile_source:'student_database',
+      composite_score:null,
+      raw_score:null,
+      baseline_score:null,
+      trend_score:null,
+      momentum_score:null,
+      accum_score:null,
+      w_score:null,
+      alpha:null,
+      mean_duration:null,
+      std_duration:null,
+      record_count:0,
+      outlier_rate:0,
+      short_session_rate:0,
+      score_confidence:0,
+      is_cold_start:true,
+      last_updated:null,
+      weekday_pattern:{}
+    });
+  });
+  return merged;
+}
+
 // ── State ─────────────────────────────────────────
 const S={students:[],filtered:[],health:null,
   sortCol:'composite_score',sortDir:'desc',page:1,pageSize:20,
@@ -993,9 +1061,11 @@ async function loadAll(){
   const pdfBtn=$('lbPdfBtn'); if(pdfBtn) pdfBtn.disabled=true;
   btn.innerHTML='<div class="spin" style="width:13px;height:13px;border-width:2px"></div> 加载中…';
   try{
-    const[health,students,weekScores,{activeSet:activeThisWeek,countMap:weekCountMap},lbRows]=await Promise.all([
-      fetchHealth(),fetchStudents(),fetchCurrentWeekScores(),fetchActiveThisWeek(),fetchLeaderboards()
+    const[health,baselineRows,directory,weekScores,{activeSet:activeThisWeek,countMap:weekCountMap},lbRows]=await Promise.all([
+      fetchHealth(),fetchStudents(),fetchStudentDirectory(),fetchCurrentWeekScores(),fetchActiveThisWeek(),fetchLeaderboards()
     ]);
+
+    const students=mergeStudentDirectory(baselineRows,directory);
 
     syncStudentsWithLeaderboard(students,weekScores,activeThisWeek,lbRows);
 
@@ -1233,7 +1303,7 @@ function exportLeaderboardsPdf(){
 // ── KPIs ──────────────────────────────────────────
 function renderKPIs(h,ss){
   if(!h)return;
-  const total=+h.total_students||ss.length,cold=+h.cold_start_count||0;
+  const total=ss.length||+h.total_students||0,cold=ss.filter(s=>s.is_cold_start).length;
   const alpha=+h.avg_alpha||0,dur=+h.avg_mean_duration||0;
   const outr=+h.avg_outlier_rate||0,conf=+h.avg_score_confidence||0;
   setT('kv1',total);
