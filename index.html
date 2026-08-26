@@ -17218,18 +17218,39 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 
 	// 标准 slotIndex_dayIndex 格式渲染
 	function buildSchedFromSlotMap(cells) {
-		// 自动检测实际使用的时间段范围
-		const usedSlots = new Set();
+		const rowsByTime = new Map();
 		const usedDays  = new Set();
-		Object.keys(cells).forEach(k => {
-			const [si, di] = k.split('_').map(Number);
-			usedSlots.add(si);
+		const normalizeScheduleTime = (raw) => {
+			if (!raw) return '';
+			const match = String(raw).replace(/：/g, ':').match(/(\d{1,2}:\d{2})\s*[-—－–]\s*(\d{1,2}:\d{2})/);
+			if (!match) return '';
+			const pad = (value) => {
+				const [hour, minute] = value.split(':').map(Number);
+				return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+			};
+			return `${pad(match[1])}-${pad(match[2])}`;
+		};
+		const startMinutes = (timeRange) => {
+			const [hour, minute] = timeRange.split('-')[0].split(':').map(Number);
+			return hour * 60 + minute;
+		};
+		Object.entries(cells).forEach(([key, cell]) => {
+			const match = key.match(/^(\d+)_(\d+)$/);
+			if (!match) return;
+			const si = Number(match[1]);
+			const di = Number(match[2]);
+			const timeLabel = normalizeScheduleTime(cell?.time) || SCHED_NORMAL_SLOTS[si] || String(si);
+			if (!rowsByTime.has(timeLabel)) rowsByTime.set(timeLabel, new Map());
+			const row = rowsByTime.get(timeLabel);
+			const existing = row.get(di);
+			if (!existing || (!existing.text && cell?.text)) row.set(di, cell);
 			usedDays.add(di);
 		});
 
-		// 取所有出现的 slotIndex 排序，最多 NORMAL_SLOTS 长度
-		const maxSlot = SCHED_NORMAL_SLOTS.length;
-		const slots = Array.from({length: maxSlot}, (_, i) => i);
+		const hasDynamicTimes = [...rowsByTime.keys()].some(time => !SCHED_NORMAL_SLOTS.includes(time));
+		const slots = hasDynamicTimes
+			? [...rowsByTime.keys()].sort((a, b) => startMinutes(a) - startMinutes(b) || a.localeCompare(b))
+			: SCHED_NORMAL_SLOTS.filter((time, index) => rowsByTime.has(time) || Object.keys(cells).some(key => key.startsWith(`${index}_`)));
 
 		// 判断是否使用了周六/周日
 		const maxDay = Math.max(...usedDays, 4); // 至少显示到周五
@@ -17241,17 +17262,16 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		dayNames.forEach(d => { html += `<th>${d}</th>`; });
 		html += '</tr></thead><tbody>';
 
-		// slotIndex → 空格子兜底文本（与录入系统保持一致）
+		// 旧固定格式数据保留午餐/大课间兜底；新格式完全以 Excel 单元格为准
 		const SLOT_DEFAULT = { 4: '午餐', 7: '大课间' };
 
-		slots.forEach(si => {
-			const timeLabel = SCHED_NORMAL_SLOTS[si] || String(si);
+		slots.forEach(timeLabel => {
+			const row = rowsByTime.get(timeLabel) || new Map();
 			html += '<tr>';
 			html += `<td class="s-time">${escapeHtml(timeLabel)}</td>`;
 
 			for (let di = 0; di < dayCount; di++) {
-				const key = `${si}_${di}`;
-				const cell = cells[key];
+				const cell = row.get(di);
 				
 				// 判断是否为当前正在进行的课程
 				const isNow = isCurrentSlot(timeLabel, di);
@@ -17259,7 +17279,8 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 
 				// 空格子：检查是否有默认兜底文本
 				if (!cell) {
-					const fallback = SLOT_DEFAULT[si];
+					const legacyIndex = SCHED_NORMAL_SLOTS.indexOf(timeLabel);
+					const fallback = hasDynamicTimes ? '' : SLOT_DEFAULT[legacyIndex];
 					if (fallback) {
 						html += `<td class="sc-rest${currentClass}">${escapeHtml(fallback)}</td>`;
 					} else {
