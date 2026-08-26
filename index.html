@@ -19635,6 +19635,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 
 	function renderInsightStrip(){
 		const majorCounts = computeCounts('major');
+		const gradeCounts = computeCounts('grade');
 		const majorKeys = [...majorCounts.keys()].filter(k=>k!=='(未填写)').sort((a,b)=>majorCounts.get(b)-majorCounts.get(a));
 		const emptyGradeTotal = getAll().filter(s=>!s.grade).length;
 		const invalidGradeTotal = getAll().filter(s=>isInvalidGrade(s.grade)).length;
