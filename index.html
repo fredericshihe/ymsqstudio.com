@@ -5684,6 +5684,16 @@
 	window.forceSyncRoomTables = forceSyncRoomTables;
 	
 	// 💡 增量学生库同步 - 支持全量和增量两种模式
+	function replaceStoreStudentsFromCloud(rows){
+		const byName = new Map();
+		(rows || []).forEach(row=>{
+			const name = String(row?.name || '').trim();
+			if(!name) return;
+			byName.set(name, { ...row, name });
+		});
+		Store.students = [...byName.values()];
+		rebuildStudentIndex();
+	}
 	async function fetchStudents(options = {}){
 		if(!supabaseReady) return [];
 		
@@ -5728,10 +5738,9 @@
 			const students = fallbackData || [];
 			logInfo(`降级查询成功，获取到 ${students.length} 个学生（无时间戳）`);
 			
-			if (students.length > 0) {
-				await mergeStudents(students, true);
-				try{ if(window.ensureStudentLibraryHydrated){ window.ensureStudentLibraryHydrated({ source:'after-fetchStudents' }); } }catch(_){ }
-			}
+			if (forceFullSync) replaceStoreStudentsFromCloud(students);
+			else if (students.length > 0) await mergeStudents(students, true);
+			try{ if(window.ensureStudentLibraryHydrated){ window.ensureStudentLibraryHydrated({ source:'after-fetchStudents' }); } }catch(_){ }
 			
 			return students;
 		}
@@ -5740,6 +5749,9 @@
 		
 		const students = data || [];
 		
+		// 强制全量同步即使返回空数组，也必须清空本地缓存
+		if (forceFullSync) replaceStoreStudentsFromCloud(students);
+
 		// 记录最新的更新时间，用于下次增量同步
 		if (students.length > 0) {
 			// 计算最新更新时间（如果有updated_at字段）
@@ -5765,7 +5777,8 @@
 			}
 			window.__studentSyncStats.totalRecords += students.length;
 			
-			await mergeStudents(students, true); // skipCloudSync = true
+			if(!forceFullSync && !incremental) replaceStoreStudentsFromCloud(students);
+			else await mergeStudents(students, true);
 			try{ if(window.ensureStudentLibraryHydrated){ window.ensureStudentLibraryHydrated({ source:'after-fetchStudents' }); } }catch(_){ }
 		} else if (incremental) {
 			logInfo('增量同步：无新变化');
@@ -17233,6 +17246,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		let editorHistory = [];
 		let editorHistoryIndex = -1;
 		let activeCellEditor = null;
+		let saveInFlight = false;
 
 		const removeCellEditor = () => {
 			if(activeCellEditor){ activeCellEditor.remove(); activeCellEditor = null; }
@@ -17426,6 +17440,8 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		const saveEditor = async () => {
 			if(!editorModel || !scheduleRow) return;
 			if(!editorDirty){ toast('没有检测到待保存的修改，请先点击单元格内的“应用”', 'info'); return; }
+			if(saveInFlight) return;
+			saveInFlight = true;
 			const saveBtn = document.getElementById('scheduleSaveBtn');
 			if(saveBtn) saveBtn.disabled = true;
 			const status = document.getElementById('scheduleEditStatus');
@@ -17467,12 +17483,23 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 				toast('课表与练琴时段已同步', 'success');
 			}catch(error){
 				if(saveTimedOut || error?.name === 'AbortError') toast('保存请求超时，请刷新课表后重试', 'error');
-				else if(error?.code === 'P0001' || error?.code === '40001' || error?.message?.includes('课表已被其他人修改')) toast('课表已被其他人修改，请刷新后重试', 'error');
+				else if(error?.code === 'P0001' || error?.code === '40001' || error?.message?.includes('课表已被其他人修改')) {
+					removeCellEditor();
+					editorMode = false;
+					editorDirty = false;
+					editorModel = null;
+					editorHistory = [];
+					editorHistoryIndex = -1;
+					updateEditorToolbar();
+					const reloaded = await loadScheduleData({preserveView:true});
+					toast(reloaded ? '课表已被其他人修改，已刷新最新版本，请重新应用修改' : '课表已被其他人修改，刷新最新版本失败，请手动刷新', reloaded ? 'warn' : 'error');
+				}
 				else if(error?.code === 'PGRST202' || error?.code === '42883') toast('课表编辑接口尚未部署，请先执行 Supabase 迁移', 'error');
 				else toast(`课表保存失败：${error.message || error}`, 'error');
-				updateEditorToolbar();
 			}finally{
 				clearTimeout(saveTimer);
+				saveInFlight = false;
+				updateEditorToolbar();
 			}
 		};
 
@@ -17482,6 +17509,8 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			editorMode = false;
 			editorDirty = false;
 			editorModel = null;
+			editorHistory = [];
+			editorHistoryIndex = -1;
 			scheduleLoading = true;
 			removeCellEditor();
 			if(scheduleAbort){ scheduleAbort.abort(); }
@@ -18793,6 +18822,37 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	};
 	const LS_KEY = 'yms_students_store_v1';
 	const store = { version:1, items:[] };
+	const LIBRARY_MAJOR_PREFIXES = [
+		'钢琴教研室','小提琴教研室','大提琴教研室','中提琴教研室','竖琴教研室','吉他教研室',
+		'木管教研室','铜管教研室','打击乐教研室','声乐教研室','古典吉他','低音提琴',
+		'钢琴','小提琴','大提琴','中提琴','竖琴','吉他','长笛','单簧管','双簧管','大管',
+		'巴松','萨克斯','笛子','箫','唢呐','小号','圆号','长号','大号','打击乐','架子鼓',
+		'马林巴','定音鼓','声乐','美声','合唱','歌唱'
+	].sort((a,b)=>b.length-a.length);
+	function normalizeLibraryStudentName(value){
+		let normalized = String(value || '').trim();
+		normalized = normalized.replace(/^G\d{1,2}(?:[-.]\s*\d+)?\s*/i, '').trim();
+		const prefix = normalized.match(/^(\S+)\s+(.+)$/);
+		if(prefix){
+			const parts = prefix[1].split(/[\/／、，,+]|和|与/).map(item=>item.trim()).filter(Boolean);
+			const recognized = parts.length > 0 && parts.every(part=>LIBRARY_MAJOR_PREFIXES.some(major=>part.includes(major)));
+			if(recognized) normalized = prefix[2].trim();
+		}
+		return normalized;
+	}
+	function normalizeLibraryRows(rows){
+		const byName = new Map();
+		(rows || []).forEach(row=>{
+			const name = normalizeLibraryStudentName(row?.name);
+			if(!name) return;
+			const normalized = { ...row, name };
+			const previous = byName.get(name);
+			if(!previous || String(normalized.updated_at || '') > String(previous.updated_at || '')){
+				byName.set(name, normalized);
+			}
+		});
+		return [...byName.values()];
+	}
 	// 待同步队列: {type:'upsert'|'delete', payload:{name,major,grade,archived?}} 离线时累积
 	let pendingCloudOps = [];
 	let pendingCloudOpsFlushing = false;
@@ -18802,12 +18862,12 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	let flushRetryCount = 0;
 	function now(){ return Date.now(); }
 	function save(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(store)); }catch(e){ console.warn('[StudentLibrary] save failed', e); try{ window.__handleStorageQuota && window.__handleStorageQuota(e); }catch(_){ } } }
-	function load(){ try{ const raw=localStorage.getItem(LS_KEY); if(raw){ const obj=JSON.parse(raw); if(obj.version===1 && Array.isArray(obj.items)){ store.items=obj.items; } } }catch(e){ console.warn('[StudentLibrary] load failed', e); } }
+	function load(){ try{ const raw=localStorage.getItem(LS_KEY); if(raw){ const obj=JSON.parse(raw); if(obj.version===1 && Array.isArray(obj.items)){ store.items=normalizeLibraryRows(obj.items); } } }catch(e){ console.warn('[StudentLibrary] load failed', e); } }
 	function savePending(){ try{ localStorage.setItem(PENDING_KEY, JSON.stringify(pendingCloudOps)); }catch(e){ try{ window.__handleStorageQuota && window.__handleStorageQuota(e); }catch(_){ } } }
 	function loadPending(){ try{ const raw=localStorage.getItem(PENDING_KEY); if(raw){ const arr=JSON.parse(raw); if(Array.isArray(arr) && arr.length) pendingCloudOps = arr; } }catch(e){ /* 损坏则忽略 */ } }
 	// 仍在等待上行（未确认写入云端）的学生名，用于保护本地未同步数据不被对账/云端加载销毁
-	function getPendingUpsertNames(){ const s=new Set(); for(const op of pendingCloudOps){ if(op && op.type==='upsert' && op.payload && op.payload.name) s.add(op.payload.name); } return s; }
-	function isSyncPending(name){ if(!name) return false; for(const op of pendingCloudOps){ if(op && op.payload && op.payload.name===name) return true; } return false; }
+	function getPendingUpsertNames(){ const names=new Set(); for(const op of pendingCloudOps){ if(op && op.type==='upsert' && op.payload && op.payload.name) names.add(normalizeLibraryStudentName(op.payload.name)); } return names; }
+	function isSyncPending(name){ const target=normalizeLibraryStudentName(name); if(!target) return false; for(const op of pendingCloudOps){ if(op && op.payload && normalizeLibraryStudentName(op.payload.name)===target) return true; } return false; }
 	window.__isStudentSyncPending = isSyncPending;
 	window.__studentLibraryHasPending = () => pendingCloudOps.length > 0;
 	
@@ -18852,51 +18912,42 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			}
 			
 			if (cloudStudents && cloudStudents.length > 0) {
-				// 智能合并：不清空本地数据，而是基于名字合并
-				let mergedCount = 0;
-				let newCount = 0;
-				const localByName = new Map(store.items.map(s => [s.name, s]));
-				
-				cloudStudents.forEach(cloudStudent => {
-					// 查找本地是否已有同名学生
+				const normalizedCloudStudents = normalizeLibraryRows(cloudStudents);
+				const localByName = new Map(store.items.map(student => [normalizeLibraryStudentName(student.name), student]));
+				const pendingNames = new Set([...getPendingUpsertNames()].map(normalizeLibraryStudentName));
+				const cloudNames = new Set(normalizedCloudStudents.map(student => student.name));
+				const nextItems = normalizedCloudStudents.map(cloudStudent => {
 					const localStudent = localByName.get(cloudStudent.name);
-					
-					if (localStudent) {
-						// 本地有未上行的修改则保留本地值，避免云端旧值覆盖
-						if (isSyncPending(cloudStudent.name)) { return; }
-						// 已存在，更新信息（以云端为准，但保留本地ID和备注）
-						localStudent.grade = cloudStudent.grade || '';
-						localStudent.major = cloudStudent.major || '';
-						localStudent.archived = cloudStudent.archived === true;
-						localStudent.updated_at = cloudStudent.updated_at ? new Date(cloudStudent.updated_at).getTime() : now();
-						mergedCount++;
-					} else {
-						// 不存在，新增学生
-						const newStudent = {
-							id: crypto.randomUUID ? crypto.randomUUID() : ('id_' + Math.random().toString(36).slice(2)),
-							name: cloudStudent.name,
-							grade: cloudStudent.grade || '',
-							major: cloudStudent.major || '',
-							remark: '',
-							archived: cloudStudent.archived === true,
-							created_at: cloudStudent.created_at ? new Date(cloudStudent.created_at).getTime() : now(),
-							updated_at: cloudStudent.updated_at ? new Date(cloudStudent.updated_at).getTime() : now()
-						};
-						store.items.push(newStudent);
-						newCount++;
-					}
+					return {
+						id: localStudent?.id || (crypto.randomUUID ? crypto.randomUUID() : ('id_' + Math.random().toString(36).slice(2))),
+						name: cloudStudent.name,
+						grade: pendingNames.has(cloudStudent.name) ? (localStudent?.grade || cloudStudent.grade || '') : (cloudStudent.grade || ''),
+						major: pendingNames.has(cloudStudent.name) ? (localStudent?.major || cloudStudent.major || '') : (cloudStudent.major || ''),
+						remark: localStudent?.remark || '',
+						archived: cloudStudent.archived === true,
+						created_at: cloudStudent.created_at ? new Date(cloudStudent.created_at).getTime() : (localStudent?.created_at || now()),
+						updated_at: cloudStudent.updated_at ? new Date(cloudStudent.updated_at).getTime() : now()
+					};
 				});
-				
-				// 保存到本地存储
+				store.items = nextItems.concat(
+					store.items.filter(student => {
+						const name = normalizeLibraryStudentName(student.name);
+						return pendingNames.has(name) && !cloudNames.has(name);
+					}).map(student => ({ ...student, name: normalizeLibraryStudentName(student.name) }))
+				);
 				save();
-				
 				firstCloudLoadDone = true;
-				console.log(`[StudentLibrary] 云端合并完成: 新增${newCount}个, 更新${mergedCount}个学生 (source=cloud)`);
+				console.log(`[StudentLibrary] 云端基准同步完成: ${normalizedCloudStudents.length} 个学生，已清理本地旧缓存`);
 				return true;
 			} else {
+				const pendingNames = new Set([...getPendingUpsertNames()].map(normalizeLibraryStudentName));
+				store.items = store.items
+					.filter(student => pendingNames.has(normalizeLibraryStudentName(student.name)))
+					.map(student => ({ ...student, name: normalizeLibraryStudentName(student.name) }));
+				save();
 				firstCloudLoadDone = true;
-				console.log('[StudentLibrary] 云端无学生数据 (source=cloud-empty)');
-				return false;
+				console.log(`[StudentLibrary] 云端无学生数据，已清空旧缓存并保留 ${store.items.length} 条待同步记录 (source=cloud-empty)`);
+				return true;
 			}
 		} catch (error) {
 			console.error('[StudentLibrary] 云端加载异常:', error);
@@ -18928,7 +18979,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			const upsertMap = new Map();
 			const deleteSet = new Set();
 			for(const op of opsSnapshot){
-				const n = op?.payload?.name;
+				const n = normalizeLibraryStudentName(op?.payload?.name);
 				if(!n) continue;
 				if(op.type === 'upsert'){
 					deleteSet.delete(n);
@@ -18949,7 +19000,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 
 			if(upserts.length){
 				console.log('[StudentLibrary] 批量上行学生', upserts.length);
-				// student_database.name 无唯一约束（onConflict 会报 42P10），改为先查已存在再分插入/更新
+					// 兼容旧版数据库：先查已存在再分插入/更新，避免重复学生
 				const names = upserts.map(u => u.name);
 				let existingNames = [];
 				for(let i=0;i<names.length;i+=120){
@@ -19360,72 +19411,11 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		const { silent = false } = options;
 		if(!window.supabaseClient || !window.supabaseReady) return;
 		try{
-			const { data, error } = await supabaseClient.from('student_database').select('name,major,grade,archived,updated_at,created_at').range(0, 99999);
-			if(error){ console.warn('[StudentLibrary][reconcile] 拉取失败', error.message); return; }
-			const cloudRows = data || [];
-			const cloudMap = new Map(cloudRows.map(r => [r.name, r]));
-			const localMap = new Map(store.items.map(s => [s.name, s]));
-			let removed = 0;
-			let added = 0;
-			let updated = 0;
-			
-			const pendingNames = getPendingUpsertNames();
-			// 安全护栏：仅当云端返回非空且未触及分页上限时才允许按“云端缺失”删除本地，避免因分页截断/空响应误删全部本地学生
-			const allowDelete = cloudRows.length > 0 && cloudRows.length < 100000;
-			if(cloudRows.length >= 100000){ console.warn('[StudentLibrary][reconcile] 云端行数达上限，跳过本地删除以防误删'); }
-			for(const [name] of localMap){
-				if(allowDelete && !cloudMap.has(name)){
-					// 跳过仍在等待上行的本地学生，避免删除尚未同步成功的新录入
-					if(pendingNames.has(name)){ continue; }
-					const i = store.items.findIndex(s=>s.name===name);
-					if(i>=0){ store.items.splice(i,1); removed++; }
-				}
-			}
-
-			for (const row of cloudRows) {
-				const local = localMap.get(row.name);
-				if (!local) {
-					store.items.push({
-						id: crypto.randomUUID ? crypto.randomUUID() : ('id_' + Math.random().toString(36).slice(2)),
-						name: row.name,
-						grade: row.grade || '',
-						major: row.major || '',
-						remark: '',
-						archived: row.archived === true,
-						created_at: row.created_at ? new Date(row.created_at).getTime() : now(),
-						updated_at: row.updated_at ? new Date(row.updated_at).getTime() : now()
-					});
-					added++;
-					continue;
-				}
-				// 本地有未上行的修改时，以本地为准，避免云端旧值覆盖
-				if (pendingNames.has(row.name)) { continue; }
-
-				let changed = false;
-				if (local.grade !== (row.grade || '')) {
-					local.grade = row.grade || '';
-					changed = true;
-				}
-				if (local.major !== (row.major || '')) {
-					local.major = row.major || '';
-					changed = true;
-				}
-				if (local.archived !== (row.archived === true)) {
-					local.archived = row.archived === true;
-					changed = true;
-				}
-				if (changed) {
-					local.updated_at = row.updated_at ? new Date(row.updated_at).getTime() : now();
-					updated++;
-				}
-			}
-			
-			if(removed > 0 || added > 0 || updated > 0){
-				save();
+			const beforeCount = store.items.length;
+			const loaded = await loadFromCloud({ force:true });
+			if(loaded){
 				refreshUI();
-				if (!silent) {
-					console.log(`[StudentLibrary][reconcile] 新增 ${added} 条，更新 ${updated} 条，清理本地多余 ${removed} 条`);
-				}
+				if(!silent) console.log(`[StudentLibrary][reconcile] 已按学生库基准重建本地列表 ${beforeCount} → ${store.items.length}`);
 			}
 		}catch(e){ console.warn('[StudentLibrary][reconcile] 异常', e.message); }
 	};
@@ -19496,7 +19486,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				try{
 					const rowsForCloud = Array.from(changedStudents.values());
 					if(rowsForCloud.length){
-						// student_database.name 无唯一约束，不能用 onConflict；走统一的待同步队列
+						// 走统一的待同步队列，避免直接覆盖本地未确认状态
 						rowsForCloud.forEach(r=>{ enqueue({ type:'upsert', payload:{ name:r.name, major:r.major||'', grade:r.grade||'' } }); });
 					}
 				}catch(e){ console.warn('[StudentLibrary] 学生信息同步异常', e); }
@@ -20132,6 +20122,11 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				});
 				
 				// 保存到本地存储
+				save();
+				refreshUI();
+			}
+			else {
+				store.items = [];
 				save();
 				refreshUI();
 			}
