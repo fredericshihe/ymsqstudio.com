@@ -11546,11 +11546,9 @@
       }, 10000), // ✅ 10秒节流 - 元数据低频变更，影响学生信息和时段配置
 
       leaderboard: throttle((reason = 'realtime') => {
-        dbg(`同步: 排行榜刷新 (${reason})`);
-        if (window.__leaderboardSyncSystem) {
-          window.__leaderboardSyncSystem.updateAllLeaderboards({ force: true });
-        }
-      }, 800), // ✅ 0.8秒节流 - 榜单结果一旦真正落库就尽快刷新
+        dbg(`同步: 排行榜标记待刷新 (${reason})`);
+        scheduleWlbRefresh(5000, reason);
+      }, 5000), // ✅ 合并5秒内的多路 Realtime 事件，避免重复 RPC
     };
 
     const refreshSelectedStudentDetailDebounced = debounce((studentName) => {
@@ -11762,7 +11760,7 @@
 
             if (!isPageVisible) {
               markPendingVisibilityRefresh('practice_logs');
-              if (action === 'assign' || action === 'clear') scheduleWlbRefresh(1200, `practice-log-${action}`);
+              if (action === 'assign' || action === 'clear') scheduleWlbRefresh(5000, `practice-log-${action}`);
               return;
             }
 
@@ -11799,7 +11797,7 @@
               }
 
               if (action === 'assign' || action === 'clear') {
-                scheduleWlbRefresh(1200, `practice-log-${action}`);
+                scheduleWlbRefresh(5000, `practice-log-${action}`);
               }
               return;
             }
@@ -12047,8 +12045,13 @@
         const { force = false } = options;
         const now = Date.now();
 
+        if (!isWlbRefreshRelevant()) {
+          _wlbNeedsRefresh = true;
+          return;
+        }
+
         // 防止并发更新
-        if (this.updateInProgress && !force) {
+        if (this.updateInProgress) {
           this.pendingUpdate = true;
           dbg('[LeaderboardSync] 更新进行中，标记待处理');
           return;
@@ -12064,7 +12067,7 @@
         this.lastUpdateTime = now;
         
         try {
-          if (!isPageVisible || !navigator.onLine || typeof loadWeeklyLeaderboards !== 'function') {
+          if (typeof loadWeeklyLeaderboards !== 'function') {
             return;
           }
           dbg('[LeaderboardSync] 开始刷新当前四榜...');
@@ -12079,7 +12082,7 @@
           // 如果有待处理的更新请求，延迟执行
           if (this.pendingUpdate) {
             this.pendingUpdate = false;
-            setTimeout(() => this.updateAllLeaderboards(), 2000);
+            setTimeout(() => this.updateAllLeaderboards(), 5000);
           }
         }
       }
@@ -12254,6 +12257,12 @@
     const _wlbExpanded = {};    // 每个榜单独立展开状态 { '综合榜': false, ... }
     const WLB_DEFAULT_N = { '综合榜': 10, '进步榜': 6, '稳定榜': 6, '守则榜': 6 };
     const WLB_BOARD_ORDER = ['综合榜', '稳定榜', '守则榜', '进步榜'];
+
+    function isWlbRefreshRelevant() {
+      if (!isPageVisible || !navigator.onLine) return false;
+      const view = uiState?.view;
+      return view === 'home' || (view === 'detail' && !!uiState?.selectedStudent);
+    }
 
     const WLB_SUBTITLES = {
       '综合榜': '本周综合排名分 Top 10 · 仅含本周有练琴同学 · 稳定达标优先',
@@ -12485,6 +12494,10 @@
     async function loadWeeklyLeaderboards(options = {}) {
       const { force = false, reason = 'manual' } = options;
       if (!supabaseClient) return _wlbData;
+      if (!isWlbRefreshRelevant()) {
+        _wlbNeedsRefresh = true;
+        return _wlbData;
+      }
       if (_wlbLoadPromise) return _wlbLoadPromise;
       if (
         !force &&
@@ -12551,12 +12564,11 @@
       return _wlbLoadPromise;
     }
 
-    // 每 60 秒自动刷新一次
     function startWlbPolling() {
       if (_wlbTimer || !isConnected || !isPageVisible || !navigator.onLine) return;
       _wlbTimer = setInterval(() => {
-        void loadWeeklyLeaderboards({ reason: 'polling' });
-      }, 60000);
+        if (isWlbRefreshRelevant()) void loadWeeklyLeaderboards({ reason: 'polling' });
+      }, 5 * 60 * 1000);
     }
 
     function stopWlbPolling() {
@@ -12573,13 +12585,13 @@
 
     // 当登记/还卡事件触发后，短延迟刷新一次周榜；真正的 practice_sessions / student_baseline realtime
     // 会继续兜底，确保后端算分一落库前端就能尽快同步。
-    function scheduleWlbRefresh(delay = 1200, reason = 'practice-log') {
+    function scheduleWlbRefresh(delay = 5000, reason = 'practice-log') {
       _wlbNeedsRefresh = true;
-      if (!isPageVisible) return;
+      if (!isWlbRefreshRelevant()) return;
       cancelScheduledWlbRefresh();
       _wlbRefreshTimer = setTimeout(() => {
         _wlbRefreshTimer = null;
-        void loadWeeklyLeaderboards({ force: true, reason });
+        void loadWeeklyLeaderboards({ reason });
       }, delay);
     }
 

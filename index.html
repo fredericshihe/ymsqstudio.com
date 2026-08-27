@@ -20294,41 +20294,21 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 // ======= Practice Alerts (缺勤 / 异常) =======
 (function(){
 	console.log('[PracticeAlerts] IIFE 开始执行');
-	// --- Practice Alerts 相关 SQL 维护指引（复制到 Supabase SQL Editor 执行，匿名 key 不能直接跑 DDL） ---
-	/*
-	-- 1. 字段与普通索引（幂等）
-	ALTER TABLE public.practice_alerts ADD COLUMN IF NOT EXISTS severity integer;
-	CREATE INDEX IF NOT EXISTS idx_practice_alerts_created_at ON public.practice_alerts(created_at DESC);
-	CREATE INDEX IF NOT EXISTS idx_practice_alerts_student_type ON public.practice_alerts(student_name, type);
-
-	-- 2. 旧唯一索引（若已存在需删除，允许被忽略后重新生成提醒）
-	DROP INDEX IF EXISTS uniq_practice_alerts_day; -- 旧：不区分 ignored
-
-	-- 3. 新条件唯一索引：只限制未忽略记录，ignored=true 后可再生成同组合新提醒
-	CREATE UNIQUE INDEX IF NOT EXISTS uniq_practice_alerts_day_active
-	ON public.practice_alerts (student_name, type, slot_start, slot_end, (date(created_at)))
-	WHERE ignored = false;
-
-	-- 回滚方式（若想恢复“忽略后不再出现”行为）
-	-- DROP INDEX IF EXISTS uniq_practice_alerts_day_active;
-	-- CREATE UNIQUE INDEX IF NOT EXISTS uniq_practice_alerts_day
-	-- ON public.practice_alerts (student_name, type, slot_start, slot_end, (date(created_at)));
-	*/
-
-	// 已移除 UI 复制提醒索引 SQL 按钮
+	// practice_alerts 的字段、归档策略、唯一索引和批量 RPC 由 Supabase migration 管理。
 	if(window.PracticeAlerts) {
 		console.log('[PracticeAlerts] 已存在，跳过初始化');
 		return;
 	}
-		const AlertStore={ list:[], byId:new Map(), slotsToday:null, timer:null, lastSlotLoadDay:null, _lastPeriodicReload:0, dedupe:new Set(), silenced:new Map(), prevActive:new Map() };
+		const AlertStore={ list:[], byId:new Map(), slotsToday:null, timer:null, lastSlotLoadDay:null, _lastPeriodicReload:0, _lastFullReload:0, _reconcileInterval:null, dedupe:new Set(), silenced:new Map(), prevActive:new Map() };
 		const ALERT_TYPES={ ABSENT:'absent', ANOMALY:'anomaly' };
+		const ALERT_FULL_RELOAD_INTERVAL = 15 * 60 * 1000;
 		// 阈值可调（分钟）
 		const THRESHOLDS={ ABSENT_WINDOW_START:5, ABSENT_WINDOW_END:15, ANOMALY_OVERRUN:15, ENDED_OVERRUN:30, ABSENT_PAST_GRACE:10, START_ABSENT_CONFIRM_DELAY:2 }; // ABSENT_PAST_GRACE: 过去 slot 结束后多少分钟仍允许补发缺勤; START_ABSENT_CONFIRM_DELAY: 开始窗口持续无重叠确认分钟数
 	function now(){ return Date.now(); }
 	function fmt(ts){ const d=new Date(ts); return d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}); }
-	function ensureSlotsLoaded(){ const todayKey=new Date().toDateString(); if(AlertStore.lastSlotLoadDay===todayKey && AlertStore.slotsToday) return Promise.resolve(); return loadTodaySlots(); }
+		function ensureSlotsLoaded(){ const todayKey=businessDateKey(); if(AlertStore.lastSlotLoadDay===todayKey && AlertStore.slotsToday) return Promise.resolve(); return loadTodaySlots(); }
 	async function loadTodaySlots(){ if(!window.supabaseClient) return; const weekday=(new Date().getDay()+6)%7 +1; // 1-7; we only use 1-5
-		try{ const {data,error}=await supabaseClient.from('student_time_slots').select('student_name,start_time,end_time').eq('weekday', weekday).order('start_time'); if(error){ console.warn('loadTodaySlots error', error); return; } const map={}; (data||[]).forEach(r=>{ if(!map[r.student_name]) map[r.student_name]=[]; map[r.student_name].push(r); }); AlertStore.slotsToday=map; AlertStore.lastSlotLoadDay=new Date().toDateString(); }catch(e){ console.error(e); }
+			try{ const {data,error}=await supabaseClient.from('student_time_slots').select('student_name,start_time,end_time').eq('weekday', weekday).order('start_time'); if(error){ console.warn('loadTodaySlots error', error); return; } const map={}; (data||[]).forEach(r=>{ if(!map[r.student_name]) map[r.student_name]=[]; map[r.student_name].push(r); }); AlertStore.slotsToday=map; AlertStore.lastSlotLoadDay=businessDateKey(); }catch(e){ console.error(e); }
 	}
 		function forceReloadSlots(){ AlertStore.lastSlotLoadDay=null; return ensureSlotsLoaded(); }
 	function currentFilter(){ return AlertStore.filter||'all'; }
@@ -20478,12 +20458,12 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			item.appendChild(actions);
 			return item;
 		}
-		async function ignoreAlert(id){ const a=AlertStore.byId.get(id); if(!a) return; if(a.ignored) return; a.ignored=true; // 本地先置位
+		async function ignoreAlert(id){ const a=AlertStore.byId.get(String(id)); if(!a) return; if(a.ignored) return; a.ignored=true; // 本地先置位
 			removeAlertLocal(id); scheduleRenderAlerts();
 			// 忽略后：设置当天静默，直到该生重新登记
 			try{ setSilenced(a.student_name, a.type, a.slot||{start_time:a.slot_start,end_time:a.slot_end}); }catch(_e){}
 			// 移除去重 key (允许忽略后再产生新提醒)
-			try{ if(a.slot){ const k=`${a.student_name}|${a.type}|${a.slot.start_time}-${a.slot.end_time}|${(new Date()).toISOString().slice(0,10)}`; AlertStore.dedupe.delete(k); } }catch(_e){}
+			try{ if(a.slot){ const k=`${a.student_name}|${a.type}|${a.slot.start_time}-${a.slot.end_time}|${businessDateKey()}`; AlertStore.dedupe.delete(k); } }catch(_e){}
 			// 本地广播（同浏览器其它标签页）
 			try{ localStorage.setItem('practice_alerts_ignore_ping', JSON.stringify({id, t:Date.now()})); }catch(_e){}
 			if(!window.supabaseClient) return; 
@@ -20520,7 +20500,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			if(!candidates.length){ console.log('[PracticeAlerts] 一键忽略：无可忽略条目'); toast?.('没有可忽略的提醒'); return; }
 			console.log('[PracticeAlerts] 一键忽略 开始 数量=', candidates.length);
 			_bulkIgnoreLock = true;
-			const todayStr=(new Date()).toISOString().slice(0,10);
+			const todayStr=businessDateKey();
 			// 本地批量处理（一次渲染）
 			for(const a of candidates){
 				try{ a.ignored = true; removeAlertLocal(a.id); }catch(_e){}
@@ -20540,8 +20520,8 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 						scheduleRenderAlerts();
 						toast?.('一键忽略失败');
 					}else{
-						// 广播每条，兼容现有 ignore 监听
-						try{ if(AlertStore._rtChannel){ for(const id of ids){ AlertStore._rtChannel.send({type:'broadcast', event:'ignore', payload:{id}}); } } }catch(e){ console.warn('[PracticeAlerts][BC][bulk-ignore] 广播失败', e); }
+						// 单次广播，避免每条提醒产生一个跨标签事件
+						try{ if(AlertStore._rtChannel){ AlertStore._rtChannel.send({type:'broadcast', event:'ignore', payload:{ids}}); } }catch(e){ console.warn('[PracticeAlerts][BC][bulk-ignore] 广播失败', e); }
 						console.log('[PracticeAlerts] 一键忽略 成功 ids=', ids.length);
 						toast?.(`已忽略 ${ids.length} 条提醒`);
 					}
@@ -20549,24 +20529,21 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			}
 			_bulkIgnoreLock = false;
 		}
-		// ===== 对账：基于存在性（记录已 delete 即本地移除）======
-		async function reconcileIgnored(){
-			if(!window.supabaseClient) return; 
-			if(!AlertStore.list.length) return; 
-			try{
-				const ids=AlertStore.list.map(a=>a.id);
-				const {data,error}=await supabaseClient.from('practice_alerts').select('id').in('id', ids);
-				if(error){ console.warn('[PracticeAlerts] reconcile query error', error); return; }
-				const existSet=new Set((data||[]).map(r=>String(r.id)));
-				const before=AlertStore.list.length;
-				AlertStore.list=AlertStore.list.filter(a=> existSet.has(String(a.id)) );
-				let removed=0; AlertStore.byId.forEach((_,k)=>{ if(!existSet.has(k)){ AlertStore.byId.delete(k); removed++; }});
-				if(removed>0 || before!==AlertStore.list.length){ console.log('[PracticeAlerts] reconcileIgnored 修正本地缺失', removed, '条'); scheduleRenderAlerts(); }
-			}catch(e){ console.error('[PracticeAlerts] reconcileIgnored 异常', e); }
+		// ===== 对账：Realtime 为主，低频全量刷新兜底 =====
+		async function reconcileIgnored({force=false}={}){
+			if(!window.supabaseClient) return;
+			if(!force && AlertStore._lastFullReload && Date.now() - AlertStore._lastFullReload < ALERT_FULL_RELOAD_INTERVAL) return;
+			await fetchExistingAlerts({ reason:'reconcile-fallback' });
 		}
 		let _reconcileTimer=null; function scheduleReconcile(delay=0){ if(_reconcileTimer) clearTimeout(_reconcileTimer); _reconcileTimer=setTimeout(()=>{ reconcileIgnored(); }, delay); }
 		// —— 静默控制：忽略后静默到“该生重新登记”为止 ——
-		function todayKey(){ return (new Date()).toISOString().slice(0,10); }
+		function businessDateKey(date=new Date()){
+			return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).format(date);
+		}
+		function businessDateStartIso(date=new Date()){
+			return new Date(`${businessDateKey(date)}T00:00:00+08:00`).toISOString();
+		}
+		function todayKey(){ return businessDateKey(); }
 		function silenceKey(stu,type,slot){ const d=todayKey(); const sp=slot?`${slot.start_time}-${slot.end_time}`:'none'; return `${d}|${stu}|${type}|${sp}`; }
 		function setSilenced(stu,type,slot){ const k=silenceKey(stu,type,slot); AlertStore.silenced.set(k,true); try{ localStorage.setItem('practice_alerts_silence_ping', JSON.stringify({k,t:Date.now()})); }catch(_){} }
 		// ---- 静默持久化支持 (A) ----
@@ -20608,30 +20585,29 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				try{ const p=JSON.parse(e.newValue||'null'); if(p&&p.k){ AlertStore.silenced.delete(p.k); } }catch(_){ }
 			}
 		});
-	async function fetchExistingAlerts(){ 
+	async function fetchExistingAlerts({reason='initial'}={}){
 		console.log('[PracticeAlerts] fetchExistingAlerts 开始');
 		if(!window.supabaseClient) {
 			console.warn('[PracticeAlerts] supabaseClient 不存在');
 			return;
 		}
-		try{ 
-				const since=new Date(); since.setHours(0,0,0,0); 
-				console.log('[PracticeAlerts] 查询今日提醒，since:', since.toISOString());
-				// 拉取当天全部提醒 (A+B: 包含 ignored, 用于重建静默)
+		try{
+				const dateKey=businessDateKey();
+				const fields='id,student_name,type,slot_start,slot_end,ignored,resolved,created_at,updated_at,severity,business_date,resolved_at,archived_at';
+				console.log('[PracticeAlerts] 查询业务日提醒，date:', dateKey, 'reason:', reason);
 				const {data,error}=await supabaseClient.from('practice_alerts')
-					.select('*')
-					.gte('created_at', since.toISOString())
+					.select(fields)
+					.eq('business_date', dateKey)
+					.is('archived_at', null)
 					.order('created_at',{ascending:false})
-					.limit(400); 
+					.limit(400);
 			if(error){ 
 				console.warn('[PracticeAlerts] fetch alerts error', error); 
-				if(error.code === '42P01') {
-					console.error('[PracticeAlerts] practice_alerts 表不存在！');
-				}
+				if(error.code === '42P01') console.error('[PracticeAlerts] practice_alerts 表不存在！');
 				return;
 			} 
 			console.log('[PracticeAlerts] 获取到提醒数据:', data?.length || 0, '条');
-			AlertStore.list=(data||[]).filter(a=>!a.ignored).map(a => {
+			AlertStore.list=(data||[]).filter(a=>!a.ignored && !a.resolved && !a.archived_at).map(a => {
 				// 修复字段映射：数据库的 slot_start/slot_end → 前端的 start_time/end_time
 				a.slot = a.slot_start && a.slot_end ? {
 					start_time: a.slot_start,
@@ -20648,9 +20624,9 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			localKeys.forEach(k => AlertStore.silenced.delete(k));
 			
 			// 将 ignored 记录静默化 (B) - 以云端数据重建静默状态
-			try{ 
-				const ignoredList=(data||[]).filter(a=>a.ignored); 
-				for(const ig of ignoredList){ 
+			try{
+				const ignoredList=(data||[]).filter(a=>a.ignored && !a.archived_at);
+				for(const ig of ignoredList){
 					if(ig.slot_start&&ig.slot_end){ 
 						setSilenced(ig.student_name, ig.type, {start_time:ig.slot_start,end_time:ig.slot_end}); 
 					} else { 
@@ -20757,26 +20733,26 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				return practiceStartMin < eMin && practiceEndMin > sMin; 
 			})||null; 
 		}
-		let _lastDetectionDate=(new Date()).toDateString();
+		let _lastDetectionDate=businessDateKey();
 		// 记录“开始窗口内首次判定为无重叠”的时间戳，键: `${student}|${slot.start_time}-${slot.end_time}`
 		const _startWindowNoOverlapSeen = new Map();
 		// 观察到“该生在该时段有过任意重叠练琴”的标记（当天生效），一旦成立，永久不再对该时段生成缺勤
 		const _presentSeen = new Set();
-		function presentKey(stu,slot){ const d=(new Date()).toISOString().slice(0,10); return `${d}|${stu}|${slot.start_time}-${slot.end_time}`; }
+		function presentKey(stu,slot){ const d=businessDateKey(); return `${d}|${stu}|${slot.start_time}-${slot.end_time}`; }
 		async function detectionTick(){ // 顺序: 跨日重置 -> 确保slots -> 周期刷新 -> 缺勤 -> 活动超时 -> 结束超时
 			if(AlertStore.recalcLock){
 				return; // 重算期间暂停检测
 			}
-			if(!window.supabaseClient) return; const todayStr=(new Date()).toDateString(); if(todayStr!==_lastDetectionDate){ // 跨日：重置slots与当日alerts缓存
+			if(!window.supabaseClient) return; const todayStr=businessDateKey(); if(todayStr!==_lastDetectionDate){ // 跨日：重置slots与当日alerts缓存
 			_lastDetectionDate=todayStr; AlertStore.slotsToday=null; AlertStore.lastSlotLoadDay=null; await fetchExistingAlerts(); }
 				// 补偿：每5分钟强制刷新未忽略提醒，防止错过 UPDATE 事件导致另一端已忽略却仍显示
-				if(!AlertStore._lastFullReload || (Date.now()-AlertStore._lastFullReload) > 5*60*1000){
-					console.log('[PracticeAlerts] 触发周期性全量刷新 (5min)');
+				if(!AlertStore._lastFullReload || (Date.now()-AlertStore._lastFullReload) > ALERT_FULL_RELOAD_INTERVAL){
+					console.log('[PracticeAlerts] 触发周期性全量刷新 (15min)');
 					await fetchExistingAlerts();
 				}
 				// 小频率对账：每次 tick 后排一个延迟对账（避免高并发立刻多次请求）
 				scheduleReconcile(4000);
-			await ensureSlotsLoaded(); const nowMin=minutesNow(); const students=Object.keys(AlertStore.slotsToday||{});
+			await ensureSlotsLoaded(); const nowMin=minutesNow(); const students=Object.keys(AlertStore.slotsToday||{}); const pendingAlerts=[];
 			// 周期刷新：每10分钟强制 (分钟数 %10 ==0) 且距离上次>2分钟，避免同一分钟多次
 			const minute=new Date().getMinutes(); if(minute%10===0 && (now()-AlertStore._lastPeriodicReload)>120000){ forceReloadSlots().then(()=>{ AlertStore._lastPeriodicReload=now(); }); }
 			for(const name of students){ 
@@ -20826,7 +20802,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 								_presentSeen.add(pk);
 							}else if(!hasAlert(name,'absent',slot) && !isSilenced(name,'absent',slot)){
 								// 简化逻辑：直接创建缺勤提醒，不需要等待确认期
-								await createAlert({type:ALERT_TYPES.ABSENT, student_name:name, slot, message:`${slot.start_time}-${slot.end_time} 时段缺勤`, severity:2});
+								pendingAlerts.push({type:ALERT_TYPES.ABSENT, student_name:name, slot, message:`${slot.start_time}-${slot.end_time} 时段缺勤`, severity:2});
 							}
 						}
 					}
@@ -20863,9 +20839,10 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					}
 				}
 			} // end students loop
+			if(pendingAlerts.length) await createAlertsBatch(pendingAlerts);
 		} // end detectionTick
 
-		// ==== 今日重算并覆盖云端 practice_alerts ====
+		// ==== 今日重算并对账云端 practice_alerts ====
 		async function recalcToday(full=false){
 			if(!window.supabaseClient){ console.warn('[PracticeAlerts][Recalc] no supabaseClient'); return; }
 			if(AlertStore.recalcLock){ console.warn('[PracticeAlerts][Recalc] already running'); return; }
@@ -20874,7 +20851,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			const startedAt = Date.now();
 			try{
 				// 1. 准备数据
-				const today = new Date(); today.setHours(0,0,0,0); const todayIso = today.toISOString();
+				const todayIso = businessDateStartIso();
 				const weekday=(new Date().getDay()+6)%7 +1; // 1-7
 				const {data:slotRows, error:slotErr}=await supabaseClient.from('student_time_slots').select('student_name,start_time,end_time').eq('weekday', weekday);
 				if(slotErr){ console.error('[PracticeAlerts][Recalc] slot fetch error', slotErr); return; }
@@ -20963,14 +20940,15 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					}
 				}
 				console.log('[PracticeAlerts][Recalc] 生成候选', alerts.length, '缺勤=', absentCount, 'full=', full);
-				// 3. 覆盖：删除今日旧数据
-				const {error:delErr}=await supabaseClient.from('practice_alerts').delete().gte('created_at', todayIso);
-				if(delErr){ console.error('[PracticeAlerts][Recalc] 删除旧提醒失败', delErr); return; }
-				// 4. 批量插入
-				const batch=120; for(let i=0;i<alerts.length;i+=batch){ const slice=alerts.slice(i,i+batch); const {error:insErr}=await supabaseClient.from('practice_alerts').insert(slice); if(insErr){ console.error('[PracticeAlerts][Recalc] 插入失败 batch', i, insErr); return; } }
-				console.log('[PracticeAlerts][Recalc] 写入完成 用时(ms)=', Date.now()-startedAt);
-				// 5. 重新拉取渲染
-				await fetchExistingAlerts();
+				// 3. 在数据库事务内插入新增提醒并关闭已失效提醒，保留 ignored 状态和历史记录
+				const {data:reconcileResult,error:reconcileErr}=await supabaseClient.rpc('reconcile_practice_alerts', {
+					p_business_date: businessDateKey(),
+					p_alerts: alerts
+				});
+				if(reconcileErr){ console.error('[PracticeAlerts][Recalc] 批量对账失败', reconcileErr); return; }
+				console.log('[PracticeAlerts][Recalc] 对账完成', reconcileResult, '用时(ms)=', Date.now()-startedAt);
+				// 4. 重新拉取当前业务日未归档提醒
+				await fetchExistingAlerts({ reason:'recalc' });
 			}finally{
 				AlertStore.recalcLock=false;
 			}
@@ -20982,12 +20960,16 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		// 本地移除
 		removeAlertLocal(id);
 		scheduleRenderAlerts();
-		// 服务端标记为 resolved 或删除
-		if (!window.supabaseClient) return;
-		try {
-			const {error} = await supabaseClient.from('practice_alerts').delete().eq('id', id);
+			// 服务端标记为 resolved，保留可审计历史
+			if (!window.supabaseClient) return;
+			try {
+				const {error} = await supabaseClient.from('practice_alerts').update({
+					resolved: true,
+					resolved_at: new Date().toISOString(),
+					updated_at: new Date().toISOString()
+				}).eq('id', id);
 			if (error) {
-				console.warn('auto resolve alert delete fail', error);
+					console.warn('auto resolve alert update fail', error);
 				// 回滚
 				AlertStore.byId.set(String(id), a);
 				AlertStore.list.unshift(a);
@@ -21000,72 +20982,61 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			scheduleRenderAlerts();
 		}
 	}
-		function dedupeKey(raw){ const dKey=(new Date()).toISOString().slice(0,10); const slotPart=raw.slot?`${raw.slot.start_time}-${raw.slot.end_time}`:'none'; return `${raw.student_name}|${raw.type}|${slotPart}|${dKey}`; }
+		function dedupeKey(raw){ const dKey=businessDateKey(); const slotPart=raw.slot?`${raw.slot.start_time}-${raw.slot.end_time}`:'none'; return `${raw.student_name}|${raw.type}|${slotPart}|${dKey}`; }
 		function markDedupe(key){ AlertStore.dedupe.add(key); setTimeout(()=>AlertStore.dedupe.delete(key), 60*60*1000); }
-		async function createAlert(raw){ 
-				const key=dedupeKey(raw); if(AlertStore.dedupe.has(key)) return; 
-				
-				// 调试日志：记录 slot 数据
-				if(raw.slot) {
-					console.log('[PracticeAlerts] createAlert slot data:', {
-						student_name: raw.student_name,
-						type: raw.type,
-						slot_start_time: raw.slot.start_time,
-						slot_end_time: raw.slot.end_time,
-						slot_data: raw.slot
-					});
+		function buildAlertPayload(raw){
+			return {
+				student_name:raw.student_name,
+				type:raw.type,
+				slot_start:raw.slot?raw.slot.start_time:null,
+				slot_end:raw.slot?raw.slot.end_time:null,
+				ignored:false,
+				resolved:false,
+				severity:typeof raw.severity==='number'?raw.severity:null,
+				business_date:businessDateKey()
+			};
+		}
+		function alertPayloadKey(payload){
+			const slotPart=payload.slot_start && payload.slot_end ? `${payload.slot_start}-${payload.slot_end}` : 'none';
+			return `${payload.student_name}|${payload.type}|${slotPart}|${payload.business_date}`;
+		}
+		async function createAlertsBatch(rawAlerts){
+			if(!supabaseClient || !Array.isArray(rawAlerts) || !rawAlerts.length) return;
+			const payloadByKey=new Map();
+			for(const raw of rawAlerts){
+				const key=dedupeKey(raw);
+				if(AlertStore.dedupe.has(key)) continue;
+				const payload=buildAlertPayload(raw);
+				payloadByKey.set(alertPayloadKey(payload), { raw, payload, key });
+			}
+			const entries=[...payloadByKey.values()];
+			if(!entries.length) return;
+			try{
+				const {data,error}=await supabaseClient.rpc('create_practice_alerts_batch', {
+					p_alerts:entries.map(entry=>entry.payload)
+				});
+				if(error){
+					console.warn('[PracticeAlerts] batch create failed', error);
+					return;
 				}
-				
-				// 服务器表无 message 字段：仅存结构化字段
-				const payload={ 
-					student_name:raw.student_name, 
-					type:raw.type, 
-					slot_start:raw.slot?raw.slot.start_time:null, 
-					slot_end:raw.slot?raw.slot.end_time:null, 
-					ignored:false, 
-					severity:typeof raw.severity==='number'?raw.severity:null 
-				};
-				if(!supabaseClient) return; 
-				// 先做同日存在性检查，避免跨端刚忽略后又因本端 tick 立即插入
-				try{
-					const since=new Date(); since.setHours(0,0,0,0);
-					let qry=supabaseClient.from('practice_alerts')
-						.select('id')
-						.gte('created_at', since.toISOString())
-						.eq('student_name', payload.student_name)
-						.eq('type', payload.type)
-						.eq('ignored', false);
-					if(payload.slot_start!=null) qry = qry.eq('slot_start', payload.slot_start);
-					if(payload.slot_end!=null) qry = qry.eq('slot_end', payload.slot_end);
-					const {data:exists, error:exErr} = await qry.limit(1);
-					if(!exErr && exists && exists.length){ markDedupe(key); return; }
-				}catch(ex){ console.warn('[PracticeAlerts] existence check fail, continue insert', ex); }
-				try{ 
-					const {data,error}=await supabaseClient.from('practice_alerts').insert(payload).select(); 
-					if(error){ 
-						if(error.code==='23505'){ // 唯一约束冲突，静默忽略
-							markDedupe(key); return; 
-						}
-						console.warn('create alert fail', error); return;
+				const rows=Array.isArray(data) ? data : (data ? [data] : []);
+				for(const rec of rows){
+					if(!rec || rec.id == null) continue;
+					const key=alertPayloadKey(rec);
+					const entry=payloadByKey.get(key);
+					if(!entry) continue;
+					rec.slot={start_time:rec.slot_start,end_time:rec.slot_end};
+					rec._msg=entry.raw.message || buildAlertMessage(rec);
+					if(!AlertStore.byId.has(String(rec.id))){
+						AlertStore.list.unshift(rec);
+						AlertStore.byId.set(String(rec.id),rec);
 					}
-					if(!data || !Array.isArray(data) || data.length===0){
-						console.debug('[PracticeAlerts] insert returned no row; will rely on realtime INSERT');
-						markDedupe(key); return;
-					}
-					const rec=data[0]; 
-					if(!rec){
-						console.warn('[PracticeAlerts] insert returned undefined row; skip local add');
-						markDedupe(key); return;
-					}
-					rec.slot={start_time:payload.slot_start,end_time:payload.slot_end}; 
-					if(typeof payload.severity!=='undefined') rec.severity=payload.severity; 
-					// 前端动态生成 message 文案
-					rec._msg = raw.message || buildAlertMessage(rec);
-					AlertStore.list.unshift(rec); 
-					AlertStore.byId.set(String(rec.id),rec); 
-					markDedupe(key); trimAlerts(); scheduleRenderAlerts(); 
-				}catch(e){ console.error(e); }
-	}
+				}
+				entries.forEach(entry=>markDedupe(entry.key));
+				if(rows.length || entries.length) { trimAlerts(); scheduleRenderAlerts(); }
+			}catch(e){ console.error('[PracticeAlerts] batch create exception', e); }
+		}
+		async function createAlert(raw){ return createAlertsBatch([raw]); }
 	function trimAlerts(){ if(AlertStore.list.length>300){ AlertStore.list.length=300; } }
 	// 💡 练习时间检测频率优化 - 从1分钟延长到5分钟
 	function startTimer(){ 
@@ -21099,16 +21070,19 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					AlertStore._rtChannel = channel;
 					RealtimeOrchestrator.setChannel('practice_alerts', channel);
 					channel.on('broadcast', {event: 'ignore'}, payload => {
-						const id = payload.payload?.id;
-						console.log('[PracticeAlerts][BC][ignore] 收到广播 id=', id);
-						if(id!=null){ removeAlertLocal(id); scheduleRenderAlerts(); }
+						const ids = Array.isArray(payload.payload?.ids) ? payload.payload.ids : [payload.payload?.id];
+						console.log('[PracticeAlerts][BC][ignore] 收到广播数量=', ids.filter(id=>id!=null).length);
+						ids.filter(id=>id!=null).forEach(removeAlertLocal);
+						if(ids.some(id=>id!=null)) scheduleRenderAlerts();
 					});
 					channel
 						.on('postgres_changes',{event:'INSERT',schema:'public',table:'practice_alerts'}, payload=>{ 
 							const rec=payload.new; 
-							console.log('[PracticeAlerts][RT][INSERT]', rec.id, rec.type, 'ignored=', rec.ignored);
+							console.log('[PracticeAlerts][RT][INSERT]', rec.id, rec.type, 'ignored=', rec.ignored, 'resolved=', rec.resolved);
 							window.__lastRealtimeDataUpdate = Date.now();
-							if(rec.ignored) {
+							if(rec.business_date && rec.business_date !== businessDateKey()) return;
+							if(rec.ignored || rec.resolved || rec.archived_at) {
+								if(!rec.ignored) return;
 								try {
 									const slot = rec.slot_start && rec.slot_end ? 
 										{start_time: rec.slot_start, end_time: rec.slot_end} : null;
@@ -21134,9 +21108,10 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 						})
 						.on('postgres_changes',{event:'UPDATE',schema:'public',table:'practice_alerts'}, payload=>{ 
 							const rec=payload.new; 
-							console.log('[PracticeAlerts][RT][UPDATE]', rec.id, 'ignored=', rec.ignored);
+							console.log('[PracticeAlerts][RT][UPDATE]', rec.id, 'ignored=', rec.ignored, 'resolved=', rec.resolved);
 							window.__lastRealtimeDataUpdate = Date.now();
-							if(rec.ignored){ removeAlertLocal(rec.id); return scheduleRenderAlerts(); }
+							if(rec.business_date && rec.business_date !== businessDateKey()) return;
+							if(rec.ignored || rec.resolved || rec.archived_at){ removeAlertLocal(rec.id); return scheduleRenderAlerts(); }
 							const exist=AlertStore.byId.get(String(rec.id)); 
 							if(exist){ 
 								Object.assign(exist,rec); 
@@ -21205,9 +21180,9 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			startTimer(); 
 			await setupRealtime(); 
 			detectionTick(); 
-				// 💡 周期对账频率优化 - 从30秒延长到5分钟
-				if(!AlertStore._reconcileInterval){ 
-					const RECONCILE_INTERVAL = 300000; // 5分钟间隔
+					// 周期对账仅作为 Realtime 兜底
+					if(!AlertStore._reconcileInterval){
+						const RECONCILE_INTERVAL = ALERT_FULL_RELOAD_INTERVAL;
 					logInfo(`忽略状态协调启动，间隔${RECONCILE_INTERVAL/60000}分钟`);
 					AlertStore._reconcileInterval = setInterval(()=>reconcileIgnored(), RECONCILE_INTERVAL); 
 				}
