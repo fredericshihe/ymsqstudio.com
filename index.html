@@ -5,6 +5,7 @@
 	<meta name="viewport" content="width=device-width,initial-scale=1.0" />
 	<title>青岛耶胡迪梅纽因学校 琴房管理系统 · 全新</title>
 	<script src="./js/modules/schedule-classification.js"></script>
+	<script src="./libs/supabase.min.js"></script>
 	<style>
 		:root {
 			--bg:#0e1116; --bg-alt:#161b22; --surface:#1f252d; --surface-alt:#242b35; --outline:#2f3844; --outline-hover:#3d4957; --divider:#212a33;
@@ -1092,8 +1093,6 @@
 		<!-- 已移除导入学生 (改由学生库 CSV) -->
 		<!-- 已移除同步到云端 (实时同步已覆盖全部场景) -->
 			<button id="btnReconnect" class="ghost" style="display: none;">重新连接</button>
-			<!-- 跳转按钮 -->
-			<button onclick="window.open('practiceanalyse.html', '_blank')" class="ghost" title="打开练琴分析">📊 练琴分析</button>
 			<button onclick="window.open('admin_coins.html', '_blank')" class="ghost" title="音符币管理后台">🎵 音符币</button>
 			<button id="btnChangePassword" class="ghost" title="修改登录密码">修改密码</button>
 			<button id="btnToggleSlotCheck" class="ghost" title="切换登记时段检测">时段检测: 关</button>

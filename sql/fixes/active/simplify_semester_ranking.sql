@@ -45,7 +45,8 @@ BEGIN
     UPDATE public.student_coins
     SET balance = 0,
         semester_earned = 0,
-        updated_at = NOW();
+        updated_at = NOW()
+    WHERE student_name IS NOT NULL;
 
     RETURN '✅ 新学期已开启，共清空 ' || v_count || ' 位学生的音符币余额，合计清空 '
            || v_total_cleared || ' 枚；已写入所有人的流水记录。';

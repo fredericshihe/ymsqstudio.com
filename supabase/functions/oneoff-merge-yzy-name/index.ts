@@ -100,8 +100,6 @@ Deno.serve(async (req) => {
         countRows("practice_sessions", "student_name", FROM),
         countRows("student_score_history", "student_name", TO),
         countRows("student_score_history", "student_name", FROM),
-        countRows("student_ai_analysis", "student_name", TO),
-        countRows("student_ai_analysis", "student_name", FROM),
         countRows("student_time_slots", "student_name", FROM),
         countRows("student_coins", "student_name", FROM),
         countRows("coin_transactions", "student_name", FROM),
@@ -139,9 +137,7 @@ Deno.serve(async (req) => {
     operations.push(await updateName("rooms", "occupant_student_name"));
     operations.push(await updateName("practice_sessions", "student_name"));
 
-    // Replace stale/colliding cached analysis/history with the trial-name versions.
-    operations.push(await deleteByName("student_ai_analysis", "student_name", TO));
-    operations.push(await updateName("student_ai_analysis", "student_name"));
+    // Replace stale/colliding historical snapshots with the trial-name versions.
     operations.push(await deleteByName("student_score_history", "student_name", TO));
     operations.push(await updateName("student_score_history", "student_name"));
 
@@ -171,8 +167,6 @@ Deno.serve(async (req) => {
         countRows("practice_sessions", "student_name", FROM),
         countRows("student_score_history", "student_name", TO),
         countRows("student_score_history", "student_name", FROM),
-        countRows("student_ai_analysis", "student_name", TO),
-        countRows("student_ai_analysis", "student_name", FROM),
       ]),
     };
 

@@ -1,4 +1,5 @@
--- 新学期开始时清空所有人的音符币余额，并为每个人写入流水说明
+-- 修复 start_new_semester()：清空 student_coins 的 UPDATE 缺少 WHERE 子句，
+-- 触发 Supabase 的全表更新保护（"UPDATE requires a WHERE clause"），导致清空全员音符币失败。
 
 CREATE OR REPLACE FUNCTION public.start_new_semester(p_confirm TEXT)
 RETURNS TEXT
@@ -44,5 +45,6 @@ BEGIN
     RETURN '✅ 新学期已开启，共清空 ' || v_count || ' 位学生的音符币余额，合计清空 '
            || v_total_cleared || ' 枚；已写入所有人的流水记录。';
 END;
-$$;;
-GRANT EXECUTE ON FUNCTION public.start_new_semester(TEXT) TO anon, authenticated;;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.start_new_semester(TEXT) TO anon, authenticated;
