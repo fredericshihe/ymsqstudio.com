@@ -1,10 +1,55 @@
+BEGIN;
+
+-- Existing installations protect practice_alerts with a trigger that only permits
+-- ignored/updated_at changes. Keep that protection for direct client updates, but
+-- allow this migration and the reconciliation RPC to manage lifecycle columns.
+CREATE OR REPLACE FUNCTION public.practice_alerts_update_guard()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF (
+    to_jsonb(NEW) - 'ignored' - 'updated_at'
+  ) = (
+    to_jsonb(OLD) - 'ignored' - 'updated_at'
+  ) THEN
+    RETURN NEW;
+  END IF;
+
+  IF current_setting('app.practice_alerts_lifecycle_write', TRUE) = 'on'
+     AND (
+       to_jsonb(NEW)
+         - 'ignored'
+         - 'updated_at'
+         - 'resolved'
+         - 'resolved_at'
+         - 'archived_at'
+         - 'business_date'
+     ) = (
+       to_jsonb(OLD)
+         - 'ignored'
+         - 'updated_at'
+         - 'resolved'
+         - 'resolved_at'
+         - 'archived_at'
+         - 'business_date'
+     ) THEN
+    RETURN NEW;
+  END IF;
+
+  RAISE EXCEPTION 'Only ignored and updated_at may be changed directly';
+END;
+$function$;
+
+SELECT set_config('app.practice_alerts_lifecycle_write', 'on', TRUE);
+
 ALTER TABLE public.practice_alerts
   ADD COLUMN IF NOT EXISTS business_date DATE,
   ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
 
 UPDATE public.practice_alerts
-SET business_date = (created_at AT TIME ZONE 'Asia/Shanghai')::DATE
+SET business_date = (COALESCE(created_at, NOW()) AT TIME ZONE 'Asia/Shanghai')::DATE
 WHERE business_date IS NULL;
 
 ALTER TABLE public.practice_alerts
@@ -97,32 +142,26 @@ DELETE FROM public.practice_alerts
 WHERE created_at < NOW() - INTERVAL '30 days'
   AND (ignored IS TRUE OR resolved IS TRUE);
 
-CREATE TEMP TABLE _practice_alert_duplicate_ids (
-  id BIGINT PRIMARY KEY
-) ON COMMIT DROP;
-
-INSERT INTO _practice_alert_duplicate_ids (id)
-SELECT id
-FROM (
-  SELECT
-    id,
-    ROW_NUMBER() OVER (
-      PARTITION BY student_name, type, slot_start, slot_end, business_date
-      ORDER BY
-        (ignored IS FALSE AND resolved IS FALSE) DESC,
-        updated_at DESC NULLS LAST,
-        id DESC
-    ) AS row_number
-  FROM public.practice_alerts
-) ranked
-WHERE row_number > 1;
-
-UPDATE public.practice_alerts pa
-SET archived_at = COALESCE(pa.archived_at, NOW()),
-    updated_at = NOW()
-FROM _practice_alert_duplicate_ids d
-WHERE pa.id = d.id;
-
+WITH duplicate_alerts AS (
+  SELECT pa.*
+  FROM public.practice_alerts pa
+  JOIN (
+    SELECT id
+    FROM (
+      SELECT
+        id,
+        ROW_NUMBER() OVER (
+          PARTITION BY student_name, type, slot_start, slot_end, business_date
+          ORDER BY
+            (ignored IS FALSE AND resolved IS FALSE) DESC,
+            updated_at DESC NULLS LAST,
+            id DESC
+        ) AS row_number
+      FROM public.practice_alerts
+    ) ranked
+    WHERE row_number > 1
+  ) duplicates ON duplicates.id = pa.id
+)
 INSERT INTO public.practice_alerts_archive (
   id, student_name, type, slot_start, slot_end, ignored, resolved,
   created_at, updated_at, severity, business_date, resolved_at, archived_at,
@@ -130,14 +169,30 @@ INSERT INTO public.practice_alerts_archive (
 )
 SELECT
   pa.id, pa.student_name, pa.type, pa.slot_start, pa.slot_end, pa.ignored, pa.resolved,
-  pa.created_at, pa.updated_at, pa.severity, pa.business_date, pa.resolved_at, pa.archived_at,
+  pa.created_at, pa.updated_at, pa.severity, pa.business_date, pa.resolved_at,
+  COALESCE(pa.archived_at, NOW()),
   'duplicate_business_key', NOW()
-FROM public.practice_alerts pa
-JOIN _practice_alert_duplicate_ids d ON d.id = pa.id
+FROM duplicate_alerts pa
 ON CONFLICT (id) DO NOTHING;
 
+WITH duplicate_ids AS (
+  SELECT id
+  FROM (
+    SELECT
+      id,
+      ROW_NUMBER() OVER (
+        PARTITION BY student_name, type, slot_start, slot_end, business_date
+        ORDER BY
+          (ignored IS FALSE AND resolved IS FALSE) DESC,
+          updated_at DESC NULLS LAST,
+          id DESC
+      ) AS row_number
+    FROM public.practice_alerts
+  ) ranked
+  WHERE row_number > 1
+)
 DELETE FROM public.practice_alerts pa
-USING _practice_alert_duplicate_ids d
+USING duplicate_ids d
 WHERE pa.id = d.id;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_practice_alerts_business_key_active
@@ -206,6 +261,10 @@ AS $function$
 DECLARE
   v_inserted INTEGER := 0;
   v_resolved INTEGER := 0;
+  v_previous_lifecycle_write TEXT := current_setting(
+    'app.practice_alerts_lifecycle_write',
+    TRUE
+  );
 BEGIN
   IF p_business_date IS NULL THEN
     RAISE EXCEPTION '业务日期不能为空';
@@ -214,6 +273,8 @@ BEGIN
   IF p_alerts IS NULL OR jsonb_typeof(p_alerts) <> 'array' THEN
     RAISE EXCEPTION '提醒列表必须是 JSON 数组';
   END IF;
+
+  PERFORM set_config('app.practice_alerts_lifecycle_write', 'on', TRUE);
 
   PERFORM pg_advisory_xact_lock(hashtext('practice-alerts:' || p_business_date::TEXT));
 
@@ -276,6 +337,12 @@ BEGIN
     );
   GET DIAGNOSTICS v_resolved = ROW_COUNT;
 
+  PERFORM set_config(
+    'app.practice_alerts_lifecycle_write',
+    COALESCE(v_previous_lifecycle_write, ''),
+    TRUE
+  );
+
   RETURN jsonb_build_object(
     'business_date', p_business_date,
     'inserted', v_inserted,
@@ -289,3 +356,5 @@ REVOKE ALL ON FUNCTION public.create_practice_alerts_batch(JSONB) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.reconcile_practice_alerts(DATE, JSONB) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.create_practice_alerts_batch(JSONB) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.reconcile_practice_alerts(DATE, JSONB) TO anon, authenticated;
+
+COMMIT;
