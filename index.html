@@ -19590,6 +19590,20 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	// ===== 筛选/排序/多选状态 =====
 	const uiState = { search:'', grades:new Set(), majors:new Set(), statuses:new Set(), sortKey:'name', sortDir:1, selected:new Set() };
 
+	function reconcileFiltersAfterDataChange(){
+		const gradeValues = new Set();
+		const majorValues = new Set();
+		const statusValues = new Set();
+		getAll().forEach(student=>{
+			gradeValues.add(student.grade || '(未填写)');
+			majorParts(student.major).forEach(major=>majorValues.add(major));
+			statusValues.add(student.archived ? 'archived' : 'active');
+		});
+		uiState.grades.forEach(value=>{ if(!gradeValues.has(value)) uiState.grades.delete(value); });
+		uiState.majors.forEach(value=>{ if(!majorValues.has(value)) uiState.majors.delete(value); });
+		uiState.statuses.forEach(value=>{ if(!statusValues.has(value)) uiState.statuses.delete(value); });
+	}
+
 	function isInvalidGrade(g){ return !!g && !/^G(?:[1-9]|1[0-2])([-.]\d+)?$/.test(g); }
 	// 专业字段可能是双专业组合，如 "钢琴教研室/小提琴教研室"——统计和筛选都要按 "/" 拆开逐个算，
 	// 否则双专业学生只会被计入一个独立的组合桶，用单一教研室筛选/查看时会被漏掉
@@ -19749,7 +19763,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		}
 	}
 
-	function renderPanel(){ renderDropdowns(); renderInsightStrip(); renderTable(); }
+	function renderPanel(){ reconcileFiltersAfterDataChange(); renderDropdowns(); renderInsightStrip(); renderTable(); }
 
 	// 旧系统的 Store.students（顶部全局搜索框用它）是独立于 StudentLibrary 的一份缓存，
 	// 不会随本地新增/编辑/删除自动更新——这里统一在每次 refreshUI 时把它和 store.items 对齐，
