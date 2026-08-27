@@ -2926,6 +2926,7 @@
 			this.maxAge = 30 * 60 * 1000; // 🔧 降低为30分钟，减少过期缓存问题
 			this.maxStateAge = 12 * 60 * 60 * 1000; // 12小时状态有效期
 			this.cleanupInterval = 5 * 60 * 1000; // 5分钟清理一次
+			this.syncInFlight = null;
 			
 			// 启动定期清理
 			this.startPeriodicCleanup();
@@ -3032,6 +3033,16 @@
 		
 		// 🔧 增强版同步状态到云端（带服务器验证）
 		async syncStatesToCloud() {
+			if (this.syncInFlight) return this.syncInFlight;
+			this.syncInFlight = this.syncStatesToCloudInternal();
+			try {
+				return await this.syncInFlight;
+			} finally {
+				this.syncInFlight = null;
+			}
+		}
+
+		async syncStatesToCloudInternal() {
 			const occupiedRooms = Store.rooms.filter(r => {
 				// 更严格的过滤条件
 				if (!r.occupant_student_name || !r.registerTime) return false;
@@ -3453,6 +3464,7 @@
 		if (window.__studentsRealtimeReconnectTimer) clearTimeout(window.__studentsRealtimeReconnectTimer);
 		if (window.__roomMetaRealtimeReconnectTimer) clearTimeout(window.__roomMetaRealtimeReconnectTimer);
 		if (window.__studentReconnectSyncTimer) clearTimeout(window.__studentReconnectSyncTimer);
+		if (window.__visibilityResumeSyncTimer) clearTimeout(window.__visibilityResumeSyncTimer);
 		
 		// 清理realtime连接（统一编排层）
 		try {
@@ -5218,6 +5230,7 @@
 		if (window.__studentPollingInterval) return;
 		window.__studentPollingInterval = setInterval(async () => {
 			try {
+				if (document.hidden) return;
 				if (!window.supabaseReady) return;
 				// 若最近5秒已有实时事件，则跳过本次轮询，避免频繁合并
 				if (window.__studentUpdateTimestamp && (Date.now() - window.__studentUpdateTimestamp) < 5000) return;
@@ -5551,7 +5564,7 @@
 	}
 	async function fetchRoomMeta(){
 		if(!supabaseReady) return {};
-		const { data, error } = await supabaseClient.from('room_database').select('*');
+		const { data, error } = await supabaseClient.from('room_database').select('name,piano_type,location,remark');
 		if(error){ logWarn('加载 room_database 失败', error.message); return {}; }
 		
 		const map={}; 
@@ -5581,7 +5594,7 @@
 	async function fetchRoomMetaByName(name){
 		if(!supabaseReady || !name) return;
 		try{
-			const { data, error } = await supabaseClient.from('room_database').select('*').eq('name', name).limit(1);
+			const { data, error } = await supabaseClient.from('room_database').select('name,piano_type,location,remark').eq('name', name).limit(1);
 			if(error){ logWarn(`加载 room_meta(${name}) 失败`, error.message); return; }
 			const r = Array.isArray(data) ? data[0] : data;
 			if(!r) return;
@@ -5592,7 +5605,7 @@
 
 	// 🔧 强制同步 rooms 表和 room_database 表的元数据
 	// 确保两个表的 name, piano_type, location, remark 完全一致
-	async function forceSyncRoomTables(){
+	async function forceSyncRoomTablesInternal(options = {}){
 		if(!supabaseReady) {
 			logWarn('Supabase未就绪，跳过双表同步');
 			return { success: false, error: 'Supabase not ready' };
@@ -5713,6 +5726,15 @@
 				logInfo(`✅ 双表同步完成，共修复 ${fixedCount} 处不一致`);
 			}
 			
+			if (fixedCount === 0 && options.skipRefreshWhenUnchanged) {
+				return {
+					success: true,
+					fixed: 0,
+					roomsUpdated: 0,
+					metaInserted: 0
+				};
+			}
+
 			// 5. 重新加载数据
 			const [newRooms, newMeta] = await Promise.all([
 				fetchRooms(),
@@ -5734,6 +5756,17 @@
 		} catch (error) {
 			logErr('❌ 双表同步失败:', error.message);
 			return { success: false, error: error.message };
+		}
+	}
+
+	let forceSyncRoomTablesInFlight = null;
+	async function forceSyncRoomTables(options = {}){
+		if (forceSyncRoomTablesInFlight) return forceSyncRoomTablesInFlight;
+		forceSyncRoomTablesInFlight = forceSyncRoomTablesInternal(options);
+		try {
+			return await forceSyncRoomTablesInFlight;
+		} finally {
+			forceSyncRoomTablesInFlight = null;
 		}
 	}
 	
@@ -18159,7 +18192,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			// 1) 强制同步两个表（重操作，后移）
 			logInfo('[Bootstrap] 开始强制同步 rooms 和 room_database 表');
 			try {
-				const syncResult = await forceSyncRoomTables();
+				const syncResult = await forceSyncRoomTables({skipRefreshWhenUnchanged: true});
 				if (syncResult.success) {
 					if (syncResult.fixed > 0) {
 						logInfo(`[Bootstrap] 双表同步完成，修复了 ${syncResult.fixed} 处不一致`);
@@ -18185,6 +18218,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			}, 5 * 60 * 1000);
 
 			timerManager.setInterval('roomTableSync', async () => {
+				if (document.hidden) return;
 				logInfo('⏰ 定期双表同步检查...');
 				try {
 					const result = await forceSyncRoomTables();
@@ -18227,6 +18261,29 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 					await setupRealtime();
 				}
 			}, 60 * 1000);
+
+			if (!window.__backgroundSyncVisibilityBound) {
+				window.__backgroundSyncVisibilityBound = true;
+				document.addEventListener('visibilitychange', () => {
+					if (document.hidden || !supabaseReady) return;
+					if (window.__visibilityResumeSyncTimer) clearTimeout(window.__visibilityResumeSyncTimer);
+					window.__visibilityResumeSyncTimer = setTimeout(async () => {
+						window.__visibilityResumeSyncTimer = null;
+						if (document.hidden || !supabaseReady) return;
+						try {
+							if (typeof fetchStudents === 'function') {
+								const syncOptions = window.__studentLastSyncTime
+									? { incremental: true, since: window.__studentLastSyncTime }
+									: { forceFullSync: true };
+								await fetchStudents(syncOptions);
+							}
+							await forceSyncRoomTables();
+						} catch (error) {
+							logWarn('[VisibilitySync] 恢复前台同步失败:', error.message);
+						}
+					}, 250);
+				});
+			}
 		};
 		
 		rebuildIndexes(); 
