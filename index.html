@@ -181,6 +181,9 @@
 			--slw-focus:0 0 0 3px rgba(76,141,255,.35);
 		}
 		#studentLibraryPanel.slw-backdrop{ position:fixed; inset:0; z-index:3100; background:rgba(6,8,11,.72); backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; padding:26px; }
+		#studentLibraryPanel.slw-backdrop,
+		#scheduleModalBackdrop,
+		.slw-modal-backdrop{ overscroll-behavior:contain; }
 		#studentLibraryPanel .slw-panel{ width:min(1220px,100%); height:min(880px,92vh); background:var(--surface); border:1px solid var(--outline); border-radius:var(--radius-lg); box-shadow:0 24px 70px -20px rgba(0,0,0,.65); display:flex; flex-direction:column; overflow:hidden; color:var(--text); font-family:inherit; font-size:13px; font-variant-numeric:tabular-nums; }
 		#studentLibraryPanel .slw-panel-head{ display:flex; align-items:center; gap:14px; padding:18px 22px; border-bottom:1px solid var(--outline); flex-shrink:0; }
 		#studentLibraryPanel .slw-panel-head h1{ margin:0; font-size:19px; font-weight:700; letter-spacing:.3px; background:linear-gradient(90deg,#91bdff,#c3daff); -webkit-background-clip:text; background-clip:text; color:transparent; }
@@ -17186,13 +17189,37 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 	function lockBodyScroll(){
 		window.__bodyScrollLockCount = (window.__bodyScrollLockCount || 0) + 1;
 		if(window.__bodyScrollLockCount === 1){
+			const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+			window.__bodyScrollLockState = {
+				scrollY,
+				htmlOverflow: document.documentElement.style.overflow,
+				bodyOverflow: document.body.style.overflow,
+				bodyPosition: document.body.style.position,
+				bodyTop: document.body.style.top,
+				bodyWidth: document.body.style.width
+			};
+			document.documentElement.classList.add('modal-scroll-locked');
+			document.body.classList.add('modal-scroll-locked');
+			document.documentElement.style.overflow = 'hidden';
 			document.body.style.overflow = 'hidden';
+			document.body.style.position = 'fixed';
+			document.body.style.top = `-${scrollY}px`;
+			document.body.style.width = '100%';
 		}
 	}
 	function unlockBodyScroll(){
 		window.__bodyScrollLockCount = Math.max(0, (window.__bodyScrollLockCount || 0) - 1);
 		if(window.__bodyScrollLockCount === 0){
-			document.body.style.overflow = '';
+			const lockState = window.__bodyScrollLockState || {};
+			document.documentElement.classList.remove('modal-scroll-locked');
+			document.body.classList.remove('modal-scroll-locked');
+			document.documentElement.style.overflow = lockState.htmlOverflow || '';
+			document.body.style.overflow = lockState.bodyOverflow || '';
+			document.body.style.position = lockState.bodyPosition || '';
+			document.body.style.top = lockState.bodyTop || '';
+			document.body.style.width = lockState.bodyWidth || '';
+			window.__bodyScrollLockState = null;
+			window.scrollTo(0, Number(lockState.scrollY) || 0);
 		}
 	}
 
@@ -19564,7 +19591,11 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	}
 	// 修改 openPanel: 打开时尝试 hydration
 	async function openPanel(){
-		initDom(); if(!panel) return; panel.style.display='flex';
+		initDom(); if(!panel) return;
+		if(panel.style.display !== 'flex'){
+			panel.style.display='flex';
+			lockBodyScroll();
+		}
 		const showSkeleton=()=>{ if(!tbodyEl) return; tbodyEl.innerHTML=`<tr><td colspan="7"><div style=\"display:flex;flex-direction:column;gap:8px;padding:12px 0;\">${Array.from({length:5}).map(()=>'<div style=\"height:36px;border:1px solid var(--outline);border-radius:8px;position:relative;overflow:hidden;background:linear-gradient(90deg,var(--surface-alt),var(--surface),var(--surface-alt));background-size:200% 100%;animation:slwShine 1.15s infinite;\"></div>').join('')}<style>@keyframes slwShine{0%{background-position:0 0}100%{background-position:-200% 0}}</style><div style=\"font-size:12px;color:var(--slw-text-faint);padding:4px 2px;\" id=\"slwLoadingHint\">正在连接并加载学生数据...</div></div></td></tr>`; };
 		if(store.items.length===0) showSkeleton();
 		// 并发触发 hydration
@@ -19585,7 +19616,11 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		renderPanel();
 		const hint=document.getElementById('slwLoadingHint'); if(hint && store.items.length===0){ hint.textContent='暂无学生数据，可手动添加或稍后重试'; }
 	}
-	function closePanel(){ if(panel) panel.style.display='none'; }
+	function closePanel(){
+		if(!panel || panel.style.display === 'none') return;
+		panel.style.display='none';
+		unlockBodyScroll();
+	}
 
 	// ===== 筛选/排序/多选状态 =====
 	const uiState = { search:'', grades:new Set(), majors:new Set(), statuses:new Set(), sortKey:'name', sortDir:1, selected:new Set() };
