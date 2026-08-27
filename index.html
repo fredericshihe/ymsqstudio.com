@@ -17240,9 +17240,17 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		let activeCellEditor = null;
 		let saveInFlight = false;
 		let scheduleHighlightTimer = null;
+		let editorDragKey = '';
+		let editorDropTarget = null;
 
 		const removeCellEditor = () => {
 			if(activeCellEditor){ activeCellEditor.remove(); activeCellEditor = null; }
+		};
+		const clearEditorDragState = () => {
+			const wrap = document.getElementById('schedWrap');
+			if(wrap) wrap.querySelectorAll('.is-dragging,.is-drop-target').forEach(el=>el.classList.remove('is-dragging','is-drop-target'));
+			editorDragKey = '';
+			editorDropTarget = null;
 		};
 		const refreshCurrentScheduleHighlight = () => {
 			if(closed) return;
@@ -17264,6 +17272,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			if(editorDirty && !confirm('课表有未保存修改，确定关闭吗？')) return false;
 			closed = true;
 			removeCellEditor();
+			clearEditorDragState();
 			if(scheduleAbort){ scheduleAbort.abort(); scheduleAbort = null; }
 			if(scheduleHighlightTimer){ clearInterval(scheduleHighlightTimer); scheduleHighlightTimer = null; }
 			document.removeEventListener('visibilitychange', onScheduleVisibilityChange);
@@ -17389,32 +17398,45 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		const bindEditorGrid = () => {
 			const wrap = document.getElementById('schedWrap');
 			if(!wrap || !editorMode) return;
+			const getEditorCell = e => e.target instanceof Element ? e.target.closest('td[data-editor-cell]') : null;
 			wrap.ondblclick = e => {
-				const td = e.target.closest('td[data-editor-cell]');
+				const td = getEditorCell(e);
 				if(td) openCellEditor(td);
 			};
 			wrap.ondragstart = e => {
-				const td = e.target.closest('td[data-editor-cell]');
+				const td = getEditorCell(e);
 				if(!td) return;
+				clearEditorDragState();
+				editorDragKey = td.dataset.editorKey || '';
 				e.dataTransfer.effectAllowed = 'move';
-				e.dataTransfer.setData('text/plain', td.dataset.editorKey);
+				e.dataTransfer.setData('text/plain', editorDragKey);
 				td.classList.add('is-dragging');
 			};
 			wrap.ondragover = e => {
-				const td = e.target.closest('td[data-editor-cell]');
-				if(!td) return;
+				const td = getEditorCell(e);
+				if(!td || !editorDragKey) return;
 				e.preventDefault();
+				if(editorDropTarget && editorDropTarget !== td) editorDropTarget.classList.remove('is-drop-target');
+				if(editorDropTarget !== td){
+					wrap.querySelectorAll('.is-drop-target').forEach(el=>el.classList.remove('is-drop-target'));
+					editorDropTarget = td;
+				}
 				td.classList.add('is-drop-target');
 			};
-			wrap.ondragleave = e => { const td=e.target.closest('td[data-editor-cell]'); if(td) td.classList.remove('is-drop-target'); };
+			wrap.ondragleave = e => {
+				const td = getEditorCell(e);
+				if(!td || (e.relatedTarget instanceof Node && td.contains(e.relatedTarget))) return;
+				td.classList.remove('is-drop-target');
+				if(editorDropTarget === td) editorDropTarget = null;
+			};
 			wrap.ondrop = e => {
 				e.preventDefault();
-				const td = e.target.closest('td[data-editor-cell]');
-				const from = e.dataTransfer.getData('text/plain');
-				if(td) td.classList.remove('is-drop-target');
+				const td = getEditorCell(e);
+				const from = editorDragKey || e.dataTransfer.getData('text/plain');
+				clearEditorDragState();
 				if(td && from) swapEditorCells(from, td.dataset.editorKey);
 			};
-			wrap.ondragend = () => { wrap.querySelectorAll('.is-dragging,.is-drop-target').forEach(el=>el.classList.remove('is-dragging','is-drop-target')); };
+			wrap.ondragend = clearEditorDragState;
 		};
 		const renderEditorGrid = () => {
 			const wrap = document.getElementById('schedWrap');
@@ -17436,6 +17458,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		const leaveEditor = (force=false) => {
 			if(!force && editorDirty && !confirm('课表有未保存修改，确定取消吗？')) return;
 			removeCellEditor();
+			clearEditorDragState();
 			editorMode = false;
 			editorDirty = false;
 			editorModel = null;
