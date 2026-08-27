@@ -854,7 +854,72 @@
 		font-weight:600;font-size:11px;white-space:nowrap;width:88px;
 	}
 
-	/* 单元格与课表导入工具共用同一分类色板 */
+	/* 管理端课表使用与系统一致的深色层级，分类仅保留低饱和度区分 */
+	#scheduleModalBackdrop .sched-table{background:#172131;border:1px solid #334155;}
+	#scheduleModalBackdrop .sched-table th{
+		background:#202d3d;color:#d8e4f3;border-color:#334155;
+	}
+	#scheduleModalBackdrop .sched-table th.s-time-head{
+		background:#263a5d;color:#a9c8ff;border-color:#3b506f;
+	}
+	#scheduleModalBackdrop .sched-table td{
+		background:#1a2635;color:#d8e4f3;border-color:#334155;
+	}
+	#scheduleModalBackdrop .sched-table td.s-time{
+		background:#152131;color:#9db0c8;border-color:#334155;
+	}
+	#scheduleModalBackdrop .sched-table td.sc-content{
+		background:#223044!important;color:#d8e4f3!important;
+	}
+	#scheduleModalBackdrop .sched-table td.sc-kind-course,
+	#scheduleModalBackdrop .sched-table td.sc-kind-academic{
+		background:#26364b!important;color:#dbeafe!important;
+	}
+	#scheduleModalBackdrop .sched-table td.sc-kind-general{
+		background:#48362c!important;color:#f5c9aa!important;
+	}
+	#scheduleModalBackdrop .sched-table td.sc-kind-practice{
+		background:#1c3a30!important;color:#a7f3d0!important;
+	}
+	#scheduleModalBackdrop .sched-table td.sc-kind-major{
+		background:#332b4c!important;color:#dfd2ff!important;
+	}
+	#scheduleModalBackdrop .sched-table td.sc-kind-secondaryMajor{
+		background:#203b55!important;color:#c2e3ff!important;
+	}
+	#scheduleModalBackdrop .sched-table td.sc-kind-elective{
+		background:#493a20!important;color:#ffe2a3!important;
+	}
+	#scheduleModalBackdrop .sched-table td.sc-kind-musicianship{
+		background:#1f403d!important;color:#b6f2ea!important;
+	}
+	#scheduleModalBackdrop .sched-table td.sc-kind-musicStudies{
+		background:#27414b!important;color:#b9e6ef!important;
+	}
+	#scheduleModalBackdrop .sched-table td.sc-kind-ensemble{
+		background:#482b3f!important;color:#f6c8df!important;
+	}
+	#scheduleModalBackdrop .sched-table td.sc-kind-performance{
+		background:#4a3227!important;color:#ffd0b1!important;
+	}
+	#scheduleModalBackdrop .sched-table td.sc-kind-assembly{
+		background:#303846!important;color:#d6dbe5!important;
+	}
+	#scheduleModalBackdrop .sched-table td.sc-kind-selfStudy{
+		background:#34314a!important;color:#ddd8ff!important;
+	}
+	#scheduleModalBackdrop .sched-table td.sc-kind-rest,
+	#scheduleModalBackdrop .sched-table tr.sc-rest-row td:not(.sc-content):not(.s-time){
+		background:#1a2635!important;color:#aab8c9!important;
+	}
+	#scheduleModalBackdrop .sched-table tr.sc-rest-row td.s-time{
+		background:#152131!important;color:#9db0c8!important;
+	}
+	#scheduleModalBackdrop .sched-table tbody td:not(.s-time):hover{
+		background:#26364a;
+	}
+
+	/* 单元格分类标记由共享模块提供，导入工具仍保留浅色主题 */
 	.sched-table td.sc-content{background:var(--sched-fill,#fff)!important;color:var(--sched-text,#17233d)!important;font-weight:600;}
 	.sched-table tr.sc-rest-row td{background:#fff!important;color:#667085!important;font-weight:500;}
 	/* 当前正在进行的课程高亮 */
@@ -863,6 +928,7 @@
 		z-index:10;
 		box-shadow:inset 0 0 0 2px #22c55e, 0 0 12px rgba(34,197,94,.4);
 		animation:pulse-current 2s infinite;
+		transition:box-shadow .25s ease,background-color .25s ease;
 	}
 	@keyframes pulse-current {
 		0% { box-shadow:inset 0 0 0 2px #22c55e, 0 0 8px rgba(34,197,94,.3); }
@@ -17135,7 +17201,11 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 
 		// 移除已有弹窗
 		const old = document.getElementById('scheduleModalBackdrop');
-		if (old) old.remove();
+		if (old) {
+			if (typeof old.__closeScheduleModal === 'function') {
+				if (old.__closeScheduleModal() === false) return;
+			} else old.remove();
+		}
 
 		// 创建弹窗骨架
 		const backdrop = document.createElement('div');
@@ -17169,22 +17239,42 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		let editorHistoryIndex = -1;
 		let activeCellEditor = null;
 		let saveInFlight = false;
+		let scheduleHighlightTimer = null;
 
 		const removeCellEditor = () => {
 			if(activeCellEditor){ activeCellEditor.remove(); activeCellEditor = null; }
 		};
+		const refreshCurrentScheduleHighlight = () => {
+			if(closed) return;
+			const wrap = backdrop.querySelector('#schedWrap');
+			if(!wrap) return;
+			const now = new Date();
+			wrap.querySelectorAll('td[data-schedule-time][data-schedule-day]').forEach(td=>{
+				const active = isCurrentSlot(td.dataset.scheduleTime, Number(td.dataset.scheduleDay), now);
+				td.classList.toggle('sc-current', active);
+			});
+		};
+		const onScheduleVisibilityChange = () => {
+			if(document.visibilityState !== 'hidden') refreshCurrentScheduleHighlight();
+		};
 		const escHandler = (e) => { if (e.key === 'Escape') { closeModal(); } };
 
 		const closeModal = () => {
-			if(closed) return;
-			if(editorDirty && !confirm('课表有未保存修改，确定关闭吗？')) return;
+			if(closed) return true;
+			if(editorDirty && !confirm('课表有未保存修改，确定关闭吗？')) return false;
 			closed = true;
 			removeCellEditor();
 			if(scheduleAbort){ scheduleAbort.abort(); scheduleAbort = null; }
+			if(scheduleHighlightTimer){ clearInterval(scheduleHighlightTimer); scheduleHighlightTimer = null; }
+			document.removeEventListener('visibilitychange', onScheduleVisibilityChange);
 			document.removeEventListener('keydown', escHandler);
 			unlockBodyScroll();
 			backdrop.remove();
+			return true;
 		};
+		backdrop.__closeScheduleModal = closeModal;
+		scheduleHighlightTimer = setInterval(refreshCurrentScheduleHighlight, 15000);
+		document.addEventListener('visibilitychange', onScheduleVisibilityChange);
 		backdrop.querySelector('#scheduleModalClose').onclick = closeModal;
 		backdrop.onclick = (e) => { if (e.target === backdrop) closeModal(); };
 		document.addEventListener('keydown', escHandler);
@@ -17543,8 +17633,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 	}
 
 	// 判断当前时间是否在某个时间段内
-	function isCurrentSlot(slotStr, dayIndex) {
-		const now = new Date();
+	function isCurrentSlot(slotStr, dayIndex, now = new Date()) {
 		// 获取当前星期 (0=周日, 1=周一... 6=周六)
 		const currentDay = now.getDay();
 		// 转换到课表列索引 (0=周一, 1=周二... 4=周五, 5=周六, 6=周日)
@@ -17625,6 +17714,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			for (let di = 0; di < dayCount; di++) {
 				const entry = row.get(di);
 				const cell = entry?.cell;
+				const scheduleTimeAttrs = ` data-schedule-time="${escapeHtml(timeLabel)}" data-schedule-day="${di}"`;
 				const editorAttrs = options.editable
 					? ` data-editor-cell="1" data-editor-key="${escapeHtml(timeLabel + '|' + di)}" draggable="true"`
 					: '';
@@ -17637,9 +17727,9 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 				if (!cell) {
 					if (fallback) {
 						const visual = SCHED_CLASSIFICATION.visualForCell({text:fallback,kind:'rest',rest:true});
-						html += `<td class="sc-content sc-kind-rest${currentClass}" data-schedule-kind="rest" style="--sched-fill:${visual.fill};--sched-text:${visual.text}"${editorAttrs}>${escapeHtml(fallback)}</td>`;
+						html += `<td class="sc-content sc-kind-rest${currentClass}" data-schedule-kind="rest" style="--sched-fill:${visual.fill};--sched-text:${visual.text}"${scheduleTimeAttrs}${editorAttrs}>${escapeHtml(fallback)}</td>`;
 					} else {
-						html += `<td class="${currentClass}"${editorAttrs}></td>`;
+						html += `<td class="${currentClass}"${scheduleTimeAttrs}${editorAttrs}></td>`;
 					}
 					continue;
 				}
@@ -17651,7 +17741,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 				const visualAttrs = visual.kind === 'empty'
 					? ''
 					: ` data-schedule-kind="${visual.kind}" style="--sched-fill:${visual.fill};--sched-text:${visual.text}"`;
-				html += `<td class="${contentClass}${currentClass}"${visualAttrs}${editorAttrs}>${escapeHtml(displayText)}</td>`;
+				html += `<td class="${contentClass}${currentClass}"${visualAttrs}${scheduleTimeAttrs}${editorAttrs}>${escapeHtml(displayText)}</td>`;
 			}
 
 			html += '</tr>';
