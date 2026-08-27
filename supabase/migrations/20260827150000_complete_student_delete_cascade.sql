@@ -18,45 +18,32 @@ BEGIN
   UPDATE public.rooms
   SET occupant_student_name = NULL,
       register_time = NULL
-  WHERE occupant_student_name IN (v_name, v_canonical_name)
-     OR public.canonical_student_name(occupant_student_name) = v_canonical_name;
+  WHERE occupant_student_name IN (v_name, v_canonical_name);
 
   DELETE FROM public.practice_alerts
-  WHERE student_name = v_name
-     OR public.canonical_student_name(student_name) = v_canonical_name;
+  WHERE student_name IN (v_name, v_canonical_name);
   DELETE FROM public.practice_logs
-  WHERE student_name = v_name
-     OR public.canonical_student_name(student_name) = v_canonical_name;
+  WHERE student_name IN (v_name, v_canonical_name);
   DELETE FROM public.practice_sessions
-  WHERE student_name = v_name
-     OR public.canonical_student_name(student_name) = v_canonical_name;
+  WHERE student_name IN (v_name, v_canonical_name);
   DELETE FROM public.student_time_slots
-  WHERE student_name = v_name
-     OR public.canonical_student_name(student_name) = v_canonical_name;
+  WHERE student_name IN (v_name, v_canonical_name);
   DELETE FROM public.student_schedules
-  WHERE name = v_name
-     OR public.canonical_student_name(name) = v_canonical_name;
+  WHERE name IN (v_name, v_canonical_name);
   DELETE FROM public.student_time_slots_backup
-  WHERE student_name = v_name
-     OR public.canonical_student_name(student_name) = v_canonical_name;
+  WHERE student_name IN (v_name, v_canonical_name);
   DELETE FROM public.student_score_history
-  WHERE student_name = v_name
-     OR public.canonical_student_name(student_name) = v_canonical_name;
+  WHERE student_name IN (v_name, v_canonical_name);
   DELETE FROM public.student_baseline
-  WHERE student_name = v_name
-     OR public.canonical_student_name(student_name) = v_canonical_name;
+  WHERE student_name IN (v_name, v_canonical_name);
   DELETE FROM public.student_coins
-  WHERE student_name = v_name
-     OR public.canonical_student_name(student_name) = v_canonical_name;
+  WHERE student_name IN (v_name, v_canonical_name);
   DELETE FROM public.coin_transactions
-  WHERE student_name = v_name
-     OR public.canonical_student_name(student_name) = v_canonical_name;
+  WHERE student_name IN (v_name, v_canonical_name);
   DELETE FROM public.weekly_coin_reward_detail
-  WHERE student_name = v_name
-     OR public.canonical_student_name(student_name) = v_canonical_name;
+  WHERE student_name IN (v_name, v_canonical_name);
   DELETE FROM public.weekly_leaderboard_history
-  WHERE student_name = v_name
-     OR public.canonical_student_name(student_name) = v_canonical_name;
+  WHERE student_name IN (v_name, v_canonical_name);
 
   PERFORM set_config('app.skip_score_trigger', 'off', true);
   RETURN OLD;
