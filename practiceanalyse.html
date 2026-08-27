@@ -1126,10 +1126,10 @@ function coinReward(board, rankNo){
   const r = Number(rankNo);
   if(!Number.isFinite(r) || r<=0) return 0;
   if(board==='综合榜'){
-    if(r===1) return 100;
-    if(r>=2 && r<=3) return 80;
-    if(r>=4 && r<=6) return 60;
-    if(r>=7 && r<=10) return 40;
+    if(r===1) return 80;
+    if(r>=2 && r<=3) return 64;
+    if(r>=4 && r<=6) return 48;
+    if(r>=7 && r<=10) return 32;
     return 0;
   }
   if(board==='稳定榜'){

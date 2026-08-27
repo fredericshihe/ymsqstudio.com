@@ -6,6 +6,7 @@
 -- 1) 按当前 get_weekly_leaderboards() 规则重算“应发”金额
 -- 2) 对比 weekly_coin_reward_detail / weekly_coin_reward_log 实际落库结果
 -- 3) 校验 weekly_coin_reward_detail 与 coin_transactions(auto_reward) 一致性
+-- 当前奖励（2026-08-27 起）：综合榜 80/64/48/32；稳定榜 12/9/5；守则榜 11/8/5；进步榜 10/6/4
 -- ============================================================
 
 -- A) 当前周“应发”预览（尚未结算时用于预检查）
@@ -19,19 +20,19 @@ expected AS (
     r.rank_no,
     r.student_name,
     CASE
-      WHEN r.board = '综合榜' AND r.rank_no = 1 THEN 100
-      WHEN r.board = '综合榜' AND r.rank_no BETWEEN 2 AND 3 THEN 80
-      WHEN r.board = '综合榜' AND r.rank_no BETWEEN 4 AND 6 THEN 60
-      WHEN r.board = '综合榜' AND r.rank_no BETWEEN 7 AND 10 THEN 40
-      WHEN r.board = '稳定榜' AND r.rank_no = 1 THEN 50
-      WHEN r.board = '稳定榜' AND r.rank_no BETWEEN 2 AND 3 THEN 35
-      WHEN r.board = '稳定榜' AND r.rank_no BETWEEN 4 AND 6 THEN 20
-      WHEN r.board = '守则榜' AND r.rank_no = 1 THEN 45
-      WHEN r.board = '守则榜' AND r.rank_no BETWEEN 2 AND 3 THEN 30
-      WHEN r.board = '守则榜' AND r.rank_no BETWEEN 4 AND 6 THEN 18
-      WHEN r.board = '进步榜' AND r.rank_no = 1 THEN 40
-      WHEN r.board = '进步榜' AND r.rank_no BETWEEN 2 AND 3 THEN 25
-      WHEN r.board = '进步榜' AND r.rank_no BETWEEN 4 AND 6 THEN 15
+      WHEN r.board = '综合榜' AND r.rank_no = 1 THEN 80
+      WHEN r.board = '综合榜' AND r.rank_no BETWEEN 2 AND 3 THEN 64
+      WHEN r.board = '综合榜' AND r.rank_no BETWEEN 4 AND 6 THEN 48
+      WHEN r.board = '综合榜' AND r.rank_no BETWEEN 7 AND 10 THEN 32
+      WHEN r.board = '稳定榜' AND r.rank_no = 1 THEN 12
+      WHEN r.board = '稳定榜' AND r.rank_no BETWEEN 2 AND 3 THEN 9
+      WHEN r.board = '稳定榜' AND r.rank_no BETWEEN 4 AND 6 THEN 5
+      WHEN r.board = '守则榜' AND r.rank_no = 1 THEN 11
+      WHEN r.board = '守则榜' AND r.rank_no BETWEEN 2 AND 3 THEN 8
+      WHEN r.board = '守则榜' AND r.rank_no BETWEEN 4 AND 6 THEN 5
+      WHEN r.board = '进步榜' AND r.rank_no = 1 THEN 10
+      WHEN r.board = '进步榜' AND r.rank_no BETWEEN 2 AND 3 THEN 6
+      WHEN r.board = '进步榜' AND r.rank_no BETWEEN 4 AND 6 THEN 4
       ELSE 0
     END AS expected_amount
   FROM week_monday wm
@@ -56,19 +57,19 @@ WITH week_monday AS (
 expected AS (
   SELECT
     CASE
-      WHEN r.board = '综合榜' AND r.rank_no = 1 THEN 100
-      WHEN r.board = '综合榜' AND r.rank_no BETWEEN 2 AND 3 THEN 80
-      WHEN r.board = '综合榜' AND r.rank_no BETWEEN 4 AND 6 THEN 60
-      WHEN r.board = '综合榜' AND r.rank_no BETWEEN 7 AND 10 THEN 40
-      WHEN r.board = '稳定榜' AND r.rank_no = 1 THEN 50
-      WHEN r.board = '稳定榜' AND r.rank_no BETWEEN 2 AND 3 THEN 35
-      WHEN r.board = '稳定榜' AND r.rank_no BETWEEN 4 AND 6 THEN 20
-      WHEN r.board = '守则榜' AND r.rank_no = 1 THEN 45
-      WHEN r.board = '守则榜' AND r.rank_no BETWEEN 2 AND 3 THEN 30
-      WHEN r.board = '守则榜' AND r.rank_no BETWEEN 4 AND 6 THEN 18
-      WHEN r.board = '进步榜' AND r.rank_no = 1 THEN 40
-      WHEN r.board = '进步榜' AND r.rank_no BETWEEN 2 AND 3 THEN 25
-      WHEN r.board = '进步榜' AND r.rank_no BETWEEN 4 AND 6 THEN 15
+      WHEN r.board = '综合榜' AND r.rank_no = 1 THEN 80
+      WHEN r.board = '综合榜' AND r.rank_no BETWEEN 2 AND 3 THEN 64
+      WHEN r.board = '综合榜' AND r.rank_no BETWEEN 4 AND 6 THEN 48
+      WHEN r.board = '综合榜' AND r.rank_no BETWEEN 7 AND 10 THEN 32
+      WHEN r.board = '稳定榜' AND r.rank_no = 1 THEN 12
+      WHEN r.board = '稳定榜' AND r.rank_no BETWEEN 2 AND 3 THEN 9
+      WHEN r.board = '稳定榜' AND r.rank_no BETWEEN 4 AND 6 THEN 5
+      WHEN r.board = '守则榜' AND r.rank_no = 1 THEN 11
+      WHEN r.board = '守则榜' AND r.rank_no BETWEEN 2 AND 3 THEN 8
+      WHEN r.board = '守则榜' AND r.rank_no BETWEEN 4 AND 6 THEN 5
+      WHEN r.board = '进步榜' AND r.rank_no = 1 THEN 10
+      WHEN r.board = '进步榜' AND r.rank_no BETWEEN 2 AND 3 THEN 6
+      WHEN r.board = '进步榜' AND r.rank_no BETWEEN 4 AND 6 THEN 4
       ELSE 0
     END AS expected_amount
   FROM week_monday wm
@@ -90,19 +91,19 @@ expected AS (
     r.rank_no,
     r.student_name,
     CASE
-      WHEN r.board = '综合榜' AND r.rank_no = 1 THEN 100
-      WHEN r.board = '综合榜' AND r.rank_no BETWEEN 2 AND 3 THEN 80
-      WHEN r.board = '综合榜' AND r.rank_no BETWEEN 4 AND 6 THEN 60
-      WHEN r.board = '综合榜' AND r.rank_no BETWEEN 7 AND 10 THEN 40
-      WHEN r.board = '稳定榜' AND r.rank_no = 1 THEN 50
-      WHEN r.board = '稳定榜' AND r.rank_no BETWEEN 2 AND 3 THEN 35
-      WHEN r.board = '稳定榜' AND r.rank_no BETWEEN 4 AND 6 THEN 20
-      WHEN r.board = '守则榜' AND r.rank_no = 1 THEN 45
-      WHEN r.board = '守则榜' AND r.rank_no BETWEEN 2 AND 3 THEN 30
-      WHEN r.board = '守则榜' AND r.rank_no BETWEEN 4 AND 6 THEN 18
-      WHEN r.board = '进步榜' AND r.rank_no = 1 THEN 40
-      WHEN r.board = '进步榜' AND r.rank_no BETWEEN 2 AND 3 THEN 25
-      WHEN r.board = '进步榜' AND r.rank_no BETWEEN 4 AND 6 THEN 15
+      WHEN r.board = '综合榜' AND r.rank_no = 1 THEN 80
+      WHEN r.board = '综合榜' AND r.rank_no BETWEEN 2 AND 3 THEN 64
+      WHEN r.board = '综合榜' AND r.rank_no BETWEEN 4 AND 6 THEN 48
+      WHEN r.board = '综合榜' AND r.rank_no BETWEEN 7 AND 10 THEN 32
+      WHEN r.board = '稳定榜' AND r.rank_no = 1 THEN 12
+      WHEN r.board = '稳定榜' AND r.rank_no BETWEEN 2 AND 3 THEN 9
+      WHEN r.board = '稳定榜' AND r.rank_no BETWEEN 4 AND 6 THEN 5
+      WHEN r.board = '守则榜' AND r.rank_no = 1 THEN 11
+      WHEN r.board = '守则榜' AND r.rank_no BETWEEN 2 AND 3 THEN 8
+      WHEN r.board = '守则榜' AND r.rank_no BETWEEN 4 AND 6 THEN 5
+      WHEN r.board = '进步榜' AND r.rank_no = 1 THEN 10
+      WHEN r.board = '进步榜' AND r.rank_no BETWEEN 2 AND 3 THEN 6
+      WHEN r.board = '进步榜' AND r.rank_no BETWEEN 4 AND 6 THEN 4
       ELSE 0
     END AS expected_amount
   FROM week_monday wm
@@ -216,4 +217,3 @@ FULL OUTER JOIN tx_rows t
  AND d.amount = t.amount
  AND d.reason = t.reason
 ORDER BY student_name;
-
