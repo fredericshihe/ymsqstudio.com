@@ -557,12 +557,12 @@ table#schedule{border-collapse:separate;border-spacing:0;min-width:1100px;width:
 .student-library-table tr[aria-current="true"] td{background:#f2f4ff;}
 .student-library-table tr[aria-current="true"] td:first-child{box-shadow:inset 3px 0 0 var(--primary-color);}
 .student-library-table th:nth-child(1),.student-library-table td:nth-child(1){width:4%;font-weight:800;}
-.student-library-table th:nth-child(2),.student-library-table td:nth-child(2){width:18%;font-weight:800;}
-.student-library-table th:nth-child(3),.student-library-table td:nth-child(3){width:10%;}
-.student-library-table th:nth-child(4),.student-library-table td:nth-child(4){width:20%;}
-.student-library-table th:nth-child(5),.student-library-table td:nth-child(5){width:11%;}
-.student-library-table th:nth-child(6),.student-library-table td:nth-child(6){width:13%;color:var(--text-secondary);font-size:.82rem;}
-.student-library-table th:nth-child(7),.student-library-table td:nth-child(7){width:24%;}
+.student-library-table th:nth-child(2),.student-library-table td:nth-child(2){width:17%;font-weight:800;}
+.student-library-table th:nth-child(3),.student-library-table td:nth-child(3){width:9%;}
+.student-library-table th:nth-child(4),.student-library-table td:nth-child(4){width:16%;}
+.student-library-table th:nth-child(5),.student-library-table td:nth-child(5){width:9%;}
+.student-library-table th:nth-child(6),.student-library-table td:nth-child(6){width:11%;color:var(--text-secondary);font-size:.82rem;}
+.student-library-table th:nth-child(7),.student-library-table td:nth-child(7){width:34%;padding-left:12px;padding-right:12px;}
 .student-library-check-col,.student-library-check-cell{text-align:center!important;}
 .student-library-check-col input,.student-library-check-cell input{width:18px;height:18px;margin:0;accent-color:var(--primary-color);vertical-align:middle;}
 .library-student-name{display:flex;align-items:center;gap:10px;min-width:0;}
@@ -571,10 +571,8 @@ table#schedule{border-collapse:separate;border-spacing:0;min-width:1100px;width:
 .library-pill{display:inline-flex;align-items:center;max-width:100%;padding:5px 11px;border:1px solid #dce3ef;border-radius:999px;background:#f6f8fb;color:#5a6880;font-size:.78rem;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .library-pill-status-active{border-color:#c9eadb;background:#eaf8f1;color:#23765d;}
 .library-pill-status-archived{border-color:#e1e5ec;background:#f1f3f6;color:#7a8495;}
-.library-row-actions{display:flex;align-items:center;gap:9px;flex-wrap:nowrap;width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;padding-bottom:2px;scrollbar-width:thin;}
-.library-row-actions button{min-height:38px;flex:0 0 auto;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:#f7f9fc;color:var(--text-secondary);font-size:.82rem;font-weight:800;cursor:pointer;white-space:nowrap;}
-.library-row-actions::-webkit-scrollbar{height:5px;}
-.library-row-actions::-webkit-scrollbar-thumb{border-radius:5px;background:#cbd4e4;}
+.library-row-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:stretch;gap:6px;width:100%;max-width:100%;}
+.library-row-actions button{width:100%;min-width:0;min-height:36px;padding:0 6px;border:1px solid var(--border);border-radius:8px;background:#f7f9fc;color:var(--text-secondary);font-size:.76rem;font-weight:800;cursor:pointer;white-space:nowrap;}
 .library-row-actions button:hover{position:relative;z-index:1;border-color:#acb9d1;background:#eef1ff;color:var(--primary-color);transform:none;box-shadow:none;}
 .library-row-actions button.library-row-danger:hover{border-color:#e3b1b5;background:#fff0f1;color:#b33e49;}
 .student-library-empty{padding:52px 20px!important;color:var(--text-secondary)!important;text-align:center;}
@@ -782,6 +780,9 @@ body.schedule-auth-locked{overflow:hidden;}
   .library-filter{min-width:0;}
   .library-clear-button{align-self:flex-start;}
   .student-library-table{min-width:680px;}
+  .student-library-table th:nth-child(7),.student-library-table td:nth-child(7){padding-left:10px;padding-right:10px;}
+  .library-row-actions{gap:5px;}
+  .library-row-actions button{padding:0 5px;font-size:.74rem;}
   .library-schedule-modal{padding:8px;}
   .library-schedule-dialog{max-height:calc(100vh - 16px);border-radius:15px;}
   .library-schedule-dialog-header{padding:17px 17px 14px;gap:10px;}
