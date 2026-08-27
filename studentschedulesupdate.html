@@ -525,13 +525,26 @@ table#schedule{border-collapse:separate;border-spacing:0;min-width:1100px;width:
 .library-button-primary:hover{border-color:var(--primary-hover);background:var(--primary-hover);}
 .library-button-ghost{background:#f7f9fc;}
 .library-button:focus-visible,.library-row-actions button:focus-visible,.library-schedule-close:focus-visible,.library-clear-button:focus-visible{outline:3px solid rgba(82,102,216,.25);outline-offset:2px;}
-.student-library-filters{display:flex;align-items:flex-end;column-gap:16px;row-gap:14px;flex-wrap:wrap;margin-bottom:16px;padding:18px 22px;border:1px solid var(--border);border-radius:14px;background:#f7f9fc;}
+.student-library-filters{display:grid;grid-template-columns:minmax(260px,1.6fr) repeat(3,minmax(150px,1fr)) auto;align-items:end;column-gap:24px;row-gap:16px;margin-bottom:16px;padding:20px 24px;border:1px solid var(--border);border-radius:14px;background:#f7f9fc;overflow:visible;}
 .student-library-filters label{display:grid;gap:8px;color:var(--text-secondary);font-size:.82rem;font-weight:800;}
-.library-filter-search{flex:1 1 320px;min-width:260px;}
-.library-filter{flex:0 1 170px;min-width:145px;}
+.library-filter-search,.library-filter{min-width:0;}
 .student-library-filters input,.student-library-filters select{width:100%;height:44px;padding:0 13px;border:1px solid var(--border-strong);border-radius:10px;background:#fff;color:var(--text-primary);font:inherit;font-size:.92rem;outline:none;}
-.student-library-filters input:focus,.student-library-filters select:focus{border-color:var(--primary-color);box-shadow:0 0 0 3px rgba(82,102,216,.12);}
+.student-library-filters input:focus,.student-library-filters select:focus{position:relative;z-index:2;border-color:var(--primary-color);outline:3px solid rgba(82,102,216,.12);outline-offset:0;box-shadow:none;}
 .library-clear-button{height:44px;padding:0 12px;border:0;background:transparent;color:var(--primary-color);font-size:.82rem;font-weight:800;cursor:pointer;}
+.student-library-batch-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:-2px 0 14px;padding:12px 16px;border:1px solid #d5ddf5;border-radius:12px;background:#f2f4ff;color:var(--text-primary);font-size:.84rem;font-weight:750;}
+.student-library-batch-bar[hidden]{display:none!important;}
+.student-library-batch-actions{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;}
+.student-library-batch-actions .library-button{min-height:38px;font-size:.82rem;}
+.library-button-danger{border-color:#e3b1b5;background:#fff0f1;color:#b33e49;}
+.library-button-danger:hover{border-color:#cc7f87;background:#ffe4e6;color:#9d2835;}
+.library-delete-dialog{width:min(680px,94vw);}
+.library-delete-dialog h3{color:#9d2835;}
+.library-delete-danger-box{margin:14px 0 16px;padding:12px 14px;border:1px solid #efc3c7;border-radius:10px;background:#fff4f4;color:#9d2835;font-size:.78rem;font-weight:700;line-height:1.55;}
+.library-delete-list{max-height:180px;margin:0 0 18px;padding:10px 13px;border:1px solid #e6eaf2;border-radius:10px;background:#f8f9fc;color:var(--text-primary);font-size:.83rem;line-height:1.65;overflow:auto;}
+.library-delete-list:empty{display:none;}
+.library-delete-list span{display:inline;white-space:nowrap;}
+.library-delete-list span+span::before{content:'、';color:#9aa5b9;}
+.library-delete-dialog .library-dialog-message{min-height:20px;}
 .student-library-summary{margin:0 4px 14px;color:var(--text-secondary);font-size:.86rem;line-height:1.5;}
 .student-library-layout{display:block;}
 .student-library-table-card,.student-library-preview{min-width:0;border:1px solid var(--border);border-radius:16px;background:#fff;}
@@ -543,12 +556,15 @@ table#schedule{border-collapse:separate;border-spacing:0;min-width:1100px;width:
 .student-library-table tr:hover td{background:#fbfcff;}
 .student-library-table tr[aria-current="true"] td{background:#f2f4ff;}
 .student-library-table tr[aria-current="true"] td:first-child{box-shadow:inset 3px 0 0 var(--primary-color);}
-.student-library-table th:nth-child(1),.student-library-table td:nth-child(1){width:19%;font-weight:800;}
-.student-library-table th:nth-child(2),.student-library-table td:nth-child(2){width:11%;}
-.student-library-table th:nth-child(3),.student-library-table td:nth-child(3){width:22%;}
-.student-library-table th:nth-child(4),.student-library-table td:nth-child(4){width:12%;}
-.student-library-table th:nth-child(5),.student-library-table td:nth-child(5){width:14%;color:var(--text-secondary);font-size:.82rem;}
-.student-library-table th:nth-child(6),.student-library-table td:nth-child(6){width:22%;}
+.student-library-table th:nth-child(1),.student-library-table td:nth-child(1){width:4%;font-weight:800;}
+.student-library-table th:nth-child(2),.student-library-table td:nth-child(2){width:18%;font-weight:800;}
+.student-library-table th:nth-child(3),.student-library-table td:nth-child(3){width:10%;}
+.student-library-table th:nth-child(4),.student-library-table td:nth-child(4){width:20%;}
+.student-library-table th:nth-child(5),.student-library-table td:nth-child(5){width:11%;}
+.student-library-table th:nth-child(6),.student-library-table td:nth-child(6){width:13%;color:var(--text-secondary);font-size:.82rem;}
+.student-library-table th:nth-child(7),.student-library-table td:nth-child(7){width:24%;}
+.student-library-check-col,.student-library-check-cell{text-align:center!important;}
+.student-library-check-col input,.student-library-check-cell input{width:18px;height:18px;margin:0;accent-color:var(--primary-color);vertical-align:middle;}
 .library-student-name{display:flex;align-items:center;gap:10px;min-width:0;}
 .library-avatar{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;flex:0 0 34px;border:1px solid #d9e0ef;border-radius:10px;background:#eef1ff;color:var(--primary-color);font-size:.84rem;font-weight:850;}
 .library-name-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -559,7 +575,7 @@ table#schedule{border-collapse:separate;border-spacing:0;min-width:1100px;width:
 .library-row-actions button{min-height:38px;flex:0 0 auto;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:#f7f9fc;color:var(--text-secondary);font-size:.82rem;font-weight:800;cursor:pointer;white-space:nowrap;}
 .library-row-actions::-webkit-scrollbar{height:5px;}
 .library-row-actions::-webkit-scrollbar-thumb{border-radius:5px;background:#cbd4e4;}
-.library-row-actions button:hover{border-color:#acb9d1;background:#eef1ff;color:var(--primary-color);}
+.library-row-actions button:hover{position:relative;z-index:1;border-color:#acb9d1;background:#eef1ff;color:var(--primary-color);transform:none;box-shadow:none;}
 .library-row-actions button.library-row-danger:hover{border-color:#e3b1b5;background:#fff0f1;color:#b33e49;}
 .student-library-empty{padding:52px 20px!important;color:var(--text-secondary)!important;text-align:center;}
 .student-library-preview{min-height:360px;padding:20px;position:sticky;top:14px;}
@@ -705,6 +721,8 @@ body.schedule-auth-locked{overflow:hidden;}
   .student-create-button{width:100%;}
   .operations-content{grid-template-columns:minmax(0,1fr);gap:10px;}
   .operation-divider{width:100%;height:1px;}
+  .student-library-filters{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:20px;}
+  .library-filter-search{grid-column:1 / -1;}
   .student-info{grid-template-columns:repeat(4,minmax(0,1fr));}
 }
 @media(max-width:680px){
@@ -759,8 +777,9 @@ body.schedule-auth-locked{overflow:hidden;}
   .student-form{padding:20px;}
   .student-library-heading{display:grid;align-items:start;padding:18px;}
   .student-library-heading-actions{justify-content:flex-start;}
-  .student-library-filters{align-items:stretch;}
-  .library-filter-search,.library-filter{min-width:100%;}
+  .student-library-filters{grid-template-columns:1fr;align-items:stretch;row-gap:14px;}
+  .library-filter-search{grid-column:auto;}
+  .library-filter{min-width:0;}
   .library-clear-button{align-self:flex-start;}
   .student-library-table{min-width:680px;}
   .library-schedule-modal{padding:8px;}
@@ -994,13 +1013,21 @@ body.schedule-auth-locked{overflow:hidden;}
           <button type="button" id="studentLibraryClear" class="library-clear-button" hidden>清除筛选</button>
         </div>
 
+        <div id="studentLibraryBatchBar" class="student-library-batch-bar" hidden>
+          <span id="studentLibrarySelectionSummary">已选择 0 名学生</span>
+          <div class="student-library-batch-actions">
+            <button type="button" id="studentLibraryBatchDelete" class="library-button library-button-danger">批量删除</button>
+            <button type="button" id="studentLibraryBatchClear" class="library-button library-button-ghost">取消选择</button>
+          </div>
+        </div>
+
         <div class="student-library-summary" id="studentLibrarySummary">正在读取学生库…</div>
 
         <div class="student-library-layout">
           <div class="student-library-table-card">
             <div class="student-library-table-wrap">
               <table class="student-library-table">
-                <thead><tr><th>姓名</th><th>年级</th><th>专业</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead>
+                <thead><tr><th class="student-library-check-col"><input type="checkbox" id="studentLibrarySelectAll" aria-label="全选当前筛选结果" /></th><th>姓名</th><th>年级</th><th>专业</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead>
                 <tbody id="studentLibraryBody"></tbody>
               </table>
             </div>
@@ -5224,7 +5251,8 @@ const studentLibraryUi = {
   grade: '',
   major: '',
   status: 'active',
-  selectedName: ''
+  selectedName: '',
+  selectedNames: new Set()
 };
 
 function studentLibraryFormatTime(value){
@@ -5270,6 +5298,31 @@ function renderStudentLibraryFilters(){
   const clearButton = document.getElementById('studentLibraryClear');
   const hasFilter = !!(studentLibraryUi.search || studentLibraryUi.grade || studentLibraryUi.major || studentLibraryUi.status !== 'active');
   if(clearButton) clearButton.hidden = !hasFilter;
+}
+
+function studentLibrarySelectedStudents(){
+  return [...studentLibraryUi.selectedNames]
+    .map(name=>studentLibraryFind(name))
+    .filter(Boolean);
+}
+
+function updateStudentLibrarySelectionUi(rows){
+  const selectedNames = studentLibraryUi.selectedNames;
+  [...selectedNames].forEach(name=>{
+    if(!studentLibraryFind(name)) selectedNames.delete(name);
+  });
+  const visibleNames = rows.map(student=>studentLibraryProfileName(student));
+  const selectedVisibleCount = visibleNames.filter(name=>selectedNames.has(name)).length;
+  const selectAll = document.getElementById('studentLibrarySelectAll');
+  if(selectAll){
+    selectAll.checked = visibleNames.length > 0 && selectedVisibleCount === visibleNames.length;
+    selectAll.indeterminate = selectedVisibleCount > 0 && selectedVisibleCount < visibleNames.length;
+  }
+  const batchBar = document.getElementById('studentLibraryBatchBar');
+  const summary = document.getElementById('studentLibrarySelectionSummary');
+  const count = selectedNames.size;
+  if(batchBar) batchBar.hidden = count === 0;
+  if(summary) summary.textContent = `已选择 ${count} 名学生`;
 }
 
 function renderStudentLibraryPreview(student){
@@ -5397,13 +5450,15 @@ function renderStudentLibrary(){
     ? `显示 ${rows.length} / ${total} 名学生 · 在读 ${activeCount} · 已归档 ${archivedCount}`
     : '正在读取学生库…';
   if(!rows.length){
-    body.innerHTML = `<tr><td class="student-library-empty" colspan="6">${total ? '没有匹配的学生，请调整筛选条件。' : '暂无学生资料，可点击“新增学生”创建。'}</td></tr>`;
+    body.innerHTML = `<tr><td class="student-library-empty" colspan="7">${total ? '没有匹配的学生，请调整筛选条件。' : '暂无学生资料，可点击“新增学生”创建。'}</td></tr>`;
   }else{
     body.innerHTML = rows.map(student=>{
       const name = studentLibraryProfileName(student);
       const statusClass = student.archived ? 'library-pill-status-archived' : 'library-pill-status-active';
       const selected = studentLibraryUi.selectedName === name ? ' aria-current="true"' : '';
+      const checked = studentLibraryUi.selectedNames.has(name) ? ' checked' : '';
       return `<tr data-library-name="${esc(name)}"${selected}>
+        <td class="student-library-check-cell"><input type="checkbox" data-library-select="${esc(name)}" aria-label="选择 ${esc(name)}"${checked}></td>
         <td><div class="library-student-name"><span class="library-avatar">${esc(name.slice(0,1) || '?')}</span><span class="library-name-text" title="${esc(name)}">${esc(name)}</span></div></td>
         <td>${esc(student.grade || '未填写')}</td>
         <td>${esc(student.major || '未填写')}</td>
@@ -5418,6 +5473,7 @@ function renderStudentLibrary(){
       </tr>`;
     }).join('');
   }
+  updateStudentLibrarySelectionUi(rows);
   const selectedStudent = (state.directory || []).find(student=>studentLibraryProfileName(student) === studentLibraryUi.selectedName);
   renderStudentLibraryPreview(selectedStudent || null);
 }
@@ -5547,13 +5603,112 @@ async function updateStudentLibraryArchive(student, archived){
 }
 
 async function deleteStudentLibraryProfile(student){
+  return deleteStudentLibraryProfiles([student]);
+}
+
+async function deleteStudentLibraryProfiles(students){
+  const uniqueStudents = [];
+  const seenIds = new Set();
+  const seenNames = new Set();
+  (students || []).forEach(student=>{
+    if(!student) return;
+    const profileId = student.profileId == null ? '' : String(student.profileId).trim();
+    const name = studentLibraryProfileName(student) || String(student.sourceName || student.name || '').trim();
+    const deleteName = String(student.sourceName || student.name || name).trim();
+    if(profileId){
+      if(seenIds.has(profileId)) return;
+      seenIds.add(profileId);
+    }else{
+      const canonicalName = normalizeStudentIdentity(name).name || name;
+      if(!canonicalName || seenNames.has(canonicalName)) return;
+      seenNames.add(canonicalName);
+    }
+    uniqueStudents.push({student,profileId,name,deleteName});
+  });
+  if(!uniqueStudents.length) throw new Error('没有可删除的学生');
   const ctx = getSupabaseContext();
   if(!ctx) throw new Error('云端连接不可用');
   const endpoint = `${ctx.cfg.url}/rest/v1/student_database`;
-  const filter = student.profileId != null
-    ? `id=eq.${encodeURIComponent(student.profileId)}`
-    : `name=eq.${encodeURIComponent(student.sourceName || student.name)}`;
-  await supabaseRequest(`${endpoint}?${filter}`,{method:'DELETE',headers:{...ctx.headers,'Prefer':'return=minimal'}});
+  const ids = uniqueStudents.map(item=>item.profileId).filter(Boolean);
+  for(let i=0;i<ids.length;i+=80){
+    const chunk = ids.slice(i,i+80).map(value=>encodeURIComponent(value)).join(',');
+    await supabaseRequest(`${endpoint}?id=in.(${chunk})`,{method:'DELETE',headers:{...ctx.headers,'Prefer':'return=minimal'}});
+  }
+  const names = uniqueStudents.filter(item=>!item.profileId).map(item=>item.deleteName).filter(Boolean);
+  for(let i=0;i<names.length;i+=60){
+    const chunk = names.slice(i,i+60).map(value=>encodeURIComponent(value)).join(',');
+    await supabaseRequest(`${endpoint}?name=in.(${chunk})`,{method:'DELETE',headers:{...ctx.headers,'Prefer':'return=minimal'}});
+  }
+}
+
+function openStudentLibraryDeleteDialog(students){
+  const uniqueStudents = [];
+  const seen = new Set();
+  (students || []).forEach(student=>{
+    const name = studentLibraryProfileName(student);
+    const key = student?.profileId != null ? `id:${student.profileId}` : `name:${name}`;
+    if(student && name && !seen.has(key)){ seen.add(key); uniqueStudents.push(student); }
+  });
+  if(!uniqueStudents.length) return;
+  closeStudentLibraryDialog();
+  const backdrop = document.createElement('div');
+  backdrop.className = 'library-dialog-backdrop';
+  const namesHtml = uniqueStudents.map(student=>`<span>${esc(studentLibraryProfileName(student))}</span>`).join('');
+  backdrop.innerHTML = `<form class="library-dialog library-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="libraryDeleteDialogTitle">
+    <h3 id="libraryDeleteDialogTitle">永久删除学生</h3>
+    <p class="library-dialog-help">此操作不可恢复，将删除学生资料、课表、练琴时间段、房间占用、提醒、积分及相关记录。请确认这些资料确实需要永久清理。</p>
+    <div class="library-delete-danger-box">⚠ 删除会直接触发云端级联清理，完成后无法恢复。若只是暂时停用，请使用“归档”。</div>
+    <div class="library-delete-list" aria-label="待删除学生">${namesHtml}</div>
+    <label class="library-dialog-field">输入 <b>DELETE</b> 以确认<input name="confirmation" type="text" autocomplete="off" placeholder="DELETE" /></label>
+    <div class="library-dialog-message" aria-live="polite"></div>
+    <div class="library-dialog-actions"><button type="button" class="library-button library-button-ghost" data-library-dialog-cancel>取消</button><button type="submit" class="library-button library-button-danger" disabled>确认永久删除（${uniqueStudents.length}）</button></div>
+  </form>`;
+  document.body.appendChild(backdrop);
+  const form = backdrop.querySelector('form');
+  const input = form.elements.confirmation;
+  const submit = form.querySelector('button[type="submit"]');
+  const message = form.querySelector('.library-dialog-message');
+  const close = ()=>{
+    backdrop.remove();
+  };
+  backdrop.addEventListener('click',event=>{ if(event.target === backdrop) close(); });
+  backdrop.querySelector('[data-library-dialog-cancel]').addEventListener('click',close);
+  input.addEventListener('input',()=>{ submit.disabled = input.value.trim().toUpperCase() !== 'DELETE'; });
+  form.onsubmit = async event=>{
+    event.preventDefault();
+    if(input.value.trim().toUpperCase() !== 'DELETE') return;
+    submit.disabled = true;
+    input.disabled = true;
+    backdrop.querySelector('[data-library-dialog-cancel]').disabled = true;
+    message.textContent = `正在删除 ${uniqueStudents.length} 名学生及其关联数据…`;
+    try{
+      await deleteStudentLibraryProfiles(uniqueStudents);
+      const ids = new Set(uniqueStudents.map(student=>student.profileId == null ? '' : String(student.profileId)).filter(Boolean));
+      const names = new Set(uniqueStudents.map(student=>studentLibraryProfileName(student)));
+      state.directory = (state.directory || []).filter(student=>{
+        const id = student.profileId == null ? '' : String(student.profileId);
+        return !(id && ids.has(id)) && !names.has(studentLibraryProfileName(student));
+      });
+      state.directoryLoaded = true;
+      studentLibraryUi.selectedNames.clear();
+      if(names.has(studentLibraryUi.selectedName)) studentLibraryUi.selectedName = '';
+      await loadRemoteStudents({preferredName:''});
+      close();
+      renderStudentLibrary();
+      notify(`已永久删除 ${uniqueStudents.length} 名学生及其关联数据`,'success',4000);
+    }catch(error){
+      input.disabled = false;
+      submit.disabled = false;
+      backdrop.querySelector('[data-library-dialog-cancel]').disabled = false;
+      message.textContent = `删除失败：${error?.message || error}`;
+    }
+  };
+  input.focus();
+}
+
+function clearStudentLibrarySelection(){
+  studentLibraryUi.selectedNames.clear();
+  renderStudentLibrary();
 }
 
 async function handleStudentLibraryAction(action, name){
@@ -5582,15 +5737,7 @@ async function handleStudentLibraryAction(action, name){
     return;
   }
   if(action === 'delete'){
-    const displayName = studentLibraryProfileName(student);
-    if(!confirm(`确定永久删除“${displayName}”吗？这会同时删除其课表和练琴时段，且不可恢复。`)) return;
-    try{
-      await deleteStudentLibraryProfile(student);
-      if(studentLibraryUi.selectedName === displayName) studentLibraryUi.selectedName = '';
-      await loadRemoteStudents({preferredName:''});
-      renderStudentLibrary();
-      notify(`已删除学生：${displayName}`,'success',3500);
-    }catch(error){ notify(`删除学生失败：${error?.message || error}`,'error',5000); }
+    openStudentLibraryDeleteDialog([student]);
   }
 }
 
@@ -5636,6 +5783,26 @@ function initStudentLibraryWorkspace(){
     renderStudentLibrary();
   });
   document.getElementById('studentLibraryAdd')?.addEventListener('click',()=>openStudentLibraryProfileDialog());
+  document.getElementById('studentLibrarySelectAll')?.addEventListener('change',event=>{
+    const visibleRows = studentLibraryFilteredRows();
+    const selectedNames = studentLibraryUi.selectedNames;
+    visibleRows.forEach(student=>{
+      const name = studentLibraryProfileName(student);
+      if(event.target.checked) selectedNames.add(name);
+      else selectedNames.delete(name);
+    });
+    renderStudentLibrary();
+  });
+  document.getElementById('studentLibraryBatchClear')?.addEventListener('click',clearStudentLibrarySelection);
+  document.getElementById('studentLibraryBatchDelete')?.addEventListener('click',()=>{
+    const selectedStudents = studentLibrarySelectedStudents();
+    if(!selectedStudents.length){
+      clearStudentLibrarySelection();
+      notify('请先选择要删除的学生','warning',3000);
+      return;
+    }
+    openStudentLibraryDeleteDialog(selectedStudents);
+  });
   const scheduleModal = document.getElementById('studentLibraryScheduleModal');
   document.getElementById('studentLibraryScheduleClose')?.addEventListener('click',()=>{ void closeStudentLibraryScheduleModal(); });
   document.getElementById('studentLibraryEditSchedule')?.addEventListener('click',()=>{ void editStudentScheduleFromLibrary(); });
@@ -5662,12 +5829,21 @@ function initStudentLibraryWorkspace(){
     }finally{ button.disabled = false; }
   });
   body?.addEventListener('click',event=>{
+    if(event.target.closest('[data-library-select]')) return;
     const row = event.target.closest('tr[data-library-name]');
     if(!row) return;
     const actionButton = event.target.closest('[data-library-act]');
     const name = row.dataset.libraryName;
     if(actionButton){ handleStudentLibraryAction(actionButton.dataset.libraryAct,name); return; }
     handleStudentLibraryAction('view',name);
+  });
+  body?.addEventListener('change',event=>{
+    const checkbox = event.target.closest('[data-library-select]');
+    if(!checkbox) return;
+    const name = checkbox.dataset.librarySelect;
+    if(checkbox.checked) studentLibraryUi.selectedNames.add(name);
+    else studentLibraryUi.selectedNames.delete(name);
+    updateStudentLibrarySelectionUi(studentLibraryFilteredRows());
   });
   renderStudentLibrary();
 }
