@@ -61,7 +61,7 @@
 
 | 范围 | 文件 / 提交 | 说明 |
 |------|-------------|------|
-| 学生端 · 排行榜说明 | `menuhin-school-system/index.html`、独立仓库提交 `dbcfa3f` | 更新四大榜上榜规则、音符币奖励表和“最近规则更新”弹窗；综合榜奖励自 2026-08-27 起下调 20%，调整为 `80/64/48/32`。 |
+| 学生端 · 排行榜说明 | `menuhin-school-system/index.html`、独立仓库提交 `dbcfa3f`、`a606b35` | 更新四大榜上榜规则、音符币奖励表和“最近规则更新”弹窗；综合榜奖励自 2026-08-27 起下调 20%，调整为 `80/64/48/32`；音符币改为学期内有效并新增兑换清单。 |
 | 音符币 · 自动结算 | `sql/setup/setup_coin_rewards.sql`、`20260827120000_reduce_composite_board_coin_rewards.sql` | 自动发放函数同步采用最新奖励；保留历史迁移不变，并新增可追溯迁移。 |
 | 管理端 · 榜单导出 | `practiceanalyse.html` | PDF 榜单中的综合榜应发音符币同步为 `80/64/48/32`。 |
 | 验收与文档 | `sql/verify/verify_coin_reward_accuracy.sql`、`docs/architecture/系统架构文档.md` | “应发金额”校验脚本、架构说明和奖励表同步最新口径。 |
