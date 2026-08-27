@@ -11,7 +11,7 @@
 --   5. 更新 vw_student_coin_balances 视图 — 暴露 semester_earned
 --
 -- 设计原则：
---   - balance（总余额）：开启新学期时清空，并为每位学生写入流水记录
+--   - balance（当前学期余额）：学期结束由琴房管理老师手动清空，并为每位学生写入流水记录
 --   - semester_earned：按交易类型更新（auto_reward / compensation 增加，deduction 减少，redemption 不变），每学期可重置
 --   - 后台仅保留“学期累计排行 + 新学期清零”，移除梅纽因之星功能
 -- ============================================================
@@ -24,7 +24,7 @@ ALTER TABLE public.student_coins
 ADD COLUMN IF NOT EXISTS semester_earned INTEGER NOT NULL DEFAULT 0;
 
 COMMENT ON COLUMN public.student_coins.semester_earned IS
-    '本学期累计获得的音符币（正向调整会累加，学期初可调用 start_new_semester() 清零）。';
+    '本学期累计获得的音符币（正向调整会累加，学期结束由琴房管理老师手动清零）。';
 
 
 -- ============================================================
@@ -76,7 +76,8 @@ BEGIN
     UPDATE public.student_coins
     SET balance = 0,
         semester_earned = 0,
-        updated_at = NOW();
+        updated_at = NOW()
+    WHERE student_name IS NOT NULL;
 
     RETURN '✅ 新学期已开启，共清空 ' || v_count || ' 位学生的音符币余额，合计清空 '
            || v_total_cleared || ' 枚；已写入所有人的流水记录。';

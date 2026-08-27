@@ -2898,6 +2898,85 @@
         font-size: 12px; color: var(--text-3); line-height: 1.6;
         text-align: center; padding: 4px 0;
       }
+      .ri-redeem {
+        border: 1px solid rgba(197,160,89,0.32);
+        border-radius: var(--radius-md);
+        background: linear-gradient(135deg, rgba(197,160,89,0.1), rgba(197,160,89,0.04));
+        padding: 12px;
+      }
+      .ri-redeem-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .ri-redeem-title { font-size: 13px; font-weight: 700; color: var(--text-1); }
+      .ri-redeem-sub { margin-top: 2px; font-size: 11px; color: var(--text-3); }
+      .ri-redeem-badge {
+        flex-shrink: 0;
+        padding: 3px 7px;
+        border-radius: 999px;
+        background: rgba(197,160,89,0.16);
+        color: #a08030;
+        font-size: 10px;
+        font-weight: 700;
+      }
+      .ri-redeem-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+        margin-top: 10px;
+      }
+      .ri-redeem-item {
+        display: flex;
+        align-items: center;
+        min-width: 0;
+        gap: 7px;
+        padding: 8px 9px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface-1);
+      }
+      .ri-redeem-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 23px;
+        height: 23px;
+        border-radius: 7px;
+        background: rgba(197,160,89,0.14);
+        font-size: 13px;
+      }
+      .ri-redeem-name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--text-1);
+        font-size: 11.5px;
+        font-weight: 600;
+      }
+      .ri-redeem-cost {
+        flex: 0 0 auto;
+        margin-left: auto;
+        padding: 3px 5px;
+        border-radius: 6px;
+        background: rgba(197,160,89,0.12);
+        color: #a08030;
+        font-size: 10.5px;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+      .ri-redeem-footnote {
+        margin: 10px 0 0;
+        color: var(--text-3);
+        font-size: 11px;
+        line-height: 1.5;
+      }
+      @media (max-width: 420px) {
+        .ri-redeem-grid { grid-template-columns: 1fr; }
+      }
       .ranking-update-dialog {
         width: min(440px, 100%);
       }
@@ -3186,12 +3265,33 @@
               </table>
             </div>
 
-            <p class="ri-coin-note">上榜即获对应音符币，累积后可兑换专属特权<br>兑换请<strong>提前至少 1 天</strong>向老师提交申请！</p>
+            <p class="ri-coin-note">上榜即获对应音符币，学期内可兑换下方奖励</p>
+
+            <div class="ri-redeem">
+              <div class="ri-redeem-head">
+                <div>
+                  <div class="ri-redeem-title">🎁 可兑换奖励</div>
+                  <div class="ri-redeem-sub">余额达到所需数量即可申请</div>
+                </div>
+                <span class="ri-redeem-badge">本学期有效 · 8 项</span>
+              </div>
+              <div class="ri-redeem-grid">
+                <div class="ri-redeem-item"><span class="ri-redeem-icon">🎹</span><span class="ri-redeem-name">专属琴房特权</span><span class="ri-redeem-cost">100 币</span></div>
+                <div class="ri-redeem-item"><span class="ri-redeem-icon">🎼</span><span class="ri-redeem-name">施坦威体验日</span><span class="ri-redeem-cost">120 币</span></div>
+                <div class="ri-redeem-item"><span class="ri-redeem-icon">👂</span><span class="ri-redeem-name">旁听神仙课</span><span class="ri-redeem-cost">150 币</span></div>
+                <div class="ri-redeem-item"><span class="ri-redeem-icon">📝</span><span class="ri-redeem-name">作业豁免券</span><span class="ri-redeem-cost">150 币</span></div>
+                <div class="ri-redeem-item"><span class="ri-redeem-icon">📅</span><span class="ri-redeem-name">课表 DIY 日</span><span class="ri-redeem-cost">200 币</span></div>
+                <div class="ri-redeem-item"><span class="ri-redeem-icon">✨</span><span class="ri-redeem-name">期末加分特权</span><span class="ri-redeem-cost">280 币</span></div>
+                <div class="ri-redeem-item"><span class="ri-redeem-icon">🎬</span><span class="ri-redeem-name">大师级专属 MV</span><span class="ri-redeem-cost">300 币</span></div>
+                <div class="ri-redeem-item"><span class="ri-redeem-icon">🎓</span><span class="ri-redeem-name">额外专业课</span><span class="ri-redeem-cost">350 币</span></div>
+              </div>
+              <p class="ri-redeem-footnote">兑换请<strong>提前至少 1 天</strong>向老师提交申请；学期结束由琴房管理老师手动全部清零。</p>
+            </div>
 
             <div style="background:var(--surface-0); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 14px; font-size:12.5px; color:var(--text-2); line-height:1.7; margin-bottom:8px;">
               <div style="font-weight:700; color:var(--text-1); margin-bottom:6px;">💡 小提示</div>
               <div>• <strong>综合榜前 10 名</strong>不参与三个分类榜，无法获得分类榜奖励；其余同学若同时上进步/稳定/守则榜，奖励<strong>叠加计算</strong></div>
-              <div>• 音符币<strong>可跨学期积累</strong>，余额长期有效，不用担心过期</div>
+              <div>• 音符币<strong>仅限本学期使用</strong>，学期结束由琴房管理老师手动全部清零</div>
               <div>• 每周五结算后即可在个人页面查看余额</div>
               <div>• ⚠️ 前台管理员对存在<strong>违规练琴记录</strong>的学生有权<strong>扣除</strong>音符币</div>
             </div>
@@ -3206,7 +3306,7 @@
             <button type="button" class="ri-close">✕</button>
           </div>
           <div class="ru-body">
-            <p class="ru-intro"><strong>2026 年 8 月 22–27 日更新</strong>：本次调整同时优化综合榜评分和音符币奖励，让稳定、规范、持续练琴的表现更清晰，也让各榜奖励更加均衡。</p>
+            <p class="ru-intro"><strong>2026 年 8 月 22–27 日更新</strong>：本次调整同时优化综合榜评分和音符币奖励，让稳定、规范、持续练琴的表现更清晰，也补充了音符币使用周期与兑换清单。</p>
 
             <div class="ru-section">
               <div class="ru-label">1 · 综合榜评分</div>
@@ -3221,6 +3321,11 @@
             <div class="ru-section">
               <div class="ru-label">3 · 参与与刷新</div>
               <div class="ru-text">排行榜只统计本周工作日有效练琴记录；练完归还琴房卡后自动刷新。进步榜、稳定榜、守则榜仍按各自的次数、均时、异常率和 α（基线可信度）门槛筛选。</div>
+            </div>
+
+            <div class="ru-section">
+              <div class="ru-label">4 · 音符币使用周期</div>
+              <div class="ru-text">音符币<strong>不跨学期累积</strong>，仅限当前学期使用；学期结束由琴房管理老师手动全部清零。可兑换奖励及所需音符币数量已同步展示在“音符币奖励”页，请在学期内按需申请。</div>
             </div>
 
             <div class="ru-highlight">想提升排名：先稳定完成个人周目标，再保持规律出勤、每次练够有效时长并及时还卡，减少异常记录比无限延长单次练琴更重要。</div>

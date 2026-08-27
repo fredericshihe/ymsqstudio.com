@@ -353,7 +353,7 @@ W 几乎立刻满分
 
 | 表名 | 作用 |
 |---|---|
-| `student_coins` | 总余额 + `semester_earned` |
+| `student_coins` | 当前学期余额 + `semester_earned` |
 | `coin_transactions` | 每次加减币流水 |
 | `weekly_coin_reward_log` | 自动结算防重复 |
 | `system_settings` | 自动结算开关 |
@@ -366,7 +366,7 @@ W 几乎立刻满分
 | `vw_student_coin_balances` | 学生信息 + 余额 + 学期累计 |
 | `reward_weekly_coins()` | 每周五自动按四榜名次发币 |
 | `set_auto_reward_enabled()` / `get_auto_reward_setting()` | 自动发放开关 |
-| `start_new_semester()` | 新学期重置 `semester_earned`（不动总余额） |
+| `start_new_semester()` | 学期结束时清零 `balance` 与 `semester_earned` |
 
 ### 6.3 学期管理现状
 
@@ -378,6 +378,21 @@ W 几乎立刻满分
 前端页面：
 
 - `admin_coins.html`
+
+### 6.4 音符币兑换清单（本学期有效）
+
+| 奖励 | 所需音符币 |
+|---|---:|
+| 专属琴房特权 | 100 |
+| 施坦威体验日 | 120 |
+| 旁听神仙课 | 150 |
+| 作业豁免券 | 150 |
+| 课表 DIY 日 | 200 |
+| 期末加分特权 | 280 |
+| 大师级专属 MV | 300 |
+| 额外专业课 | 350 |
+
+> 音符币仅限本学期使用；学期结束由琴房管理老师手动全部清零。兑换前请至少提前 1 天向老师提交申请。
 
 ---
 
@@ -905,13 +920,13 @@ pg_cron 触发 backup_weekly_leaderboards()
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `student_name` | TEXT PK | 学生姓名（主键） |
-| `balance` | INTEGER | 当前音符币总余额，默认 0，**可跨学期积累** |
+| `balance` | INTEGER | 当前学期音符币余额，默认 0，**学期结束手动清零** |
 | `semester_earned` | INTEGER | 本学期通过排行榜/管理员正向调整累计获得的音符币，默认 0，**学期末由管理员重置** |
 | `updated_at` | TIMESTAMPTZ | 最后更新时间 |
 
 **特点：**
 - 每个学生只有一行记录
-- `balance` 永远是最新总余额，跨学期有效，可随时兑换奖励
+- `balance` 是当前学期可用余额，学期结束由琴房管理老师手动清零
 - `semester_earned` 仅统计正向加法（正数 amount），兑换扣除不影响此值
 - 学期管理仅保留“累计获得排行 + 学期重置”两项功能
 
@@ -979,7 +994,7 @@ SELECT
     sd.name                         AS student_name,
     sd.major                        AS student_major,
     sd.grade                        AS student_grade,
-    COALESCE(sc.balance, 0)         AS balance,           -- 总余额，跨学期
+    COALESCE(sc.balance, 0)         AS balance,           -- 当前学期余额，学期结束清零
     COALESCE(sc.semester_earned, 0) AS semester_earned,   -- 本学期已获得
     sc.updated_at
 FROM student_database sd
@@ -993,7 +1008,7 @@ LEFT JOIN student_coins sc ON sd.name = sc.student_name;
 
 #### `public.start_new_semester(p_confirm)`
 
-**作用：** 开启新学期，将所有学生的 `semester_earned` 重置为 0（`balance` 总余额不变）。
+**作用：** 学期结束/新学期开始时，将所有学生的 `balance` 与 `semester_earned` 一并重置为 0，并为每位学生写入清零流水。
 
 **文件：** `setup_semester.sql`
 
@@ -1246,6 +1261,7 @@ SELECT cron.unschedule('reward_weekly_coins_job');
 - [x] **自动发放开关**：`admin_coins.html` 中的 iOS 样式开关，调用 `set_auto_reward_enabled()` RPC 控制每周五是否自动结算
 - [x] **学期累计排行 + 重置**：`semester_earned` 字段追踪本学期累计，`start_new_semester()` 新学期重置，admin_coins.html 提供学期累计排行
 - [ ] **学生自助查看余额**：在学生端首页增加音符币总余额显示（不只在详情页）
+- [x] **兑换清单展示**：学生端排行榜说明页展示 8 项奖励及对应音符币数量
 - [ ] **兑换商城**：设计积分兑换规则，管理员在后台配置可兑换奖励
 
 ### 安全性
@@ -1258,6 +1274,7 @@ SELECT cron.unschedule('reward_weekly_coins_job');
 
 | 日期 | 修改内容 | 涉及文件 |
 |------|---------|---------|
+| 2026-08-27 | **音符币生命周期与兑换清单更新**：音符币不跨学期累积，学期结束由琴房管理老师手动全部清零；学生端排行榜说明新增 8 项可兑换奖励及所需音符币数量，打印版排行榜指南同步更新。 | `menuhin-school-system/index.html`、`排行榜指南.html`、`README.md`、`系统架构文档.md` |
 | 2026-05-11 | **线上函数核对后修正文档口径**：按生产库真实状态修正文档说明：① `set_auto_reward_enabled()` / `get_auto_reward_setting()` 线上当前仍允许 `anon/authenticated` 执行，未与本地“仅 service_role”声明完全一致；② `trigger_compute_student_score()` 线上当前为 `skip_score_trigger + app.computing_score` 两层保护，未看到 `pg_trigger_depth()>2` 第三层保护；③ 本条仅修正文档，不改线上函数。 | `README.md`、`系统架构文档.md` |
 | 2026-03-26 | **FIX-85 异常率惩罚前移到 25%**：将评分函数中的 outlier 惩罚曲线改为“25% 即明显下降（约 0.85）”，25%~60% 区间加速下压，>60% 保持指数衰减；实时 `compute_student_score` 与历史 `compute_student_score_as_of` 同步口径。 | `fix85_outlier_penalty_25pct.sql`、`README.md` |
 | 2026-03-26 | **FIX-84 链路安全与 W 口径统一（本地补丁目标）**：① 本地补丁声明发币函数权限收口，其中 `reward_weekly_coins()` 仅保留 `service_role`，`set_auto_reward_enabled()` 目标也为仅保留 `service_role`；但按 2026-05-11 线上核查，生产库当前仅前者已收口，后者仍允许 `anon/authenticated` 执行。② `compute_student_score()` 的 W 维度入口切换为 `get_personalized_w_daily_ref()`，该部分已与线上一致。 | `fix84_chain_security_and_w_unify.sql`、`setup_coin_rewards.sql`、`README.md` |
@@ -1291,7 +1308,7 @@ SELECT cron.unschedule('reward_weekly_coins_job');
 | 2026-03-23 | **FIX-LB-80 回测定稿（22周全历史）**：全历史回测显示三榜样本周数均为 22（`SUFFICIENT`）。采用 `fix_lb_80` 作为最终参数：相较 `baseline_old`，守则榜通过率 `0.4363→0.3837`、稳定榜 `0.4598→0.3633`、进步榜 `0.7164→0.5970`，且守则/稳定空榜率不变（`0.1364` / `0.0909`），进步榜空榜率与历史活跃度一致（`0.2273`）；`strict_high` 明显提高空榜风险，故不采用。 | `backtest_leaderboard_min_thresholds.sql`、`leaderboard_rpc.sql`、`README.md`、`baseline_monitoring_backup.md` |
 | 2026-03-23 | **排行榜一致性修复（双前端）+ 发币审计增强**：`practiceanalyse.html` 与 `menuhin-school-system/index.html` 统一“本周练过”工作日口径、榜单刷新后联动刷新主表/详情，修复综合榜与分类榜显示不同步；`setup_coin_rewards.sql` 新增 `weekly_coin_reward_detail` 明细审计表并在 `reward_weekly_coins()` 落库每笔发放记录；新增 `verify_coin_reward_accuracy.sql` 一键核对“应发=实发=流水”。 | `practiceanalyse.html`、`/Users/shihe/menuhin-school-system/index.html`、`setup_coin_rewards.sql`、`verify_coin_reward_accuracy.sql`、`README.md`、`baseline_monitoring_backup.md` |
 | 2026-03-23 | **FIX-COIN-79 验收通过（生产核对）**：已按执行清单完成 `verify_coin_reward_accuracy.sql` 四层核查，结果均通过：应发/实发无缺失与金额不一致；`weekly_coin_reward_log` 与 `weekly_coin_reward_detail` 事件数、币数一致；明细与 `coin_transactions(auto_reward)` 无缺失、无金额偏差、无原因文本偏差。 | `verify_coin_reward_accuracy.sql`、`setup_coin_rewards.sql`、`README.md`、`baseline_monitoring_backup.md` |
-| 2026-03-13 | **梅纽因之星改为学期终极荣誉自动颁发（历史阶段，后续已由“学期管理精简”下线）**：核心设计变更：不再由学生手动兑换（先到先得），改为学期末由学校统一颁发给 semester_earned 最高（≥ 400）的学生。新增 student_coins.semester_earned 字段追踪本学期正向累计；新建 meiyin_star_log 颁发记录表（UNIQUE semester 防重复）；新增 award_meiyin_star() 和 start_new_semester() 两个 RPC；adjust_student_coins() 更新为正向金额自动累加 semester_earned；视图 vw_student_coin_balances 新增 semester_earned 列；admin_coins.html 新增学期排名卡片和颁发/新学期按钮；兑换券和排行榜指南的梅纽因之星描述改为自动颁发；排行榜指南兑换规则改为音符币可跨学期积累 | setup_semester.sql（新建）、admin_coins.html、兑换券.html、排行榜指南.html、系统架构文档.md |
+| 2026-03-13 | **梅纽因之星改为学期终极荣誉自动颁发（历史阶段，后续已由“学期管理精简”下线）**：核心设计变更：不再由学生手动兑换（先到先得），改为学期末由学校统一颁发给 semester_earned 最高（≥ 400）的学生。新增 student_coins.semester_earned 字段追踪本学期正向累计；新建 meiyin_star_log 颁发记录表（UNIQUE semester 防重复）；新增 award_meiyin_star() 和 start_new_semester() 两个 RPC；adjust_student_coins() 更新为正向金额自动累加 semester_earned；视图 vw_student_coin_balances 新增 semester_earned 列；admin_coins.html 新增学期排名卡片和颁发/新学期按钮；兑换券和排行榜指南的梅纽因之星描述改为自动颁发；排行榜指南兑换规则曾允许音符币跨学期积累（历史规则，现已改为学期末清零） | setup_semester.sql（新建）、admin_coins.html、兑换券.html、排行榜指南.html、系统架构文档.md |
 
 ---
 
