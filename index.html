@@ -263,7 +263,8 @@
 		#studentLibraryPanel tbody tr:hover{ background:rgba(255,255,255,.025); }
 		#studentLibraryPanel tbody tr.slw-selected{ background:var(--slw-accent-soft); }
 		#studentLibraryPanel tbody tr.slw-flag td:first-child{ box-shadow:inset 3px 0 0 var(--warn); }
-		#studentLibraryPanel tbody tr.slw-archived{ opacity:.55; }
+		#studentLibraryPanel tbody tr.slw-archived{ background:rgba(125,134,148,.07); }
+		#studentLibraryPanel tbody tr.slw-archived td:not(:last-child){ opacity:.58; filter:grayscale(.45); }
 		#studentLibraryPanel input[type=checkbox]{ accent-color:var(--accent); width:15px; height:15px; cursor:pointer; }
 
 		#studentLibraryPanel .slw-name-cell{ display:flex; align-items:center; gap:9px; font-weight:600; }
@@ -277,11 +278,18 @@
 		#studentLibraryPanel .slw-status-pill.slw-active{ color:#9fe4b6; background:var(--slw-ok-soft); }
 		#studentLibraryPanel .slw-status-pill.slw-archived{ color:var(--slw-text-faint); background:var(--surface-alt); border:1px solid var(--outline); }
 		#studentLibraryPanel .slw-updated-cell{ color:var(--slw-text-faint); font-size:12px; }
-		#studentLibraryPanel .slw-row-actions{ display:flex; gap:6px; opacity:0; transition:opacity .12s ease; }
-		#studentLibraryPanel tbody tr:hover .slw-row-actions{ opacity:1; }
-		#studentLibraryPanel .slw-row-icon-btn{ width:26px; height:26px; border-radius:6px; border:1px solid transparent; background:transparent; color:var(--slw-text-faint); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:13px; }
-		#studentLibraryPanel .slw-row-icon-btn:hover{ background:var(--slw-surface-raised); color:var(--text); }
-		#studentLibraryPanel .slw-row-icon-btn.slw-del:hover{ color:#ff9b95; background:var(--slw-danger-soft); }
+		#studentLibraryPanel .slw-row-actions{ display:flex; align-items:center; gap:6px; opacity:1; }
+		#studentLibraryPanel .slw-row-actions .slw-action-btn{ min-width:48px; min-height:28px; justify-content:center; padding:3px 10px; font-size:11px; font-weight:600; line-height:1.45; }
+		#studentLibraryPanel .slw-action-schedule{ background:rgba(99,179,237,.13); border-color:rgba(99,179,237,.42); color:#7ec8f7; }
+		#studentLibraryPanel .slw-action-schedule:hover{ background:rgba(99,179,237,.28); border-color:rgba(99,179,237,.7); color:#d8f1ff; }
+		#studentLibraryPanel .slw-action-edit{ background:rgba(167,139,250,.12); border-color:rgba(167,139,250,.42); color:#c4b5fd; }
+		#studentLibraryPanel .slw-action-edit:hover{ background:rgba(167,139,250,.25); border-color:rgba(196,181,253,.72); color:#ede9fe; }
+		#studentLibraryPanel .slw-action-archive{ background:rgba(245,158,11,.11); border-color:rgba(245,158,11,.42); color:#f7c768; }
+		#studentLibraryPanel .slw-action-archive:hover{ background:rgba(245,158,11,.24); border-color:rgba(251,191,36,.72); color:#fef3c7; }
+		#studentLibraryPanel .slw-action-restore{ background:rgba(63,191,107,.1); border-color:rgba(63,191,107,.45); color:#9fe4b6; }
+		#studentLibraryPanel .slw-action-restore:hover{ background:var(--slw-ok-soft); border-color:var(--ok); color:#dcfce7; }
+		#studentLibraryPanel .slw-action-delete{ background:rgba(255,95,86,.08); border-color:rgba(255,95,86,.38); color:#ffaaa4; }
+		#studentLibraryPanel .slw-action-delete:hover{ background:var(--slw-danger-soft); border-color:rgba(255,95,86,.72); color:#ffe3e1; }
 		#studentLibraryPanel .slw-empty-state{ padding:60px 20px; text-align:center; color:var(--slw-text-faint); font-size:13px; }
 
 		#studentLibraryPanel .slw-panel-foot{ display:flex; align-items:center; gap:12px; padding:12px 22px; border-top:1px solid var(--outline); font-size:12px; color:var(--slw-text-faint); flex-shrink:0; }
@@ -19806,9 +19814,10 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					<td><span class="slw-status-pill ${s.archived?'slw-archived':'slw-active'}">${s.archived?'已归档':'在读'}</span></td>
 					<td>
 						<div class="slw-row-actions">
-							<button class="schedule-btn" title="查看课表" data-slw-act="schedule" data-name="${escapeHtml(s.name)}">课表</button>
-							<button class="slw-row-icon-btn" title="编辑" data-slw-act="edit" data-name="${escapeHtml(s.name)}">✎</button>
-							<button class="slw-row-icon-btn slw-del" title="删除" data-slw-act="delete" data-name="${escapeHtml(s.name)}">🗑</button>
+							<button class="schedule-btn slw-action-btn slw-action-schedule" title="查看课表" data-slw-act="schedule" data-name="${escapeHtml(s.name)}">课表</button>
+							<button class="schedule-btn slw-action-btn slw-action-edit" title="编辑资料" data-slw-act="edit" data-name="${escapeHtml(s.name)}">编辑</button>
+							<button class="schedule-btn slw-action-btn ${s.archived?'slw-action-restore':'slw-action-archive'}" title="${s.archived?'取消归档':'归档'}" data-slw-act="archive" data-name="${escapeHtml(s.name)}">${s.archived?'取消归档':'归档'}</button>
+							<button class="schedule-btn slw-action-btn slw-action-delete" title="永久删除" data-slw-act="delete" data-name="${escapeHtml(s.name)}">删除</button>
 						</div>
 					</td>
 				</tr>`;
@@ -19861,7 +19870,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	function syncStoreStudentsFromLibrary(){
 		if(!(window.Store && Array.isArray(window.Store.students))) return;
 		window.Store.students.splice(0, window.Store.students.length);
-		store.items.forEach(item => {
+		store.items.filter(item => !item.archived).forEach(item => {
 			window.Store.students.push({ name: item.name, grade: item.grade, major: item.major });
 		});
 		if(window.rebuildStudentIndex){ window.rebuildStudentIndex(); }
@@ -20059,12 +20068,23 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					renderTable();
 				}
 			});
-			tbodyEl.addEventListener('click', e=>{
+			tbodyEl.addEventListener('click', async e=>{
 				const btn = e.target.closest('button[data-slw-act]'); if(!btn) return;
 				const name = btn.dataset.name; if(!name) return;
 				if(btn.dataset.slwAct==='edit'){ openEditStudentModal(name); }
 				else if(btn.dataset.slwAct==='delete'){ openDeleteConfirm([name]); }
 				else if(btn.dataset.slwAct==='schedule'){ if(window.showStudentSchedule) window.showStudentSchedule(name); }
+				else if(btn.dataset.slwAct==='archive'){
+					const student = findByName(name); if(!student) return;
+					const nextArchived = !student.archived;
+					if(nextArchived && !confirm(`确认归档“${name}”？归档后仍保留在学生库中，可随时取消归档。`)) return;
+					btn.disabled = true;
+					const result = await batchArchive([name], nextArchived);
+					if(typeof toast==='function'){
+						const actionText = nextArchived ? '已归档' : '已取消归档';
+						toast(result?.ok ? `${name} ${actionText}` : `${name} ${actionText}，云端同步排队中`, result?.ok ? 'success' : 'warn');
+					}
+				}
 			});
 		}
 

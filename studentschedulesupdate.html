@@ -556,6 +556,11 @@ table#schedule{border-collapse:separate;border-spacing:0;min-width:1100px;width:
 .student-library-table tr:hover td{background:#fbfcff;}
 .student-library-table tr[aria-current="true"] td{background:#f2f4ff;}
 .student-library-table tr[aria-current="true"] td:first-child{box-shadow:inset 3px 0 0 var(--primary-color);}
+.student-library-table tr.is-archived td{background:#f5f6f8;color:#8a93a3;}
+.student-library-table tr.is-archived:hover td{background:#eef0f3;}
+.student-library-table tr.is-archived .library-avatar{border-color:#dfe3e9;background:#e9ebef;color:#89919e;}
+.student-library-table tr.is-archived .library-name-text,
+.student-library-table tr.is-archived .library-pill{color:#7f8794;}
 .student-library-table th:nth-child(1),.student-library-table td:nth-child(1){width:4%;font-weight:800;}
 .student-library-table th:nth-child(2),.student-library-table td:nth-child(2){width:17%;font-weight:800;}
 .student-library-table th:nth-child(3),.student-library-table td:nth-child(3){width:9%;}
@@ -574,6 +579,8 @@ table#schedule{border-collapse:separate;border-spacing:0;min-width:1100px;width:
 .library-row-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:stretch;gap:6px;width:100%;max-width:100%;}
 .library-row-actions button{width:100%;min-width:0;min-height:36px;padding:0 6px;border:1px solid var(--border);border-radius:8px;background:#f7f9fc;color:var(--text-secondary);font-size:.76rem;font-weight:800;cursor:pointer;white-space:nowrap;}
 .library-row-actions button:hover{position:relative;z-index:1;border-color:#acb9d1;background:#eef1ff;color:var(--primary-color);transform:none;box-shadow:none;}
+.library-row-actions button.library-row-unarchive{border-color:#cbd3df;background:#fff;color:#596779;}
+.library-row-actions button.library-row-unarchive:hover{border-color:#98a6b9;background:#fff;color:#344054;}
 .library-row-actions button.library-row-danger:hover{border-color:#e3b1b5;background:#fff0f1;color:#b33e49;}
 .student-library-empty{padding:52px 20px!important;color:var(--text-secondary)!important;text-align:center;}
 .student-library-preview{min-height:360px;padding:20px;position:sticky;top:14px;}
@@ -1000,7 +1007,7 @@ body.schedule-auth-locked{overflow:hidden;}
             <p>统一管理学生资料；课表在这里仅提供只读查看，编辑请回到课表工作台。</p>
           </div>
           <div class="student-library-heading-actions">
-            <span id="studentLibraryStatus" class="cloud-load-status" role="status"></span>
+            <span id="studentLibraryCloudStatus" class="cloud-load-status" role="status"></span>
             <button type="button" id="studentLibraryRefresh" class="library-button library-button-ghost">刷新</button>
             <button type="button" id="studentLibraryAdd" class="library-button library-button-primary">＋ 新增学生</button>
           </div>
@@ -1010,7 +1017,7 @@ body.schedule-auth-locked{overflow:hidden;}
           <label class="library-filter-search" for="studentLibrarySearch"><span>搜索</span><input id="studentLibrarySearch" type="search" placeholder="姓名、拼音或首字母" autocomplete="off" /></label>
           <label class="library-filter" for="studentLibraryGrade"><span>年级</span><select id="studentLibraryGrade"><option value="">全部年级</option></select></label>
           <label class="library-filter" for="studentLibraryMajor"><span>专业</span><select id="studentLibraryMajor"><option value="">全部专业</option></select></label>
-          <label class="library-filter" for="studentLibraryStatus"><span>状态</span><select id="studentLibraryStatus"><option value="active">在读</option><option value="">全部</option><option value="archived">已归档</option></select></label>
+          <label class="library-filter" for="studentLibraryStatus"><span>状态</span><select id="studentLibraryStatus"><option value="">全部（含归档）</option><option value="active">在读</option><option value="archived">已归档</option></select></label>
           <button type="button" id="studentLibraryClear" class="library-clear-button" hidden>清除筛选</button>
         </div>
 
@@ -5251,7 +5258,7 @@ const studentLibraryUi = {
   search: '',
   grade: '',
   major: '',
-  status: 'active',
+  status: '',
   selectedName: '',
   selectedNames: new Set()
 };
@@ -5297,7 +5304,7 @@ function renderStudentLibraryFilters(){
   studentLibrarySetOptions(document.getElementById('studentLibraryGrade'), grades, '全部年级', studentLibraryUi.grade);
   studentLibrarySetOptions(document.getElementById('studentLibraryMajor'), majors, '全部专业', studentLibraryUi.major);
   const clearButton = document.getElementById('studentLibraryClear');
-  const hasFilter = !!(studentLibraryUi.search || studentLibraryUi.grade || studentLibraryUi.major || studentLibraryUi.status !== 'active');
+  const hasFilter = !!(studentLibraryUi.search || studentLibraryUi.grade || studentLibraryUi.major || studentLibraryUi.status);
   if(clearButton) clearButton.hidden = !hasFilter;
 }
 
@@ -5458,7 +5465,7 @@ function renderStudentLibrary(){
       const statusClass = student.archived ? 'library-pill-status-archived' : 'library-pill-status-active';
       const selected = studentLibraryUi.selectedName === name ? ' aria-current="true"' : '';
       const checked = studentLibraryUi.selectedNames.has(name) ? ' checked' : '';
-      return `<tr data-library-name="${esc(name)}"${selected}>
+      return `<tr data-library-name="${esc(name)}" class="${student.archived ? 'is-archived' : ''}"${selected}>
         <td class="student-library-check-cell"><input type="checkbox" data-library-select="${esc(name)}" aria-label="选择 ${esc(name)}"${checked}></td>
         <td><div class="library-student-name"><span class="library-avatar">${esc(name.slice(0,1) || '?')}</span><span class="library-name-text" title="${esc(name)}">${esc(name)}</span></div></td>
         <td>${esc(student.grade || '未填写')}</td>
@@ -5468,7 +5475,7 @@ function renderStudentLibrary(){
         <td><div class="library-row-actions">
           <button type="button" data-library-act="view">查看课表</button>
           <button type="button" data-library-act="edit">编辑资料</button>
-          <button type="button" data-library-act="archive">${student.archived ? '恢复' : '归档'}</button>
+          <button type="button" class="${student.archived ? 'library-row-unarchive' : ''}" data-library-act="archive" aria-label="${student.archived ? '取消归档' : '归档'} ${esc(name)}">${student.archived ? '取消归档' : '归档'}</button>
           <button type="button" class="library-row-danger" data-library-act="delete">删除</button>
         </div></td>
       </tr>`;
@@ -5583,7 +5590,7 @@ function openStudentLibraryProfileDialog(student=null){
       studentLibraryUi.selectedName = nextName;
       const loaded = await loadRemoteStudents({preferredName:nextName});
       if(!loaded) throw new Error('资料已提交，但刷新学生库失败，请点击刷新重试');
-      const status = document.getElementById('studentLibraryStatus');
+      const status = document.getElementById('studentLibraryCloudStatus');
       if(status) status.textContent = '✅ 学生资料已同步';
       renderStudentLibrary();
     }catch(error){
@@ -5727,11 +5734,11 @@ async function handleStudentLibraryAction(action, name){
   }
   if(action === 'archive'){
     const nextArchived = !student.archived;
-    const prompt = nextArchived ? `确认归档“${studentLibraryProfileName(student)}”？归档后默认不出现在课表工作台。` : `确认恢复“${studentLibraryProfileName(student)}”？`;
+    const prompt = nextArchived ? `确认归档“${studentLibraryProfileName(student)}”？归档后仍保留在学生库中，但不会出现在课表工作台。` : `确认取消归档“${studentLibraryProfileName(student)}”？`;
     if(!confirm(prompt)) return;
     try{
       await updateStudentLibraryArchive(student,nextArchived);
-      studentLibraryUi.selectedName = nextArchived ? '' : studentLibraryProfileName(student);
+      studentLibraryUi.selectedName = studentLibraryProfileName(student);
       await loadRemoteStudents({preferredName:studentLibraryUi.selectedName});
       renderStudentLibrary();
     }catch(error){ notify(`学生状态更新失败：${error?.message || error}`,'error',5000); }
@@ -5755,7 +5762,7 @@ async function setScheduleWorkspaceTab(tab){
   if(!showLibrary) return;
   renderStudentLibrary();
   if(!state.remoteLoaded && state.remoteReady){
-    const status = document.getElementById('studentLibraryStatus');
+    const status = document.getElementById('studentLibraryCloudStatus');
     if(status) status.textContent = '☁ 正在读取学生库…';
     try{ await state.remoteReady; }catch(_){ }
     if(showLibrary) renderStudentLibrary();
@@ -5778,9 +5785,9 @@ function initStudentLibraryWorkspace(){
   major?.addEventListener('change',event=>{ studentLibraryUi.major = event.target.value; renderStudentLibrary(); });
   status?.addEventListener('change',event=>{ studentLibraryUi.status = event.target.value; renderStudentLibrary(); });
   clear?.addEventListener('click',()=>{
-    studentLibraryUi.search = ''; studentLibraryUi.grade = ''; studentLibraryUi.major = ''; studentLibraryUi.status = 'active';
+    studentLibraryUi.search = ''; studentLibraryUi.grade = ''; studentLibraryUi.major = ''; studentLibraryUi.status = '';
     if(search) search.value = '';
-    if(status) status.value = 'active';
+    if(status) status.value = '';
     renderStudentLibrary();
   });
   document.getElementById('studentLibraryAdd')?.addEventListener('click',()=>openStudentLibraryProfileDialog());
@@ -5820,7 +5827,7 @@ function initStudentLibraryWorkspace(){
     const button = event.currentTarget;
     if(button.disabled) return;
     button.disabled = true;
-    const statusEl = document.getElementById('studentLibraryStatus');
+    const statusEl = document.getElementById('studentLibraryCloudStatus');
     if(statusEl) statusEl.textContent = '☁ 正在刷新学生库…';
     try{
       await loadRemoteStudents({preferredName:studentLibraryUi.selectedName});
