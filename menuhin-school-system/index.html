@@ -2538,12 +2538,13 @@
   .wlb-subtitle {
     font-size: 11px;
     color: var(--text-3);
-    padding: 6px 16px 2px;
+    padding: 7px 16px 2px;
     min-height: 20px;
+    line-height: 1.45;
   }
   .wlb-shrink-summary {
     margin: 5px 16px 2px;
-    padding: 7px 10px;
+    padding: 6px 9px;
     border: 1px solid rgba(244,63,94,.18);
     border-radius: 10px;
     background: rgba(244,63,94,.07);
@@ -2553,12 +2554,16 @@
     line-height: 1.5;
   }
   .wlb-coin-reward-notice {
-    margin: 6px 16px 0;
-    font-size: 12px;
+    width: fit-content;
+    margin: 6px 16px 2px;
+    padding: 5px 8px;
+    border-radius: 8px;
+    background: rgba(245,158,11,.08);
+    border: 1px solid rgba(245,158,11,.18);
+    font-size: 11px;
     font-weight: 700;
     color: #c26a15;
-    letter-spacing: .01em;
-    line-height: 1.45;
+    line-height: 1.4;
     text-align: left;
   }
   .wlb-notice {
@@ -2992,9 +2997,16 @@
       }
       .ranking-update-dialog {
         width: min(440px, 100%);
+        max-height: min(88vh, calc(100dvh - 32px));
       }
       .ru-body {
         padding: 16px 18px 18px;
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        touch-action: pan-y;
       }
       .ru-intro {
         margin: 0 0 14px;
@@ -3143,7 +3155,7 @@
         <div class="wlb-subtitle" id="wlbSubtitle"></div>
         <div class="wlb-shrink-summary" id="wlbShrinkSummary" style="display:none"></div>
         <div id="wlbCoinRewardNotice" class="wlb-coin-reward-notice" style="display:none;">
-          自动音符币结算已关闭，本周奖励与缩水榜扣币均暂停
+          自动结算已关闭，奖励与扣币暂停
         </div>
         <div class="wlb-notice" id="wlbNotice" style="display:none"></div>
         <div class="wlb-list" id="wlbList">
@@ -3334,29 +3346,29 @@
             <button type="button" class="ri-close">✕</button>
           </div>
           <div class="ru-body">
-            <p class="ru-intro"><strong>2026 年 8 月 22–27 日更新</strong>：本次调整同时优化综合榜评分和音符币奖励，让稳定、规范、持续练琴的表现更清晰，也补充了音符币使用周期与兑换清单。</p>
+            <p class="ru-intro"><strong>2026 年 8 月 22–27 日</strong>：评分、音符币与参与规则已更新。</p>
 
             <div class="ru-section">
               <div class="ru-label">1 · 综合榜评分</div>
-              <div class="ru-text">综合榜继续综合 5 项指标，但更加重视个人周目标、近期稳定性和长期练琴底盘。达到个人周目标后继续超量练琴仍有帮助，但边际加分会明显变小，不再是无限堆时长就一直占优。</div>
+              <div class="ru-text">更重视周目标、近期稳定和长期基础。达标后继续练仍可加分，但加成会递减。</div>
             </div>
 
             <div class="ru-section">
               <div class="ru-label">2 · 分类榜奖励</div>
-              <div class="ru-text">综合榜奖励同步下调 20%，调整为第 1 名 80、第 2–3 名 64、第 4–6 名 48、第 7–10 名 32；稳定榜为 12/9/5，守则榜为 11/8/5，进步榜为 10/6/4。缩水榜前 6 名按 -10/-6/-4 扣币，余额不足时允许显示负数。综合榜前 10 名仍不参与三个分类榜，分类榜奖励可按规则叠加。</div>
+              <div class="ru-text">综合榜 80/64/48/32；稳定榜 12/9/5；守则榜 11/8/5；进步榜 10/6/4；缩水榜 -10/-6/-4。综合榜前 10 名不参加分类榜，其余分类奖励可叠加。</div>
             </div>
 
             <div class="ru-section">
               <div class="ru-label">3 · 参与与刷新</div>
-              <div class="ru-text">排行榜只统计本周工作日有效练琴记录；练完归还琴房卡后自动刷新。进步榜、稳定榜、守则榜仍按各自的次数、均时、异常率和 α（基线可信度）门槛筛选。</div>
+              <div class="ru-text">仅统计工作日有效记录，还卡后自动刷新。分类榜仍按次数、均时、异常率和 α 筛选。</div>
             </div>
 
             <div class="ru-section">
               <div class="ru-label">4 · 音符币使用周期</div>
-              <div class="ru-text">音符币<strong>不跨学期累积</strong>，仅限当前学期使用；学期结束由琴房管理老师手动全部清零。可兑换奖励及所需音符币数量已同步展示在“音符币奖励”页，请在学期内按需申请。</div>
+              <div class="ru-text">音符币仅当前学期有效，期末由管理员清零；兑换项目见“音符币奖励”。</div>
             </div>
 
-            <div class="ru-highlight">想提升排名：先稳定完成个人周目标，再保持规律出勤、每次练够有效时长并及时还卡，减少异常记录比无限延长单次练琴更重要。</div>
+            <div class="ru-highlight">提升排名：完成周目标，规律练习，及时还卡，减少异常。</div>
           </div>
         </div>
       </div>
@@ -12339,11 +12351,11 @@
     }
 
     const WLB_SUBTITLES = {
-      '综合榜': '本周综合排名分 Top 10 · 仅含本周有练琴同学 · 稳定达标优先',
-      '进步榜': '本周绝对涨分最大 · 涨分 ≥1.0 · 本周工作日 ≥2次 · 异常率 ≤45%',
-      '稳定榜': 'α 最高 · α ≥0.60 · 近10条工作日记录 ≥8 · 均时 ≥30min · 异常率 ≤35%',
-      '守则榜': '近10条异常率最低 · α ≥0.60 · 近10条 ≥5 · 均时 ≥30min · 本周工作日 ≥3次',
-      '缩水榜': '已开始练琴但当前应完成进度低于70% · 完成率越低越靠前 · 前6名按 -10/-6/-4 扣币',
+      '综合榜': '综合表现前 10 · 稳定达标优先',
+      '进步榜': '较近期最佳周进步最多 · 前 6',
+      '稳定榜': '练琴最规律稳定 · 前 6',
+      '守则榜': '异常率最低 · 前 6',
+      '缩水榜': '已开始且进度低于 70% · 越低越靠前 · 前 6 名扣币',
     };
 
     const WLB_MAJ_SHORT = m => {
@@ -12410,11 +12422,11 @@
       }
       const row = Array.isArray(summary) ? (summary[0] || null) : summary;
       if (!row) {
-        el.textContent = '本周未开始人数暂不可用；未开始学生不参与缩水榜排名。';
+        el.textContent = '未开始人数暂不可用';
       } else {
         const notStarted = Number(row.not_started_students || 0);
         const shrink = Number(row.shrink_students || 0);
-        el.textContent = `本周未开始 ${notStarted} 人（不参与排名） · 缩水榜 ${shrink} 人`;
+        el.textContent = `未开始 ${notStarted} 人 · 缩水榜 ${shrink} 人`;
       }
       el.style.display = 'block';
     }
@@ -12533,17 +12545,13 @@
       if (!listEl) return;
       bindWlbListDelegation(listEl);
       if (!rows.length) {
-        if (noticeEl) {
-          const day = new Date().getDay();
-          const isWeekStart = (day === 1 || day === 2);
+        if (noticeEl && _wlbLastError) {
           noticeEl.style.display = 'block';
-          noticeEl.textContent = _wlbLastError
-            ? `本周排行榜加载失败：${_wlbLastError.message || _wlbLastError}。请检查 Supabase 连接或后端函数状态。`
-            : isWeekStart
-              ? '本周排行榜暂时为空。现在已经进入新的一周，需等本周数据写入后，综合榜、分类榜和缩水榜才会自动更新。'
-              : '本周排行榜暂时为空。通常表示当前还没有满足各榜上榜条件的本周数据。';
+          noticeEl.textContent = '排行榜加载失败，请稍后重试';
+        } else if (noticeEl) {
+          noticeEl.style.display = 'none';
         }
-        listEl.innerHTML = '<div class="wlb-empty">暂无足够数据</div>';
+        listEl.innerHTML = `<div class="wlb-empty">${_wlbLastError ? '暂时无法加载' : '本周暂无上榜学生'}</div>`;
         return;
       }
       if (noticeEl) noticeEl.style.display = 'none';
