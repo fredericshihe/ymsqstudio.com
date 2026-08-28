@@ -775,6 +775,10 @@
 	/* ========== 课表弹窗（深色高对比模式） ========== */
 	/* z-index 需高于学生库面板(3100)及其内部弹窗(3150)，否则从学生库里点"课表"会被盖在下面 */
 	#scheduleModalBackdrop{background:rgba(0,0,0,.85);backdrop-filter:blur(5px);z-index:3200;}
+	#scheduleModalBackdrop.schedule-over-alert{z-index:4850;animation:scheduleAlertLayerIn .18s ease-out both;}
+	#scheduleModalBackdrop.schedule-over-alert .modal{animation:scheduleAlertModalIn .2s cubic-bezier(.2,.75,.25,1) both;}
+	#scheduleModalBackdrop.schedule-over-alert.is-closing{pointer-events:none;animation:scheduleAlertLayerOut .16s ease-in both;}
+	#scheduleModalBackdrop.schedule-over-alert.is-closing .modal{animation:scheduleAlertModalOut .16s ease-in both;}
 	#scheduleModalBackdrop .modal{
 		width:min(1200px,96vw);
 		height:92dvh;max-height:860px;
@@ -784,6 +788,10 @@
 		display:flex;flex-direction:column;background:#0f172a;
 	}
 	@keyframes scheduleIn{from{opacity:0;transform:scale(.91)}to{opacity:1;transform:scale(1)}}
+	@keyframes scheduleAlertLayerIn{from{opacity:0}to{opacity:1}}
+	@keyframes scheduleAlertLayerOut{from{opacity:1}to{opacity:0}}
+	@keyframes scheduleAlertModalIn{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+	@keyframes scheduleAlertModalOut{from{opacity:1;transform:translateY(0) scale(1)}to{opacity:0;transform:translateY(7px) scale(.99)}}
 
 	/* 顶部标题栏 */
 	#scheduleModalBackdrop .modal-header{
@@ -1140,20 +1148,97 @@
 					<div class="alert-heading">
 						<span class="alert-heading-dot" aria-hidden="true"></span>
 						<span class="alert-heading-title">重要提醒</span>
-						<span id="alertCountBadge" class="alert-count-badge" hidden>缺勤 0</span>
 					</div>
-					<button id="ignoreAllBtn" class="alert-ignore-all-btn" title="忽略全部当前提醒" hidden>全部忽略</button>
+					<button id="alertSettingsBtn" class="alert-scope-btn" type="button" title="设置缺勤监测年级">监测 G1–G9</button>
 				</div>
-				<div id="alertList" class="list-small alert-list alert-empty" aria-live="polite">
-					<div class="alert-empty-state">
-						<span class="alert-empty-icon" aria-hidden="true">✓</span>
-						<span class="alert-empty-title">暂无重要提醒</span>
-						<span class="alert-empty-subtitle">当前没有需要处理的缺勤</span>
-					</div>
+				<div id="alertList" class="list-small alert-list" aria-live="polite" aria-busy="true">
+					<button class="alert-summary-card alert-summary-active" type="button" data-alert-view="active">
+						<span class="alert-summary-copy">
+							<span class="alert-summary-title">当前正在缺勤</span>
+							<span id="alertActiveMeta" class="alert-summary-meta">正在统计…</span>
+						</span>
+						<span class="alert-summary-action">查看名单</span>
+					</button>
+					<button class="alert-summary-card alert-summary-confirmed" type="button" data-alert-view="confirmed_absent">
+						<span class="alert-summary-copy">
+							<span class="alert-summary-title">今日已确认缺勤</span>
+							<span id="alertConfirmedMeta" class="alert-summary-meta">正在统计…</span>
+						</span>
+						<span class="alert-summary-action">查看详情</span>
+					</button>
 				</div>
 			</div>
 		</div>
 	</main>
+
+	<div id="alertDetailBackdrop" class="alert-modal-backdrop" hidden>
+		<section class="alert-detail-modal" role="dialog" aria-modal="true" aria-labelledby="alertDetailTitle">
+			<header class="alert-modal-head">
+				<div>
+					<p class="alert-modal-kicker">今日缺勤</p>
+					<h2 id="alertDetailTitle">当前正在缺勤</h2>
+				</div>
+				<button id="alertDetailClose" class="alert-modal-close" type="button" aria-label="关闭">✕</button>
+			</header>
+			<div class="alert-detail-tabs" role="tablist" aria-label="缺勤状态">
+				<button type="button" role="tab" data-alert-tab="active" aria-selected="true">当前正在缺勤 <span id="alertActiveTabCount">0</span></button>
+				<button type="button" role="tab" data-alert-tab="confirmed_absent" aria-selected="false">今日已确认 <span id="alertConfirmedTabCount">0</span></button>
+			</div>
+			<div class="alert-detail-filters">
+				<label class="alert-filter-search">
+					<span>搜索</span>
+					<input id="alertDetailSearch" type="search" placeholder="输入学生姓名" autocomplete="off" />
+				</label>
+				<label>
+					<span>年级</span>
+					<select id="alertDetailGrade"><option value="">全部监测年级</option></select>
+				</label>
+				<label>
+					<span>专业</span>
+					<select id="alertDetailMajor"><option value="">全部专业</option></select>
+				</label>
+				<label>
+					<span>时间段</span>
+					<select id="alertDetailSlot"><option value="">全部时段</option></select>
+				</label>
+			</div>
+			<div id="alertDetailResultMeta" class="alert-detail-result-meta">正在加载…</div>
+			<div id="alertDetailList" class="alert-detail-list" aria-live="polite"></div>
+			<footer class="alert-detail-footer">
+				<button id="alertAcknowledgeAll" class="alert-secondary-btn" type="button" hidden>全部标记已阅</button>
+				<div class="alert-pagination">
+					<button id="alertPrevPage" class="alert-secondary-btn" type="button">上一页</button>
+					<span id="alertPageLabel">第 1 页</span>
+					<button id="alertNextPage" class="alert-secondary-btn" type="button">下一页</button>
+				</div>
+			</footer>
+		</section>
+	</div>
+
+	<div id="alertSettingsBackdrop" class="alert-modal-backdrop alert-settings-layer" hidden>
+		<section class="alert-settings-modal" role="dialog" aria-modal="true" aria-labelledby="alertSettingsTitle">
+			<header class="alert-modal-head">
+				<div>
+					<p class="alert-modal-kicker">云端共享设置</p>
+					<h2 id="alertSettingsTitle">缺勤监测年级</h2>
+				</div>
+				<button id="alertSettingsClose" class="alert-modal-close" type="button" aria-label="关闭">✕</button>
+			</header>
+			<p class="alert-settings-help">只有已选择年级会进入缺勤统计；G8、G9 等基础年级会自动包含 G8-1、G9-1 等分班年级。取消选择不会删除已有历史。</p>
+			<div id="alertGradeChoices" class="alert-grade-choices"></div>
+			<div class="alert-custom-grade-row">
+				<input id="alertCustomGrade" type="text" maxlength="30" placeholder="添加自定义年级" />
+				<button id="alertAddCustomGrade" class="alert-secondary-btn" type="button">添加</button>
+			</div>
+			<footer class="alert-settings-footer">
+				<button id="alertResetGrades" class="alert-secondary-btn" type="button">恢复默认 G1–G9</button>
+				<div>
+					<button id="alertSettingsCancel" class="alert-secondary-btn" type="button">取消</button>
+					<button id="alertSettingsSave" class="alert-primary-btn" type="button">保存并重算</button>
+				</div>
+			</footer>
+		</section>
+	</div>
 	<footer>© 2025 青岛耶胡迪梅纽因学校 琴房管理系统 · Demo 版本 · <a href="https://supabase.com" target="_blank" rel="noopener">Supabase</a></footer>
 
 	<!-- 学生库管理面板（全屏表格式） -->
@@ -17266,21 +17351,30 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		}
 	}
 
-	async function showStudentSchedule(name) {
+	async function showStudentSchedule(name, options = {}) {
 		if (!supabaseClient) { toast('Supabase 未就绪，无法加载课表', 'error'); return; }
 
 		// 移除已有弹窗
 		const old = document.getElementById('scheduleModalBackdrop');
 		if (old) {
 			if (typeof old.__closeScheduleModal === 'function') {
-				if (old.__closeScheduleModal() === false) return;
+				if (old.__closeScheduleModal({ immediate: true }) === false) return;
+				if (old.isConnected) old.remove();
 			} else old.remove();
 		}
+		const alertDetailBackdrop = document.getElementById('alertDetailBackdrop');
+		const keepAlertOpen = options.keepAlertOpen === true
+			&& alertDetailBackdrop
+			&& !alertDetailBackdrop.hidden;
+		const returnFocusTo = options.returnFocusTo instanceof HTMLElement
+			? options.returnFocusTo
+			: (keepAlertOpen ? document.activeElement : null);
 
 		// 创建弹窗骨架
 		const backdrop = document.createElement('div');
 		backdrop.id = 'scheduleModalBackdrop';
 		backdrop.className = 'modal-backdrop';
+		if (keepAlertOpen) backdrop.classList.add('schedule-over-alert');
 		backdrop.innerHTML = `
 			<div class="modal">
 				<div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;">
@@ -17299,6 +17393,8 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		lockBodyScroll();
 
 		let closed = false;
+		let closeFinalized = false;
+		let closeTimer = null;
 		let scheduleLoading = false;
 		let scheduleAbort = null;
 		let scheduleRow = null;
@@ -17337,18 +17433,38 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		};
 		const escHandler = (e) => { if (e.key === 'Escape') { closeModal(); } };
 
-		const closeModal = () => {
-			if(closed) return true;
-			if(editorDirty && !confirm('课表有未保存修改，确定关闭吗？')) return false;
-			closed = true;
-			removeCellEditor();
-			clearEditorDragState();
-			if(scheduleAbort){ scheduleAbort.abort(); scheduleAbort = null; }
-			if(scheduleHighlightTimer){ clearInterval(scheduleHighlightTimer); scheduleHighlightTimer = null; }
-			document.removeEventListener('visibilitychange', onScheduleVisibilityChange);
-			document.removeEventListener('keydown', escHandler);
+		const finalizeClose = () => {
+			if(closeFinalized) return;
+			closeFinalized = true;
+			if(closeTimer){ clearTimeout(closeTimer); closeTimer = null; }
 			unlockBodyScroll();
 			backdrop.remove();
+			if(keepAlertOpen && alertDetailBackdrop && !alertDetailBackdrop.hidden){
+				requestAnimationFrame(()=>{
+					const focusTarget = returnFocusTo?.isConnected
+						? returnFocusTo
+						: document.getElementById('alertDetailClose');
+					focusTarget?.focus({preventScroll:true});
+				});
+			}
+		};
+		const closeModal = (closeOptions = {}) => {
+			const immediate = closeOptions?.immediate === true;
+			if(!closed){
+				if(editorDirty && !confirm('课表有未保存修改，确定关闭吗？')) return false;
+				closed = true;
+				removeCellEditor();
+				clearEditorDragState();
+				if(scheduleAbort){ scheduleAbort.abort(); scheduleAbort = null; }
+				if(scheduleHighlightTimer){ clearInterval(scheduleHighlightTimer); scheduleHighlightTimer = null; }
+				document.removeEventListener('visibilitychange', onScheduleVisibilityChange);
+				document.removeEventListener('keydown', escHandler);
+			}
+			if(immediate || !keepAlertOpen) finalizeClose();
+			else if(!closeFinalized && !closeTimer){
+				backdrop.classList.add('is-closing');
+				closeTimer = setTimeout(finalizeClose, 170);
+			}
 			return true;
 		};
 		backdrop.__closeScheduleModal = closeModal;
@@ -18733,6 +18849,113 @@ body{--text:#e2ebf3; --text-dim:#a5b6c6;}
 .alert-empty-icon{display:flex;align-items:center;justify-content:center;width:28px;height:28px;margin-bottom:8px;border:1px solid rgba(63,191,107,.25);border-radius:50%;background:rgba(63,191,107,.08);color:#79d898;font-size:13px;font-weight:700;}
 .alert-empty-title{color:#b9c4cf;font-size:12px;font-weight:600;}
 .alert-empty-subtitle{margin-top:4px;color:#687583;font-size:10.5px;}
+</style>
+
+<style id="practice-alert-dashboard-style">
+.alert-section button,.alert-modal-backdrop button,.alert-modal-backdrop input,.alert-modal-backdrop select,.alert-detail-modal,.alert-settings-modal{box-shadow:none!important;}
+.alert-scope-btn{max-width:168px;min-height:34px;padding:7px 10px;border:1px solid var(--outline);border-radius:8px;background:transparent;color:#aab6c3;font-family:inherit;font-size:12px;font-weight:600;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;}
+.alert-scope-btn:hover{border-color:var(--outline-hover);background:rgba(255,255,255,.035);color:#d0dae5;}
+.alert-scope-btn:focus-visible,.alert-summary-card:focus-visible,.alert-modal-backdrop button:focus-visible,.alert-modal-backdrop input:focus-visible,.alert-modal-backdrop select:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+#alertList.alert-list{max-height:none;display:grid;gap:10px;padding:8px;background:rgba(10,13,18,.38);border:1px solid var(--outline);border-radius:10px;overflow:hidden;}
+.alert-summary-card{width:100%;min-width:0;min-height:80px;padding:14px;border:1px solid var(--outline);border-left:3px solid #607082;border-radius:9px;background:rgba(31,37,45,.88);color:inherit;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;cursor:pointer;transition:background-color .16s ease,border-color .16s ease;}
+.alert-summary-card:hover{background:var(--surface);border-color:var(--outline-hover);}
+.alert-summary-card.alert-summary-active{border-left-color:#ff7169;}
+.alert-summary-card.alert-summary-confirmed{border-left-color:#d69a55;}
+.alert-summary-card.is-empty{border-left-color:#55616d;opacity:.78;}
+.alert-summary-copy{display:flex;min-width:0;flex:1;flex-direction:column;gap:8px;}
+.alert-summary-title{color:#e5ebf2;font-size:14.5px;font-weight:650;line-height:1.25;}
+.alert-summary-meta{color:#9ba8b7;font-size:12.5px;line-height:1.45;font-variant-numeric:tabular-nums;}
+.alert-summary-action{flex:0 0 auto;color:#b7c2ce;font-size:12px;font-weight:600;white-space:nowrap;}
+.alert-summary-card:hover .alert-summary-action{color:#fff;}
+body.alert-modal-open{overflow:hidden;}
+.alert-modal-backdrop[hidden]{display:none!important;}
+.alert-modal-backdrop [hidden]{display:none!important;}
+.alert-modal-backdrop{position:fixed;inset:0;z-index:4700;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(5,7,10,.78);backdrop-filter:blur(4px);overscroll-behavior:contain;}
+.alert-settings-layer{z-index:4750;}
+.alert-detail-modal,.alert-settings-modal{width:min(1040px,96vw);max-height:min(850px,92dvh);display:flex;flex-direction:column;overflow:hidden;border:1px solid #36414d;border-radius:12px;background:#151b22;color:var(--text);}
+.alert-detail-modal{height:min(760px,92dvh);}
+.alert-settings-modal{width:min(620px,94vw);}
+.alert-modal-head{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 22px 17px;border-bottom:1px solid var(--outline);background:#1a212a;}
+.alert-modal-head h2{margin:4px 0 0;font-size:22px;font-weight:650;line-height:1.25;letter-spacing:.1px;}
+.alert-modal-kicker{margin:0;color:#8795a4;font-size:12px;font-weight:650;letter-spacing:.75px;}
+.alert-modal-close{width:38px;height:38px;display:grid;place-items:center;border:1px solid var(--outline);border-radius:8px;background:transparent;color:#aab6c3;font-size:15px;cursor:pointer;}
+.alert-modal-close:hover{background:rgba(255,255,255,.05);color:#fff;}
+.alert-detail-tabs{display:flex;gap:10px;padding:14px 22px 2px;background:#151b22;}
+.alert-detail-tabs button{min-height:38px;padding:8px 13px;border:1px solid var(--outline);border-radius:8px;background:transparent;color:#9da9b7;font-family:inherit;font-size:13px;font-weight:600;line-height:1;cursor:pointer;}
+.alert-detail-tabs button[aria-selected="true"]{border-color:#536579;background:#222c37;color:#eef3f8;}
+.alert-detail-tabs span{margin-left:5px;color:#718091;font-variant-numeric:tabular-nums;}
+.alert-detail-filters{display:grid;grid-template-columns:minmax(210px,1fr) minmax(120px,.42fr) minmax(150px,.58fr) minmax(135px,.46fr);gap:12px;padding:14px 22px;}
+.alert-detail-filters label{display:flex;flex-direction:column;gap:7px;color:#96a3b1;font-size:12px;font-weight:600;}
+.alert-detail-filters input,.alert-detail-filters select,.alert-custom-grade-row input{width:100%;height:40px;padding:0 11px;border:1px solid var(--outline);border-radius:8px;background:#10151b;color:#e3e9ef;font-family:inherit;font-size:13.5px;font-weight:500;line-height:1;box-shadow:none!important;}
+.alert-detail-filters input:focus,.alert-detail-filters select:focus,.alert-custom-grade-row input:focus{border-color:#596d82;outline:none;}
+.alert-detail-result-meta{padding:0 22px 10px;color:#8b98a6;font-size:12.5px;transition:color .15s ease;}
+.alert-detail-result-meta.is-updating{color:#adc0d3;}
+.alert-detail-result-meta.is-updating::after{content:' · 正在更新';color:#7f9bb6;}
+.alert-detail-list{position:relative;flex:1 1 auto;min-height:0;overflow:auto;padding:0 22px 16px;overscroll-behavior:contain;opacity:1;transition:opacity .15s ease;}
+.alert-detail-list.is-updating{opacity:.58;pointer-events:none;}
+.alert-detail-row{display:grid;grid-template-columns:minmax(190px,.9fr) minmax(135px,.7fr) minmax(220px,1.45fr) auto;align-items:center;gap:16px;min-height:70px;padding:11px 12px;border-top:1px solid var(--outline);}
+.alert-detail-row:last-child{border-bottom:1px solid var(--outline);}
+.alert-detail-identity{display:flex;align-items:center;gap:9px;min-width:0;}
+.alert-detail-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#edf2f7;font-size:15px;font-weight:650;}
+.alert-unread-dot{width:7px;height:7px;flex:0 0 auto;border-radius:50%;background:#ff766f;}
+.alert-detail-schedule-btn{flex:0 0 auto;min-height:32px;padding:6px 9px;border:1px solid #46586a;border-radius:7px;background:transparent;color:#b8c7d6;font-family:inherit;font-size:12px;font-weight:600;line-height:1;white-space:nowrap;cursor:pointer;}
+.alert-detail-schedule-btn:hover{border-color:#66809a;background:#202b36;color:#f3f7fb;}
+.alert-detail-profile{min-width:0;color:#9aa7b5;font-size:12.5px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.alert-slot-chips{display:flex;flex-wrap:wrap;gap:6px;min-width:0;}
+.alert-slot-chip{padding:5px 7px;border:1px solid #394653;border-radius:6px;background:#1b242d;color:#d1dae3;font:600 11.5px/1 'SF Mono','Roboto Mono','Consolas',monospace;white-space:nowrap;}
+.alert-detail-count{color:#a6b2bf;font-size:12.5px;white-space:nowrap;}
+.alert-detail-empty{display:grid;min-height:240px;place-items:center;color:#8e9ba9;font-size:14px;text-align:center;}
+.alert-detail-footer,.alert-settings-footer{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 22px;border-top:1px solid var(--outline);background:#1a212a;}
+.alert-pagination,.alert-settings-footer>div{display:flex;align-items:center;gap:10px;}
+.alert-pagination span{min-width:74px;color:#93a0ae;font-size:12.5px;text-align:center;}
+.alert-secondary-btn,.alert-primary-btn{min-height:38px;padding:8px 13px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;line-height:1;cursor:pointer;}
+.alert-secondary-btn{border:1px solid var(--outline);background:transparent;color:#a5b1be;}
+.alert-secondary-btn:hover:not(:disabled){background:rgba(255,255,255,.045);border-color:var(--outline-hover);color:#edf2f7;}
+.alert-primary-btn{border:1px solid #416fa5;background:#315f94;color:#fff;}
+.alert-primary-btn:hover:not(:disabled){background:#3970ad;}
+.alert-secondary-btn:disabled,.alert-primary-btn:disabled{opacity:.45;cursor:not-allowed;}
+.alert-settings-help{margin:0;padding:17px 22px 11px;color:#9aa7b5;font-size:13.5px;line-height:1.65;}
+.alert-grade-choices{display:flex;flex-wrap:wrap;gap:10px;max-height:330px;overflow:auto;padding:9px 22px 18px;overscroll-behavior:contain;}
+.alert-grade-choice{position:relative;}
+.alert-grade-choice input{position:absolute;opacity:0;pointer-events:none;}
+.alert-grade-choice span{display:flex;align-items:center;justify-content:center;min-width:52px;height:38px;padding:0 12px;border:1px solid var(--outline);border-radius:8px;background:#12181e;color:#a3afbc;font-size:13px;font-weight:600;cursor:pointer;box-shadow:none!important;}
+.alert-grade-choice input:checked+span{border-color:#53769d;background:#23364a;color:#e8f1fb;}
+.alert-grade-choice input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px;}
+.alert-custom-grade-row{display:grid;grid-template-columns:1fr auto;gap:10px;padding:0 22px 20px;}
+@media (max-width:700px){
+	.alert-modal-backdrop{padding:10px;align-items:stretch;}
+	.alert-detail-modal,.alert-settings-modal{width:100%;max-height:none;margin:auto 0;}
+	.alert-detail-modal{height:100%;}
+	.alert-detail-filters{grid-template-columns:1fr 1fr;}
+	.alert-filter-search{grid-column:1/-1;}
+	.alert-detail-row{grid-template-columns:minmax(150px,.85fr) minmax(0,1fr) auto;gap:10px;}
+	.alert-detail-profile{display:none;}
+	.alert-slot-chips{grid-column:2;}
+	.alert-detail-count{grid-column:3;grid-row:1/3;}
+	.alert-settings-footer{align-items:stretch;flex-direction:column;}
+	.alert-settings-footer>button,.alert-settings-footer>div{width:100%;}
+	.alert-settings-footer>div button{flex:1;}
+}
+@media (max-width:470px){
+	.alert-modal-head{padding:16px;}
+	.alert-modal-head h2{font-size:20px;}
+	.alert-detail-tabs,.alert-detail-filters{padding-left:16px;padding-right:16px;}
+	.alert-detail-tabs{overflow-x:auto;}
+	.alert-detail-tabs button{flex:0 0 auto;}
+	.alert-detail-list{padding-left:16px;padding-right:16px;}
+	.alert-detail-result-meta{padding-left:16px;padding-right:16px;}
+	.alert-detail-row{grid-template-columns:minmax(0,1fr) auto;gap:9px 12px;padding:12px 6px;}
+	.alert-detail-identity{grid-column:1;}
+	.alert-slot-chips{grid-column:1;grid-row:2;}
+	.alert-detail-count{grid-column:2;grid-row:1/3;}
+	.alert-detail-footer{align-items:stretch;flex-direction:column;padding:12px 16px;}
+	.alert-detail-footer>button{width:100%;}
+	.alert-pagination{width:100%;}
+	.alert-pagination button{flex:1;}
+	.alert-settings-help,.alert-grade-choices{padding-left:16px;padding-right:16px;}
+	.alert-custom-grade-row{padding-left:16px;padding-right:16px;}
+	.alert-settings-footer{padding:12px 16px;}
+}
 </style>
 
 
@@ -20188,6 +20411,650 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 </script>
 
 <script>
+// ======= Practice Absence Dashboard (汇总 / 详情 / 云端设置) =======
+(function(){
+	if(window.PracticeAlerts) return;
+
+	const DEFAULT_GRADES=['G1','G2','G3','G4','G5','G6','G7','G8','G9'];
+	const PAGE_SIZE=50;
+	const ABSENT_GRACE_MINUTES=5;
+	const SHANGHAI_TIME_ZONE='Asia/Shanghai';
+	const clockFormatter=new Intl.DateTimeFormat('en-CA',{
+		timeZone:SHANGHAI_TIME_ZONE,year:'numeric',month:'2-digit',day:'2-digit',
+		hour:'2-digit',minute:'2-digit',hourCycle:'h23'
+	});
+	const State={
+		settings:{monitored_grades:[...DEFAULT_GRADES],available_grades:[],updated_at:null},
+		summary:{active_students:0,active_slots:0,confirmed_students:0,confirmed_slots:0,unread_students:0},
+		slotsToday:null,slotsDay:null,profiles:new Map(),practiceLogs:new Map(),logsDay:null,
+		recalcPromise:null,summaryPromise:null,initialized:false,initPromise:null,timer:null,timerTicks:0,
+		realtimeChannel:null,recalcTimer:null,summaryTimer:null,
+		detail:{status:'active',search:'',grade:'',major:'',slot:'',page:0,total:0,requestId:0},
+		settingsDraft:new Set(DEFAULT_GRADES)
+	};
+
+	function clock(date=new Date()){
+		const parts={};
+		for(const part of clockFormatter.formatToParts(date instanceof Date?date:new Date(date))){
+			if(part.type!=='literal') parts[part.type]=part.value;
+		}
+		const year=Number(parts.year),month=Number(parts.month),day=Number(parts.day);
+		return {
+			dateKey:`${parts.year}-${parts.month}-${parts.day}`,
+			weekday:((new Date(Date.UTC(year,month-1,day)).getUTCDay()+6)%7)+1,
+			minutes:Number(parts.hour)*60+Number(parts.minute)
+		};
+	}
+	function businessDateKey(){ return clock().dateKey; }
+	function dateRange(){
+		const start=new Date(`${businessDateKey()}T00:00:00+08:00`);
+		return {start:start.toISOString(),end:new Date(start.getTime()+86400000).toISOString()};
+	}
+	function timeToMinutes(value){
+		const match=String(value||'').match(/^(\d{1,2}):(\d{2})/);
+		return match?Number(match[1])*60+Number(match[2]):null;
+	}
+	function minutesAtShanghai(value){
+		const date=new Date(value);
+		return Number.isNaN(date.getTime())?null:clock(date).minutes;
+	}
+	function normalizeGrade(value){
+		const grade=String(value||'').trim();
+		const match=grade.match(/^g\s*(\d+)$/i);
+		return match?`G${Number(match[1])}`:grade;
+	}
+	function gradeSort(a,b){
+		const am=String(a).match(/^G(\d+)(?:[-.](\d+))?$/i),bm=String(b).match(/^G(\d+)(?:[-.](\d+))?$/i);
+		if(am&&bm) return Number(am[1])-Number(bm[1])||(Number(am[2]||0)-Number(bm[2]||0));
+		if(am) return -1;
+		if(bm) return 1;
+		return String(a).localeCompare(String(b),'zh-Hans-CN');
+	}
+	function activeStudents(){
+		try{
+			if(window.getAllActiveStudents) return window.getAllActiveStudents()||[];
+			return (window.Store?.students||[]).filter(student=>student&&student.name);
+		}catch(_error){ return []; }
+	}
+	function studentMap(){
+		return State.profiles.size?new Map(State.profiles):new Map(activeStudents().map(student=>[student.name,student]));
+	}
+	function monitoredSet(){ return new Set((State.settings.monitored_grades||[]).map(normalizeGrade)); }
+	function isMonitoredGrade(value,set=monitoredSet()){
+		const grade=normalizeGrade(value);
+		if(set.has(grade)) return true;
+		for(const selected of set){
+			if(/^G\d+$/i.test(selected)&&(grade.startsWith(`${selected}-`)||grade.startsWith(`${selected}.`))) return true;
+		}
+		return false;
+	}
+	function isRpcMissing(error,name){
+		return error?.code==='PGRST202'||(String(error?.message||'').includes(name)&&/schema cache|function/i.test(error?.message||''));
+	}
+	function notify(message,type='info'){
+		if(typeof window.toast==='function') window.toast(message,type);
+		else console.log('[PracticeAlerts]',message);
+	}
+
+	async function loadSettings({refreshOptions=true}={}){
+		const localGrades=[...new Set(activeStudents().map(student=>normalizeGrade(student.grade)).filter(Boolean))];
+		if(!window.supabaseClient){
+			State.settings.available_grades=localGrades.sort(gradeSort);
+			return State.settings;
+		}
+		try{
+			const {data,error}=await supabaseClient.rpc('get_practice_alert_settings');
+			if(error) throw error;
+			const configured=Array.isArray(data?.monitored_grades)?data.monitored_grades.map(normalizeGrade).filter(Boolean):DEFAULT_GRADES;
+			const available=Array.isArray(data?.available_grades)?data.available_grades.map(normalizeGrade).filter(Boolean):[];
+			State.settings={
+				monitored_grades:[...new Set(configured)].sort(gradeSort),
+				available_grades:[...new Set([...available,...localGrades,...configured])].sort(gradeSort),
+				updated_at:data?.updated_at||null
+			};
+		}catch(error){
+			console.warn('[PracticeAlerts] 读取监测设置失败，使用默认 G1–G9',error);
+			State.settings.available_grades=[...new Set([...localGrades,...DEFAULT_GRADES])].sort(gradeSort);
+		}
+		renderScope();
+		if(refreshOptions) refreshDetailFilterOptions();
+		return State.settings;
+	}
+
+	function renderScope(){
+		const button=document.getElementById('alertSettingsBtn');
+		if(!button) return;
+		const grades=[...(State.settings.monitored_grades||[])].sort(gradeSort);
+		let label='未监测年级';
+		const defaultSelected=grades.length===DEFAULT_GRADES.length&&DEFAULT_GRADES.every((grade,index)=>grade===grades[index]);
+		if(defaultSelected) label='监测 G1–G9';
+		else if(grades.length<=3&&grades.length) label=`监测 ${grades.join('、')}`;
+		else if(grades.length) label=`监测 ${grades.length} 个年级`;
+		button.textContent=label;
+		button.title=`缺勤监测年级：${grades.join('、')||'无'}（点击设置）`;
+	}
+
+	async function loadSlots({force=false}={}){
+		const today=businessDateKey();
+		if(!force&&State.slotsToday&&State.slotsDay===today) return State.slotsToday;
+		if(!window.supabaseClient) return State.slotsToday||{};
+		const [slotResult,profileResult]=await Promise.all([
+			supabaseClient.from('student_time_slots')
+				.select('student_name,start_time,end_time').eq('weekday',clock().weekday).order('start_time'),
+			supabaseClient.from('student_database')
+				.select('name,grade,major,archived').eq('archived',false)
+		]);
+		if(slotResult.error){ console.warn('[PracticeAlerts] 课表加载失败',slotResult.error); return State.slotsToday||{}; }
+		if(profileResult.error) console.warn('[PracticeAlerts] 学生年级加载失败',profileResult.error);
+		else State.profiles=new Map((profileResult.data||[]).filter(profile=>profile.name).map(profile=>[profile.name,profile]));
+		const grouped={};
+		for(const row of slotResult.data||[]){
+			if(!row.student_name||!row.start_time||!row.end_time) continue;
+			(grouped[row.student_name]||(grouped[row.student_name]=[])).push(row);
+		}
+		State.slotsToday=grouped;
+		State.slotsDay=today;
+		return grouped;
+	}
+
+	async function loadPracticeLogs({force=false}={}){
+		const today=businessDateKey();
+		if(!force&&State.logsDay===today) return State.practiceLogs;
+		if(!window.supabaseClient) return State.practiceLogs;
+		const range=dateRange();
+		const {data,error}=await supabaseClient.from('practice_logs')
+			.select('student_name,session_start,session_end')
+			.gte('session_start',range.start).lt('session_start',range.end);
+		if(error){ console.warn('[PracticeAlerts] 当天练琴记录加载失败',error); return State.practiceLogs; }
+		const grouped=new Map();
+		const dedupe=new Map();
+		for(const row of data||[]){
+			const name=String(row.student_name||'').trim();
+			if(!name||!row.session_start) continue;
+			const key=`${name}|${row.session_start}`;
+			const previous=dedupe.get(key);
+			if(!previous||(!previous.session_end&&row.session_end)) dedupe.set(key,row);
+		}
+		for(const row of dedupe.values()){
+			if(!grouped.has(row.student_name)) grouped.set(row.student_name,[]);
+			grouped.get(row.student_name).push(row);
+		}
+		State.practiceLogs=grouped;
+		State.logsDay=today;
+		return grouped;
+	}
+
+	function currentOccupancyLog(student){
+		for(const room of window.Store?.rooms||[]){
+			if(!room.occupant_student_name||!room.registerTime) continue;
+			const names=String(room.occupant_student_name).split(',').map(name=>name.trim());
+			if(names.includes(student)) return {session_start:new Date(room.registerTime).toISOString(),session_end:null};
+		}
+		return null;
+	}
+	function hasPracticeOverlap(student,slot){
+		const slotStart=timeToMinutes(slot.start_time),slotEnd=timeToMinutes(slot.end_time);
+		if(slotStart==null||slotEnd==null) return false;
+		const logs=[...(State.practiceLogs.get(student)||[])];
+		const occupancy=currentOccupancyLog(student);
+		if(occupancy) logs.push(occupancy);
+		return logs.some(log=>{
+			const start=minutesAtShanghai(log.session_start||log.start_time);
+			const end=minutesAtShanghai(log.session_end||log.end_time||new Date());
+			return start!=null&&end!=null&&start<slotEnd&&end>=slotStart;
+		});
+	}
+	function buildCandidates(){
+		const nowMinutes=clock().minutes;
+		const monitored=monitoredSet();
+		const profiles=studentMap();
+		const candidates=[];
+		for(const [student,slots] of Object.entries(State.slotsToday||{})){
+			const profile=profiles.get(student);
+			if(!profile||!isMonitoredGrade(profile.grade,monitored)) continue;
+			for(const slot of slots||[]){
+				const start=timeToMinutes(slot.start_time),end=timeToMinutes(slot.end_time);
+				if(start==null||end==null||nowMinutes<start+ABSENT_GRACE_MINUTES) continue;
+				if(hasPracticeOverlap(student,slot)) continue;
+				candidates.push({
+					student_name:student,type:'absent',slot_start:slot.start_time,slot_end:slot.end_time,
+					severity:2,lifecycle_status:nowMinutes>end?'confirmed_absent':'active',client_version:2
+				});
+			}
+		}
+		return candidates;
+	}
+
+	function localSummary(candidates=buildCandidates()){
+		const active=candidates.filter(item=>item.lifecycle_status==='active');
+		const confirmed=candidates.filter(item=>item.lifecycle_status==='confirmed_absent');
+		return {
+			active_students:new Set(active.map(item=>item.student_name)).size,
+			active_slots:active.length,
+			active_slot_start:active.map(item=>item.slot_start).sort()[0]||null,
+			active_slot_end:active.map(item=>item.slot_end).sort().at(-1)||null,
+			confirmed_students:new Set(confirmed.map(item=>item.student_name)).size,
+			confirmed_slots:confirmed.length,
+			unread_students:new Set(confirmed.map(item=>item.student_name)).size
+		};
+	}
+	function asCount(value){ const number=Number(value); return Number.isFinite(number)?number:0; }
+	function renderSummary(){
+		const summary=State.summary||{};
+		const activeStudentsCount=asCount(summary.active_students);
+		const activeSlots=asCount(summary.active_slots);
+		const confirmedStudents=asCount(summary.confirmed_students);
+		const confirmedSlots=asCount(summary.confirmed_slots);
+		const unreadStudents=asCount(summary.unread_students);
+		const activeMeta=document.getElementById('alertActiveMeta');
+		const confirmedMeta=document.getElementById('alertConfirmedMeta');
+		if(activeMeta){
+			const range=summary.active_slot_start&&summary.active_slot_end?` · ${summary.active_slot_start}–${summary.active_slot_end}`:'';
+			activeMeta.textContent=activeStudentsCount?`${activeStudentsCount} 人 · ${activeSlots} 个时段${range}`:'当前无人缺勤';
+		}
+		if(confirmedMeta){
+			confirmedMeta.textContent=confirmedStudents
+				?`${confirmedStudents} 人 · 共 ${confirmedSlots} 个缺勤时段${unreadStudents?` · ${unreadStudents} 人未阅`:''}`
+				:'今日暂无确认缺勤';
+		}
+		document.querySelector('.alert-summary-active')?.classList.toggle('is-empty',activeStudentsCount===0);
+		document.querySelector('.alert-summary-confirmed')?.classList.toggle('is-empty',confirmedStudents===0);
+		const activeTab=document.getElementById('alertActiveTabCount');
+		const confirmedTab=document.getElementById('alertConfirmedTabCount');
+		if(activeTab) activeTab.textContent=String(activeStudentsCount);
+		if(confirmedTab) confirmedTab.textContent=String(confirmedStudents);
+		const list=document.getElementById('alertList');
+		if(list) list.setAttribute('aria-busy','false');
+	}
+	async function fetchSummary(){
+		if(State.summaryPromise) return State.summaryPromise;
+		State.summaryPromise=(async()=>{
+			if(!window.supabaseClient){ State.summary=localSummary(); renderSummary(); return State.summary; }
+			const {data,error}=await supabaseClient.rpc('get_practice_alert_summary',{p_business_date:businessDateKey()});
+			if(error){
+				if(!isRpcMissing(error,'get_practice_alert_summary')) console.warn('[PracticeAlerts] 汇总加载失败',error);
+				State.summary=localSummary();
+			}else State.summary={...State.summary,...(data||{})};
+			renderSummary();
+			return State.summary;
+		})().finally(()=>{ State.summaryPromise=null; });
+		return State.summaryPromise;
+	}
+	function scheduleSummary(delay=250){
+		clearTimeout(State.summaryTimer);
+		State.summaryTimer=setTimeout(()=>{
+			fetchSummary().catch(error=>console.warn('[PracticeAlerts] 汇总刷新失败',error));
+			if(!document.getElementById('alertDetailBackdrop')?.hidden) loadDetails();
+		},delay);
+	}
+
+	async function recalcToday({reloadSettings=false,reloadSlots=false}={}){
+		if(State.recalcPromise) return State.recalcPromise;
+		State.recalcPromise=(async()=>{
+			if(reloadSettings) await loadSettings();
+			await Promise.all([loadSlots({force:reloadSlots}),loadPracticeLogs({force:true})]);
+			const candidates=buildCandidates();
+			if(window.supabaseClient){
+				const {error}=await supabaseClient.rpc('reconcile_practice_alerts',{
+					p_business_date:businessDateKey(),
+					p_alerts:[...candidates,{type:'protocol',client_version:2}]
+				});
+				if(error) console.warn('[PracticeAlerts] 当天缺勤对账失败',error);
+			}
+			State.summary=localSummary(candidates);
+			renderSummary();
+			await fetchSummary();
+			return candidates;
+		})().finally(()=>{ State.recalcPromise=null; });
+		return State.recalcPromise;
+	}
+	function scheduleRecalc(delay=800,options={}){
+		clearTimeout(State.recalcTimer);
+		State.recalcTimer=setTimeout(()=>recalcToday(options).catch(error=>console.warn('[PracticeAlerts] 延迟重算失败',error)),delay);
+	}
+
+	function refreshDetailFilterOptions(){
+		const gradeSelect=document.getElementById('alertDetailGrade');
+		const majorSelect=document.getElementById('alertDetailMajor');
+		const slotSelect=document.getElementById('alertDetailSlot');
+		if(!gradeSelect||!majorSelect||!slotSelect) return;
+		const monitored=monitoredSet();
+		const students=[...studentMap().values()].filter(student=>isMonitoredGrade(student.grade,monitored));
+		const grades=[...new Set(students.map(student=>normalizeGrade(student.grade)).filter(Boolean))].sort(gradeSort);
+		const majors=[...new Set(students.map(student=>String(student.major||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh-Hans-CN'));
+		const slots=[...new Set(Object.values(State.slotsToday||{}).flat().map(slot=>`${slot.start_time}|${slot.end_time}`))]
+			.filter(value=>!value.startsWith('|')).sort((a,b)=>timeToMinutes(a.split('|')[0])-timeToMinutes(b.split('|')[0]));
+		const previousGrade=State.detail.grade,previousMajor=State.detail.major;
+		gradeSelect.replaceChildren(new Option('全部监测年级',''),...grades.map(grade=>new Option(grade,grade)));
+		majorSelect.replaceChildren(new Option('全部专业',''),...majors.map(major=>new Option(major,major)));
+		slotSelect.replaceChildren(new Option('全部时段',''),...slots.map(value=>new Option(value.replace('|','–'),value)));
+		if(grades.includes(previousGrade)) gradeSelect.value=previousGrade; else State.detail.grade='';
+		if(majors.includes(previousMajor)) majorSelect.value=previousMajor; else State.detail.major='';
+		if(slots.includes(State.detail.slot)) slotSelect.value=State.detail.slot; else State.detail.slot='';
+	}
+	function fallbackDetailRows(){
+		const profiles=studentMap();
+		const grouped=new Map();
+		for(const item of buildCandidates()){
+			if(item.lifecycle_status!==State.detail.status) continue;
+			const profile=profiles.get(item.student_name)||{};
+			if(State.detail.search&&!item.student_name.includes(State.detail.search)) continue;
+			if(State.detail.grade&&normalizeGrade(profile.grade)!==State.detail.grade) continue;
+			if(State.detail.major&&String(profile.major||'')!==State.detail.major) continue;
+			if(State.detail.slot&&`${item.slot_start}|${item.slot_end}`!==State.detail.slot) continue;
+			if(!grouped.has(item.student_name)) grouped.set(item.student_name,{
+				student_name:item.student_name,grade:profile.grade||'',major:profile.major||'',
+				alert_count:0,unread:State.detail.status==='confirmed_absent',slot_ranges:[],alert_ids:[]
+			});
+			const row=grouped.get(item.student_name);
+			row.alert_count++;
+			row.slot_ranges.push({start:item.slot_start,end:item.slot_end});
+		}
+		const all=[...grouped.values()].sort((a,b)=>gradeSort(a.grade,b.grade)||a.student_name.localeCompare(b.student_name,'zh-Hans-CN'));
+		State.detail.total=all.length;
+		return all.slice(State.detail.page*PAGE_SIZE,(State.detail.page+1)*PAGE_SIZE);
+	}
+	function openStudentScheduleFromDetails(studentName, triggerElement){
+		const name=String(studentName||'').trim();
+		if(!name) return;
+		if(typeof window.showStudentSchedule!=='function'){
+			notify('课表查看功能尚未加载，请稍后重试','error');
+			return;
+		}
+		Promise.resolve(window.showStudentSchedule(name,{
+			keepAlertOpen:true,
+			returnFocusTo:triggerElement
+		})).catch(error=>{
+			console.warn('[PracticeAlerts] 打开学生课表失败',error);
+			notify('课表加载失败，请稍后重试','error');
+		});
+	}
+	function renderDetailRows(rows){
+		const list=document.getElementById('alertDetailList');
+		const meta=document.getElementById('alertDetailResultMeta');
+		if(!list||!meta) return;
+		list.replaceChildren();
+		if(!rows.length){
+			const empty=document.createElement('div');
+			empty.className='alert-detail-empty';
+			empty.textContent=State.detail.status==='active'?'当前筛选条件下无人缺勤':'当前筛选条件下暂无确认缺勤';
+			list.appendChild(empty);
+		}else{
+			const fragment=document.createDocumentFragment();
+			for(const row of rows){
+				const item=document.createElement('article'); item.className='alert-detail-row';
+				const identity=document.createElement('div'); identity.className='alert-detail-identity';
+				if(row.unread){ const dot=document.createElement('span'); dot.className='alert-unread-dot'; dot.title='未阅'; identity.appendChild(dot); }
+				const name=document.createElement('span'); name.className='alert-detail-name'; name.textContent=row.student_name||''; identity.appendChild(name);
+				const scheduleButton=document.createElement('button');
+				scheduleButton.type='button'; scheduleButton.className='alert-detail-schedule-btn'; scheduleButton.textContent='课表';
+				scheduleButton.title=`查看${row.student_name||'该学生'}的课表`;
+				scheduleButton.setAttribute('aria-label',scheduleButton.title);
+				scheduleButton.addEventListener('click',()=>openStudentScheduleFromDetails(row.student_name,scheduleButton));
+				identity.appendChild(scheduleButton);
+				const profile=document.createElement('div'); profile.className='alert-detail-profile'; profile.textContent=[row.grade,row.major].filter(Boolean).join(' · ')||'资料未填写';
+				const slots=document.createElement('div'); slots.className='alert-slot-chips';
+				const ranges=Array.isArray(row.slot_ranges)?row.slot_ranges:[];
+				for(const range of ranges){ const chip=document.createElement('span'); chip.className='alert-slot-chip'; chip.textContent=`${range.start||'--:--'}–${range.end||'--:--'}`; slots.appendChild(chip); }
+				const count=document.createElement('div'); count.className='alert-detail-count'; count.textContent=`${asCount(row.alert_count)} 个时段`;
+				item.append(identity,profile,slots,count); fragment.appendChild(item);
+			}
+			list.appendChild(fragment);
+		}
+		const total=State.detail.total;
+		const start=total?State.detail.page*PAGE_SIZE+1:0;
+		const end=Math.min((State.detail.page+1)*PAGE_SIZE,total);
+		meta.textContent=`共 ${total} 名学生${total?`，当前显示 ${start}–${end}`:''}`;
+		const pages=Math.max(1,Math.ceil(total/PAGE_SIZE));
+		document.getElementById('alertPageLabel').textContent=`第 ${State.detail.page+1} / ${pages} 页`;
+		document.getElementById('alertPrevPage').disabled=State.detail.page===0;
+		document.getElementById('alertNextPage').disabled=State.detail.page+1>=pages;
+		const ack=document.getElementById('alertAcknowledgeAll');
+		ack.hidden=State.detail.status!=='confirmed_absent';
+		ack.disabled=State.detail.status!=='confirmed_absent'||total===0;
+		list.setAttribute('aria-busy','false');
+		const wasUpdating=list.classList.contains('is-updating');
+		if(wasUpdating){
+			requestAnimationFrame(()=>requestAnimationFrame(()=>{
+				list.classList.remove('is-updating');
+				meta.classList.remove('is-updating');
+			}));
+		}else meta.classList.remove('is-updating');
+	}
+	async function loadDetails(){
+		const backdrop=document.getElementById('alertDetailBackdrop');
+		if(!backdrop||backdrop.hidden) return;
+		const requestId=++State.detail.requestId;
+		const list=document.getElementById('alertDetailList');
+		const meta=document.getElementById('alertDetailResultMeta');
+		if(list){
+			list.setAttribute('aria-busy','true');
+			if(list.childElementCount){
+				list.classList.add('is-updating');
+				meta?.classList.add('is-updating');
+			}else{
+				const loading=document.createElement('div');
+				loading.className='alert-detail-empty'; loading.textContent='正在加载…';
+				list.replaceChildren(loading);
+			}
+		}
+		document.getElementById('alertPrevPage').disabled=true;
+		document.getElementById('alertNextPage').disabled=true;
+		let rows=[];
+		if(window.supabaseClient){
+			const [slotStart,slotEnd]=State.detail.slot?State.detail.slot.split('|'):[null,null];
+			const {data,error}=await supabaseClient.rpc('get_practice_alert_details',{
+				p_business_date:businessDateKey(),p_status:State.detail.status,
+				p_search:State.detail.search||null,p_grades:State.detail.grade?[State.detail.grade]:null,
+				p_majors:State.detail.major?[State.detail.major]:null,p_slot_start:slotStart,p_slot_end:slotEnd,
+				p_limit:PAGE_SIZE,p_offset:State.detail.page*PAGE_SIZE
+			});
+			if(requestId!==State.detail.requestId) return;
+			if(error){
+				if(!isRpcMissing(error,'get_practice_alert_details')) console.warn('[PracticeAlerts] 缺勤详情加载失败',error);
+				rows=fallbackDetailRows();
+			}else{
+				rows=data||[];
+				State.detail.total=rows.length?asCount(rows[0].total_students):0;
+			}
+		}else rows=fallbackDetailRows();
+		renderDetailRows(rows);
+	}
+	function setDetailStatus(status,{force=false}={}){
+		const nextStatus=status==='confirmed_absent'?'confirmed_absent':'active';
+		if(!force&&nextStatus===State.detail.status) return;
+		State.detail.status=nextStatus;
+		State.detail.page=0;
+		document.querySelectorAll('[data-alert-tab]').forEach(tab=>tab.setAttribute('aria-selected',String(tab.dataset.alertTab===State.detail.status)));
+		document.getElementById('alertDetailTitle').textContent=State.detail.status==='active'?'当前正在缺勤':'今日已确认缺勤';
+		const acknowledge=document.getElementById('alertAcknowledgeAll');
+		acknowledge.hidden=State.detail.status!=='confirmed_absent';
+		acknowledge.disabled=true;
+		loadDetails();
+	}
+	function updateBodyScrollLock(){
+		const anyOpen=[document.getElementById('alertDetailBackdrop'),document.getElementById('alertSettingsBackdrop')].some(element=>element&&!element.hidden);
+		document.body.classList.toggle('alert-modal-open',anyOpen);
+	}
+	function openDetails(status='active'){
+		const backdrop=document.getElementById('alertDetailBackdrop');
+		if(!backdrop) return;
+		backdrop.hidden=false; updateBodyScrollLock(); refreshDetailFilterOptions(); setDetailStatus(status,{force:true});
+		setTimeout(()=>document.getElementById('alertDetailSearch')?.focus(),0);
+	}
+	function closeDetails(){
+		const backdrop=document.getElementById('alertDetailBackdrop');
+		if(backdrop) backdrop.hidden=true;
+		State.detail.requestId++; updateBodyScrollLock();
+	}
+	async function acknowledgeVisibleFilter(){
+		const button=document.getElementById('alertAcknowledgeAll');
+		if(!window.supabaseClient||!button) return;
+		button.disabled=true; button.textContent='标记中…';
+		try{
+			const [slotStart,slotEnd]=State.detail.slot?State.detail.slot.split('|'):[null,null];
+			const {data,error}=await supabaseClient.rpc('acknowledge_practice_absences',{
+				p_business_date:businessDateKey(),p_search:State.detail.search||null,
+				p_grades:State.detail.grade?[State.detail.grade]:null,p_majors:State.detail.major?[State.detail.major]:null,
+				p_slot_start:slotStart,p_slot_end:slotEnd
+			});
+			if(error) throw error;
+			notify(`已标记 ${asCount(data?.acknowledged)} 个缺勤时段为已阅`,'success');
+			await Promise.all([fetchSummary(),loadDetails()]);
+		}catch(error){ console.warn('[PracticeAlerts] 标记已阅失败',error); notify('标记已阅失败，请稍后重试','error'); }
+		finally{ button.disabled=false; button.textContent='全部标记已阅'; }
+	}
+
+	function renderGradeChoices(){
+		const box=document.getElementById('alertGradeChoices'); if(!box) return;
+		const grades=[...new Set([...(State.settings.available_grades||[]),...State.settingsDraft])].filter(Boolean).sort(gradeSort);
+		const fragment=document.createDocumentFragment();
+		for(const grade of grades){
+			const label=document.createElement('label'); label.className='alert-grade-choice';
+			const exact=State.settingsDraft.has(grade);
+			const inherited=!exact&&[...State.settingsDraft].some(base=>/^G\d+$/i.test(base)&&(grade.startsWith(`${base}-`)||grade.startsWith(`${base}.`)));
+			const input=document.createElement('input'); input.type='checkbox'; input.value=grade; input.checked=exact||inherited; input.disabled=inherited;
+			if(inherited) label.title=`${grade} 已由 ${grade.split(/[-.]/)[0]} 自动包含`;
+			input.addEventListener('change',()=>{ if(input.checked) State.settingsDraft.add(grade); else State.settingsDraft.delete(grade); renderGradeChoices(); });
+			const text=document.createElement('span'); text.textContent=grade; label.append(input,text); fragment.appendChild(label);
+		}
+		box.replaceChildren(fragment);
+	}
+	async function openSettings(){
+		await loadSettings();
+		State.settingsDraft=new Set(State.settings.monitored_grades||[]);
+		renderGradeChoices();
+		const backdrop=document.getElementById('alertSettingsBackdrop');
+		if(backdrop) backdrop.hidden=false;
+		updateBodyScrollLock();
+	}
+	function closeSettings(){
+		const backdrop=document.getElementById('alertSettingsBackdrop');
+		if(backdrop) backdrop.hidden=true;
+		updateBodyScrollLock();
+	}
+	function addCustomGrade(){
+		const input=document.getElementById('alertCustomGrade');
+		const grade=normalizeGrade(input?.value);
+		if(!grade){ input?.focus(); return; }
+		State.settingsDraft.add(grade);
+		State.settings.available_grades=[...new Set([...(State.settings.available_grades||[]),grade])].sort(gradeSort);
+		if(input) input.value=''; renderGradeChoices();
+	}
+	async function saveSettings(){
+		const button=document.getElementById('alertSettingsSave');
+		if(!window.supabaseClient){ notify('当前未连接云端，无法保存监测设置','error'); return; }
+		button.disabled=true; button.textContent='保存中…';
+		try{
+			const grades=[...State.settingsDraft].map(normalizeGrade).filter(Boolean).sort(gradeSort);
+			const {data,error}=await supabaseClient.rpc('save_practice_alert_settings',{p_monitored_grades:grades});
+			if(error) throw error;
+			State.settings={...State.settings,...(data||{}),monitored_grades:grades};
+			renderScope(); closeSettings();
+			await recalcToday({reloadSettings:true,reloadSlots:true});
+			if(!document.getElementById('alertDetailBackdrop')?.hidden) await loadDetails();
+			notify('缺勤监测年级已保存，今日数据已重新计算','success');
+		}catch(error){ console.warn('[PracticeAlerts] 保存监测设置失败',error); notify('监测设置保存失败，请稍后重试','error'); }
+		finally{ button.disabled=false; button.textContent='保存并重算'; }
+	}
+
+	function setupRealtime(){
+		if(!window.supabaseClient||State.realtimeChannel) return;
+		let channel=supabaseClient.channel('practice-alert-dashboard-v2');
+		if(window.RealtimeRegistry) channel=window.RealtimeRegistry.register('practice-alert-dashboard-v2',channel);
+		channel
+			.on('postgres_changes',{event:'*',schema:'public',table:'practice_alerts'},()=>scheduleSummary())
+			.on('postgres_changes',{event:'*',schema:'public',table:'practice_alert_settings'},()=>scheduleRecalc(500,{reloadSettings:true}))
+			.on('postgres_changes',{event:'*',schema:'public',table:'practice_logs'},()=>scheduleRecalc(900))
+			.on('postgres_changes',{event:'*',schema:'public',table:'student_time_slots'},()=>scheduleRecalc(900,{reloadSlots:true}))
+			.on('postgres_changes',{event:'*',schema:'public',table:'student_database'},()=>scheduleRecalc(900,{reloadSettings:true,reloadSlots:true}))
+			.subscribe(status=>{
+				if(status==='SUBSCRIBED') console.log('[PracticeAlerts] 汇总实时通道已连接');
+				else if(['CHANNEL_ERROR','TIMED_OUT'].includes(status)) console.warn('[PracticeAlerts] 汇总实时通道异常',status);
+			});
+		State.realtimeChannel=channel;
+	}
+	function bindUI(){
+		if(document.body.dataset.practiceAlertDashboardBound==='1') return;
+		document.body.dataset.practiceAlertDashboardBound='1';
+		document.querySelectorAll('[data-alert-view]').forEach(button=>button.addEventListener('click',()=>openDetails(button.dataset.alertView)));
+		document.getElementById('alertSettingsBtn')?.addEventListener('click',openSettings);
+		document.getElementById('alertDetailClose')?.addEventListener('click',closeDetails);
+		document.getElementById('alertSettingsClose')?.addEventListener('click',closeSettings);
+		document.getElementById('alertSettingsCancel')?.addEventListener('click',closeSettings);
+		document.querySelectorAll('[data-alert-tab]').forEach(tab=>tab.addEventListener('click',()=>setDetailStatus(tab.dataset.alertTab)));
+		let searchTimer=null;
+		document.getElementById('alertDetailSearch')?.addEventListener('input',event=>{
+			State.detail.search=event.target.value.trim(); State.detail.page=0; clearTimeout(searchTimer); searchTimer=setTimeout(loadDetails,250);
+		});
+		document.getElementById('alertDetailGrade')?.addEventListener('change',event=>{ State.detail.grade=event.target.value; State.detail.page=0; loadDetails(); });
+		document.getElementById('alertDetailMajor')?.addEventListener('change',event=>{ State.detail.major=event.target.value; State.detail.page=0; loadDetails(); });
+		document.getElementById('alertDetailSlot')?.addEventListener('change',event=>{ State.detail.slot=event.target.value; State.detail.page=0; loadDetails(); });
+		document.getElementById('alertPrevPage')?.addEventListener('click',()=>{ if(State.detail.page>0){ State.detail.page--; loadDetails(); } });
+		document.getElementById('alertNextPage')?.addEventListener('click',()=>{ if((State.detail.page+1)*PAGE_SIZE<State.detail.total){ State.detail.page++; loadDetails(); } });
+		document.getElementById('alertAcknowledgeAll')?.addEventListener('click',acknowledgeVisibleFilter);
+		document.getElementById('alertResetGrades')?.addEventListener('click',()=>{ State.settingsDraft=new Set(DEFAULT_GRADES); renderGradeChoices(); });
+		document.getElementById('alertAddCustomGrade')?.addEventListener('click',addCustomGrade);
+		document.getElementById('alertCustomGrade')?.addEventListener('keydown',event=>{ if(event.key==='Enter'){ event.preventDefault(); addCustomGrade(); } });
+		document.getElementById('alertSettingsSave')?.addEventListener('click',saveSettings);
+		document.getElementById('alertDetailBackdrop')?.addEventListener('click',event=>{ if(event.target===event.currentTarget) closeDetails(); });
+		document.getElementById('alertSettingsBackdrop')?.addEventListener('click',event=>{ if(event.target===event.currentTarget) closeSettings(); });
+		document.addEventListener('keydown',event=>{
+			if(event.key!=='Escape') return;
+			if(document.getElementById('scheduleModalBackdrop')) return;
+			if(!document.getElementById('alertSettingsBackdrop')?.hidden) closeSettings();
+			else if(!document.getElementById('alertDetailBackdrop')?.hidden) closeDetails();
+		});
+	}
+	async function initAlerts(){
+		if(State.initialized) return recalcToday();
+		if(State.initPromise) return State.initPromise;
+		State.initPromise=(async()=>{
+			bindUI();
+			await loadSettings();
+			setupRealtime();
+			await recalcToday({reloadSlots:true});
+			if(!State.timer) State.timer=setInterval(()=>{
+				State.timerTicks++;
+				recalcToday({reloadSettings:State.timerTicks%3===0}).catch(error=>console.warn('[PracticeAlerts] 定时重算失败',error));
+			},300000);
+			State.initialized=true;
+		})().finally(()=>{ State.initPromise=null; });
+		return State.initPromise;
+	}
+	async function refreshFromCloud(options={}){
+		if(options.runDetection!==false) return recalcToday({reloadSettings:true,reloadSlots:true});
+		await loadSettings();
+		await Promise.all([loadSlots({force:true}),loadPracticeLogs({force:true})]);
+		return fetchSummary();
+	}
+	function renderAlerts(){ renderSummary(); scheduleSummary(0); }
+	async function refreshSlots(runDetect=true){
+		await loadSlots({force:true});
+		return runDetect===false?undefined:recalcToday();
+	}
+	function resetConnection(){
+		State.realtimeChannel=null; setupRealtime(); return refreshFromCloud({runDetection:true});
+	}
+
+	window.PracticeAlerts={
+		initAlerts,refreshFromCloud,renderAlerts,detectionTick:recalcToday,
+		refreshSlots,recalcToday,resetConnection,openDetails,openSettings
+	};
+
+	document.addEventListener('DOMContentLoaded',()=>{
+		bindUI(); renderScope(); renderSummary();
+		if(window.supabaseClient) setTimeout(initAlerts,800);
+		else{
+			const wait=setInterval(()=>{
+				if(window.supabaseClient){ clearInterval(wait); initAlerts(); }
+			},1500);
+		}
+	});
+})();
+</script>
+
+<script type="text/plain" id="legacy-practice-alerts-disabled">
 // ======= Practice Alerts (缺勤 / 异常) =======
 (function(){
 	console.log('[PracticeAlerts] IIFE 开始执行');
