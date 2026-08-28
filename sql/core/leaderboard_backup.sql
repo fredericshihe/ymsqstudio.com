@@ -20,8 +20,20 @@ CREATE TABLE IF NOT EXISTS public.weekly_leaderboard_history (
     recent10_outlier_rate NUMERIC,                  -- 近10条异常率
     recent10_mean_dur NUMERIC,                      -- 近10条均练时长
     recent10_count INTEGER,                         -- 近10条记录数
+    target_minutes NUMERIC,                         -- 缩水榜：个人周目标
+    completed_minutes NUMERIC,                      -- 缩水榜：本周有效累计时长
+    completion_ratio NUMERIC,                       -- 缩水榜：当前应完成进度比
+    shortfall_minutes NUMERIC,                      -- 缩水榜：当前进度差值
+    week_session_count INTEGER,                     -- 缩水榜：本周有效次数
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()   -- 备份写入时间
 );
+
+ALTER TABLE public.weekly_leaderboard_history
+    ADD COLUMN IF NOT EXISTS target_minutes NUMERIC,
+    ADD COLUMN IF NOT EXISTS completed_minutes NUMERIC,
+    ADD COLUMN IF NOT EXISTS completion_ratio NUMERIC,
+    ADD COLUMN IF NOT EXISTS shortfall_minutes NUMERIC,
+    ADD COLUMN IF NOT EXISTS week_session_count INTEGER;
 
 -- 为备份表创建索引，方便以后按周或按学生查询历史
 CREATE INDEX IF NOT EXISTS idx_wlh_week_board ON public.weekly_leaderboard_history(week_monday, board);
@@ -32,6 +44,7 @@ CREATE OR REPLACE FUNCTION public.backup_weekly_leaderboards()
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER -- 使用创建者权限执行，确保有写入权限
+SET search_path = public
 AS $$
 DECLARE
     v_monday DATE;
@@ -43,19 +56,36 @@ BEGIN
     DELETE FROM public.weekly_leaderboard_history
     WHERE week_monday = v_monday;
 
-    -- 将当前 get_weekly_leaderboards() 的所有数据快照插入备份表
+    -- 将当前四榜和缩水榜的所有数据快照插入备份表
     INSERT INTO public.weekly_leaderboard_history (
         week_monday, backup_date, board, rank_no, student_name, student_major, student_grade,
         display_score, alpha, trend_score, mean_duration, record_count,
-        recent10_outlier_rate, recent10_mean_dur, recent10_count
+        recent10_outlier_rate, recent10_mean_dur, recent10_count,
+        target_minutes, completed_minutes, completion_ratio, shortfall_minutes, week_session_count
     )
     SELECT
         v_monday,
         (NOW() AT TIME ZONE 'Asia/Shanghai')::DATE,
         board, rank_no, student_name, student_major, student_grade,
         display_score, alpha, trend_score, mean_duration, record_count,
-        recent10_outlier_rate, recent10_mean_dur, recent10_count
+        recent10_outlier_rate, recent10_mean_dur, recent10_count,
+        NULL::NUMERIC, NULL::NUMERIC, NULL::NUMERIC, NULL::NUMERIC, NULL::INTEGER
     FROM public.get_weekly_leaderboards();
+
+    INSERT INTO public.weekly_leaderboard_history (
+        week_monday, backup_date, board, rank_no, student_name, student_major, student_grade,
+        display_score, alpha, trend_score, mean_duration, record_count,
+        recent10_outlier_rate, recent10_mean_dur, recent10_count,
+        target_minutes, completed_minutes, completion_ratio, shortfall_minutes, week_session_count
+    )
+    SELECT
+        v_monday,
+        (NOW() AT TIME ZONE 'Asia/Shanghai')::DATE,
+        board, rank_no, student_name, student_major, student_grade,
+        display_score, alpha, trend_score, mean_duration, record_count,
+        recent10_outlier_rate, recent10_mean_dur, recent10_count,
+        target_minutes, completed_minutes, completion_ratio, shortfall_minutes, week_session_count
+    FROM public.get_weekly_decline_leaderboard(v_monday);
 END;
 $$;
 

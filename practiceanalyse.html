@@ -103,6 +103,7 @@ body{font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;backgro
 .lbp .grid{display:grid;grid-template-columns:1fr;gap:7mm}
 .lbp .cards{display:block}
 .lbp .cards.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:5.2mm}
+.lbp .cards.row4{display:grid;grid-template-columns:repeat(2,1fr);gap:5.2mm}
 .lbp .card{
   border:1px solid rgba(15,23,42,.12);
   border-radius:14px;
@@ -141,6 +142,11 @@ body{font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;backgro
   border-radius:999px;
   padding:1px 8px;
 }
+.lbp .coin.penalty{
+  color:#9f1239;
+  background:linear-gradient(135deg, rgba(244,63,94,.18), rgba(251,113,133,.1));
+  border-color:rgba(244,63,94,.32);
+}
 
 /* Three-board row: slightly smaller inside to fit A4 comfortably */
 .lbp .row3 .ct h2{font-size:11.5px}
@@ -152,6 +158,19 @@ body{font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;backgro
 .lbp .row3 th:nth-child(1),.lbp .row3 td:nth-child(1){width:34px}
 .lbp .row3 th:nth-child(3),.lbp .row3 td:nth-child(3){width:52px}
 .lbp .row3 td:nth-child(2){
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.lbp .row4 .ct h2{font-size:11.5px}
+.lbp .row4 th,.lbp .row4 td{font-size:9.6px;padding:5px 5px}
+.lbp .row4 .tag{font-size:8.6px}
+.lbp .row4 .coin{min-width:40px;padding:1px 7px}
+.lbp .row4 .card{padding:9px 10px;border-radius:13px}
+.lbp .row4 table{table-layout:fixed}
+.lbp .row4 th:nth-child(1),.lbp .row4 td:nth-child(1){width:34px}
+.lbp .row4 th:nth-child(3),.lbp .row4 td:nth-child(3){width:64px}
+.lbp .row4 td:nth-child(2){
   white-space:nowrap;
   overflow:hidden;
   text-overflow:ellipsis;
@@ -426,13 +445,15 @@ tbody td.b{color:var(--t1);font-weight:700}
 .cat-boards-hd h2{font-size:.88rem;font-weight:800;color:var(--t2);
   text-transform:uppercase;letter-spacing:.08em}
 .cat-boards-hd .sep{flex:1;height:1px;background:var(--bdr)}
+.shrink-summary{font-size:.72rem;color:#fda4af;padding:4px 9px;border:1px solid rgba(244,63,94,.24);border-radius:999px;background:rgba(244,63,94,.08);white-space:nowrap}
 .cat-boards-note{
   margin:0 0 14px;padding:11px 14px;border-radius:12px;
   background:rgba(79,142,247,.08);border:1px solid rgba(79,142,247,.18);
   color:var(--t2);font-size:.78rem;line-height:1.7
 }
-.cat-boards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-@media(max-width:900px){.cat-boards{grid-template-columns:1fr}}
+.cat-boards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+@media(max-width:1200px){.cat-boards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.cat-boards{grid-template-columns:1fr}}
 
 .cat-board{background:var(--card);border:1px solid var(--bdr);border-radius:var(--rlg);
   overflow:hidden;display:flex;flex-direction:column}
@@ -543,7 +564,7 @@ tbody td.b{color:var(--t1);font-weight:700}
         </svg>
         刷新数据
       </button>
-      <button class="btn" id="lbPdfBtn" onclick="exportLeaderboardsPdf()" disabled title="导出当前周：综合榜 + 进步/稳定/守则榜（单页 A4）">
+      <button class="btn" id="lbPdfBtn" onclick="exportLeaderboardsPdf()" disabled title="导出当前周：综合榜 + 分类榜 + 缩水榜（单页 A4）">
         <svg class="btn-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M6 2h9l3 3v17a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/>
           <path d="M14 2v4h4"/>
@@ -605,7 +626,8 @@ tbody td.b{color:var(--t1);font-weight:700}
     <div class="cat-boards-hd">
       <h2>分类排行榜</h2>
       <div class="sep"></div>
-      <span style="font-size:.72rem;color:var(--t3)">仅统计本周有练琴的学生 · 默认显示前6名</span>
+      <span style="font-size:.72rem;color:var(--t3)">实时按本周数据更新 · 默认显示前6名</span>
+      <span class="shrink-summary" id="shrinkSummary">本周未开始人数加载中…</span>
     </div>
     <div class="cat-boards-note" id="catBoardsNotice" style="display:none"></div>
     <div class="cat-boards" id="catBoards">
@@ -644,6 +666,18 @@ tbody td.b{color:var(--t1);font-weight:700}
           <button class="cbl-view-all-btn" onclick="openLbModal('守则榜')">查看全部</button>
         </div>
         <div class="cat-board-body" id="cbl-rules"><div class="cat-board-empty">加载中…</div></div>
+      </div>
+      <!-- 缩水榜 -->
+      <div class="cat-board">
+        <div class="cat-board-hd">
+          <div class="cat-board-icon" style="background:linear-gradient(135deg,rgba(244,63,94,.25),rgba(244,63,94,.1));border:1px solid rgba(244,63,94,.3)">📉</div>
+          <div>
+            <div class="cat-board-title" style="color:#fb7185">缩水榜</div>
+            <div class="cat-board-sub">已开始练琴但当前进度低于应完成进度70% · 前6名按 -10 / -6 / -4 扣币 · 余额可为负</div>
+          </div>
+          <button class="cbl-view-all-btn" onclick="openLbModal('缩水榜')">查看全部</button>
+        </div>
+        <div class="cat-board-body" id="cbl-decline"><div class="cat-board-empty">加载中…</div></div>
       </div>
     </div>
   </div>
@@ -914,10 +948,18 @@ async function refreshSelectedStudentDetail(){
   }
 }
 
-// 调用后端一次性返回全部四个排行榜（综合/进步/稳定/守则）
-const fetchLeaderboards=()=>rpc('get_weekly_leaderboards')
-  .then(rows=>{ window._lbLastError=null; return rows; })
-  .catch(err=>{ window._lbLastError=err; console.warn('[lb] RPC 失败:', err?.message||err); return []; });
+// 读取共享现有榜单与独立缩水榜，独立降级避免新 RPC 未部署时影响已有榜单
+const fetchLeaderboards=()=>Promise.all([
+  rpc('get_weekly_leaderboards')
+    .then(rows=>{ window._lbLastError=null; return Array.isArray(rows)?rows:[]; })
+    .catch(err=>{ window._lbLastError=err; console.warn('[lb] 主榜 RPC 失败:', err?.message||err); return []; }),
+  rpc('get_weekly_decline_leaderboard')
+    .then(rows=>{ window._lbShrinkLastError=null; return Array.isArray(rows)?rows:[]; })
+    .catch(err=>{ window._lbShrinkLastError=err; console.warn('[lb] 缩水榜 RPC 失败:', err?.message||err); return []; })
+]).then(([rows,declineRows])=>rows.concat(declineRows));
+const fetchShrinkSummary=()=>rpc('get_weekly_shrink_summary')
+  .then(result=>Array.isArray(result)?(result[0]||{}):(result||{}))
+  .catch(err=>{ console.warn('[lb] 缩水榜汇总 RPC 失败:', err?.message||err); return null; });
 
 // 导出用：永远取“最近完结一周”的榜单快照（weekly_leaderboard_history 最新 backup_date）
 async function fetchLatestCompletedLeaderboards(){
@@ -927,7 +969,7 @@ async function fetchLatestCompletedLeaderboards(){
     const bd = latest?.backup_date;
     if(!bd) return { rows: [], backup_date: null, week_monday: null };
 
-    const rows = await api(`weekly_leaderboard_history?backup_date=eq.${bd}&select=backup_date,week_monday,board,rank_no,student_name,student_major,student_grade,display_score,alpha,trend_score,mean_duration,record_count,recent10_outlier_rate,recent10_mean_dur,recent10_count&order=board.asc,rank_no.asc&limit=2000`)
+    const rows = await api(`weekly_leaderboard_history?backup_date=eq.${bd}&select=backup_date,week_monday,board,rank_no,student_name,student_major,student_grade,display_score,alpha,trend_score,mean_duration,record_count,recent10_outlier_rate,recent10_mean_dur,recent10_count,target_minutes,completed_minutes,completion_ratio,shortfall_minutes,week_session_count&order=board.asc,rank_no.asc&limit=2000`)
       .catch(()=>[]);
     const wm = Array.isArray(rows) && rows.length ? rows[0].week_monday : null;
     return { rows: rows || [], backup_date: bd, week_monday: wm };
@@ -1061,8 +1103,8 @@ async function loadAll(){
   const pdfBtn=$('lbPdfBtn'); if(pdfBtn) pdfBtn.disabled=true;
   btn.innerHTML='<div class="spin" style="width:13px;height:13px;border-width:2px"></div> 加载中…';
   try{
-    const[health,baselineRows,directory,weekScores,{activeSet:activeThisWeek,countMap:weekCountMap},lbRows]=await Promise.all([
-      fetchHealth(),fetchStudents(),fetchStudentDirectory(),fetchCurrentWeekScores(),fetchActiveThisWeek(),fetchLeaderboards()
+    const[health,baselineRows,directory,weekScores,{activeSet:activeThisWeek,countMap:weekCountMap},lbRows,shrinkSummary]=await Promise.all([
+      fetchHealth(),fetchStudents(),fetchStudentDirectory(),fetchCurrentWeekScores(),fetchActiveThisWeek(),fetchLeaderboards(),fetchShrinkSummary()
     ]);
 
     const students=mergeStudentDirectory(baselineRows,directory);
@@ -1076,6 +1118,7 @@ async function loadAll(){
     const lbMap={};
     (lbRows||[]).forEach(r=>{(lbMap[r.board]||(lbMap[r.board]=[])).push(r);});
     renderCatBoards(lbMap);
+    renderShrinkSummary(shrinkSummary);
     // 缓存用于 PDF 导出（避免直接依赖弹窗状态）
     window._lbRows=lbRows||[];
     window._lbMap=lbMap;
@@ -1119,6 +1162,7 @@ function boardShortNote(board){
   if(board==='进步榜') return '涨分（本周 vs 上周）';
   if(board==='稳定榜') return '近10条均时 + α';
   if(board==='守则榜') return '近10条异常率（越低越好）';
+  if(board==='缩水榜') return '当前应完成进度低于70%（越低越前，前6名扣币）';
   return '';
 }
 
@@ -1148,6 +1192,12 @@ function coinReward(board, rankNo){
     if(r===1) return 10;
     if(r>=2 && r<=3) return 6;
     if(r>=4 && r<=6) return 4;
+    return 0;
+  }
+  if(board==='缩水榜'){
+    if(r===1) return -10;
+    if(r>=2 && r<=3) return -6;
+    if(r>=4 && r<=6) return -4;
     return 0;
   }
   return 0;
@@ -1202,6 +1252,20 @@ function buildPrintTableRows(board, rows){
       </tr>`;
     }).join('');
   }
+  if(board==='缩水榜'){
+    return safeRows.map(r=>{
+      const ratio = Number(r.completion_ratio ?? Number(r.display_score || 0) / 100);
+      const completion = Number.isFinite(ratio) ? `${(ratio * 100).toFixed(1)}%` : '—';
+      const shortfall = Number(r.shortfall_minutes);
+      const shortfallText = Number.isFinite(shortfall) ? `还差${shortfall.toFixed(0)}min` : '—';
+      const coins = coinReward(board, r.rank_no);
+      return `<tr>
+        <td class="c">#${esc(r.rank_no ?? '—')}</td>
+        <td>${esc(r.student_name ?? '—')} <span class="tag">${esc(toMajorShort(r.student_major||''))}</span></td>
+        <td class="r"><strong>${esc(completion)}</strong><br><span style="font-size:8px;color:#64748b">${esc(shortfallText)}</span> <span class="coin penalty">${esc(coins)}</span></td>
+      </tr>`;
+    }).join('');
+  }
   return '';
 }
 
@@ -1225,13 +1289,13 @@ function exportLeaderboardsPdf(){
     lbRows.forEach(r=>{ (map[r.board]||(map[r.board]=[])).push(r); });
 
     // 单页约束：固定展示前 N（与首页默认展示口径一致）
-    const limits = { '综合榜': 10, '进步榜': 6, '稳定榜': 6, '守则榜': 6 };
-    const boards = ['综合榜','进步榜','稳定榜','守则榜'];
+    const limits = { '综合榜': 10, '进步榜': 6, '稳定榜': 6, '守则榜': 6, '缩水榜': 6 };
+    const boards = ['综合榜','进步榜','稳定榜','守则榜','缩水榜'];
 
     const now = new Date();
     const weekMon = snap.week_monday || null;
     const root = $('lbPrintRoot');
-    const title = `排行榜（综合榜 + 分榜）`;
+    const title = `排行榜（综合榜 + 分类榜 + 缩水榜）`;
     const meta1 = `生成时间：${fmtCNDateTime(now)}`;
     const meta2 = '';
     const meta3 = '';
@@ -1239,15 +1303,16 @@ function exportLeaderboardsPdf(){
     const leftBoard = '综合榜';
     const leftRows = (map[leftBoard]||[]).slice(0, limits[leftBoard]).sort((a,b)=>(a.rank_no??9999)-(b.rank_no??9999));
 
-    const rightCards = ['进步榜','稳定榜','守则榜'].map(b=>{
+    const rightCards = ['进步榜','稳定榜','守则榜','缩水榜'].map(b=>{
       const rows=(map[b]||[]).slice(0, limits[b]).sort((a,b2)=>(a.rank_no??9999)-(b2.rank_no??9999));
+      const valueHeader = b === '缩水榜' ? '进度 / 币' : '币';
       return `<div class="card">
         <div class="ct">
           <h2>${esc(b)}</h2>
           <div class="sub"></div>
         </div>
         <table>
-          <thead><tr><th style="width:34px">名次</th><th>姓名</th><th style="width:52px;text-align:right">币</th></tr></thead>
+          <thead><tr><th style="width:34px">名次</th><th>姓名</th><th style="width:64px;text-align:right">${valueHeader}</th></tr></thead>
           <tbody>${buildPrintTableRows(b, rows)}</tbody>
         </table>
       </div>`;
@@ -1258,7 +1323,7 @@ function exportLeaderboardsPdf(){
         <div class="pg">
           <div class="hdr">
             <div>
-              <div class="h1">${esc('排行榜（综合榜 + 分榜）')}</div>
+              <div class="h1">${esc(title)}</div>
               <div class="subttl">${esc('青岛耶胡迪梅纽因学校 · 练琴智能监控系统')}</div>
               <div class="weekttl">${esc((()=>{ const wm = weekMon || ''; const end = wm ? (addDaysDateOnly(wm, 4) || '') : ''; return (wm && end) ? (`榜单周期：${wm} ～ ${end}`) : ''; })())}</div>
             </div>
@@ -1274,10 +1339,10 @@ function exportLeaderboardsPdf(){
                 <tbody>${buildPrintTableRows(leftBoard, leftRows)}</tbody>
               </table>
             </div>
-            <div class="cards row3">${rightCards}</div>
+            <div class="cards row4">${rightCards}</div>
           </div>
           <div class="foot">
-            <div>数据来源：` + 'get_weekly_leaderboards()' + `（按当前线上规则）</div>
+            <div>数据来源：周榜 RPC（按当前线上规则）</div>
             <div></div>
           </div>
         </div>
@@ -1304,8 +1369,12 @@ function exportLeaderboardsPdf(){
 function renderKPIs(h,ss){
   if(!h)return;
   const total=ss.length||+h.total_students||0,cold=ss.filter(s=>s.is_cold_start).length;
-  const alpha=+h.avg_alpha||0,dur=+h.avg_mean_duration||0;
-  const outr=+h.avg_outlier_rate||0,conf=+h.avg_score_confidence||0;
+  const activeAverage=(key,fallback)=>{
+    const values=ss.map(s=>Number(s?.[key])).filter(Number.isFinite);
+    return values.length?values.reduce((sum,value)=>sum+value,0)/values.length:(+fallback||0);
+  };
+  const alpha=activeAverage('alpha',h.avg_alpha),dur=activeAverage('mean_duration',h.avg_mean_duration);
+  const outr=activeAverage('outlier_rate',h.avg_outlier_rate),conf=activeAverage('score_confidence',h.avg_score_confidence);
   setT('kv1',total);
   setT('kv2',cold);setT('ks2',`占全校 ${pct(cold/total)}%`);
   setT('kv3',alpha.toFixed(3));
@@ -1320,6 +1389,18 @@ function renderKPIs(h,ss){
   setT('ks6',conf>=.7?'✓ 成长分可信':conf>=.5?'△ 部分历史不足':'⚠ 整体历史数据偏少');
 }
 
+function renderShrinkSummary(summary){
+  const el=$('shrinkSummary');
+  if(!el)return;
+  if(!summary){
+    el.textContent='本周未开始人数暂不可用';
+    return;
+  }
+  const notStarted=Number(summary.not_started_students||0);
+  const shrink=Number(summary.shrink_students||0);
+  el.textContent=`本周未开始 ${notStarted} 人（不进入缩水榜） · 缩水榜 ${shrink} 人`;
+}
+
 // ── 分类排行榜（后端 RPC 数据驱动）────────────────
 function renderCatBoards(lbMap){
   const wrap=$('catBoardsWrap');
@@ -1329,7 +1410,8 @@ function renderCatBoards(lbMap){
     (lbMap['综合榜']||[]).length||
     (lbMap['进步榜']||[]).length||
     (lbMap['稳定榜']||[]).length||
-    (lbMap['守则榜']||[]).length
+    (lbMap['守则榜']||[]).length||
+    (lbMap['缩水榜']||[]).length
   );
   if(wrap)wrap.style.display='';
   if(!hasData){
@@ -1341,13 +1423,14 @@ function renderCatBoards(lbMap){
       notice.textContent=err
         ? `分类排行榜加载失败：${err.message||err}。请先检查 Supabase 连接或后端函数状态。`
         : isWeekStart
-        ? '本周分类排行榜暂时为空。现在已经进入新的一周，需等本周第一批工作日练琴记录写入后，进步榜、稳定榜、守则榜才会自动出现。'
-        : '本周分类排行榜暂时为空。通常表示当前还没有满足上榜条件的本周数据，例如练琴次数不足、历史记录不足，或本周尚无有效工作日练琴记录。';
+        ? '本周分类排行榜暂时为空。现在已经进入新的一周，需等本周数据写入后，进步榜、稳定榜、守则榜和缩水榜才会自动更新。'
+        : '本周分类排行榜暂时为空。通常表示当前还没有满足各榜上榜条件的本周数据。';
     }
     if(grid)grid.style.display='';
     renderBoard('cbl-progress','进步榜',[],()=> '');
     renderBoard('cbl-stable',  '稳定榜',[],()=> '');
     renderBoard('cbl-rules',   '守则榜',[],()=> '');
+    renderBoard('cbl-decline', '缩水榜',[],()=> '');
     return;
   }
   if(wrap)wrap.style.display='';
@@ -1386,7 +1469,7 @@ function renderCatBoards(lbMap){
     </div>`;
   }
 
-  const DEFAULT_N={综合榜:10,进步榜:6,稳定榜:6,守则榜:6};
+  const DEFAULT_N={综合榜:10,进步榜:6,稳定榜:6,守则榜:6,缩水榜:6};
 
   // 渲染一个榜单到 containerId（固定显示默认数量，无展开按钮）
   function renderBoard(containerId,board,rows,valFn){
@@ -1403,7 +1486,7 @@ function renderCatBoards(lbMap){
   }
 
   // 弹窗显示某榜全部学生
-  const LB_TITLES={'进步榜':'📈 进步榜','稳定榜':'🎯 稳定榜','守则榜':'🏅 守则榜'};
+  const LB_TITLES={'进步榜':'📈 进步榜','稳定榜':'🎯 稳定榜','守则榜':'🏅 守则榜','缩水榜':'📉 缩水榜'};
   window.openLbModal=function(board){
     const rows=(window._lbMap||{})[board]||[];
     const valFns=window._lbValFns||{};
@@ -1452,21 +1535,32 @@ function renderCatBoards(lbMap){
     const label=or<0.1?'极佳':or<0.2?'优秀':or<0.35?'良好':'一般';
     return`<div class="cbl-right"><div class="cbl-val" style="color:${orC}">${orPct}%</div><div class="cbl-val-sub">${label}</div></div>`;
   };
+  valFns['缩水榜']=r=>{
+    const ratio=Number(r.completion_ratio ?? (Number(r.display_score||0)/100));
+    const pctText=Number.isFinite(ratio)?`${(ratio*100).toFixed(1)}%`:'—';
+    const shortfall=Number(r.shortfall_minutes);
+    const penalty=coinReward('缩水榜',r.rank_no);
+    const gap=Number.isFinite(shortfall)?`还差 ${shortfall.toFixed(0)}min`:'进度不足70%';
+    const sub=penalty<0?`${penalty} 币 · ${gap}`:gap;
+    return`<div class="cbl-right"><div class="cbl-val" style="color:#fb7185">${pctText}</div><div class="cbl-val-sub">${sub}</div></div>`;
+  };
   window._lbValFns=valFns;
 
   renderBoard('cbl-progress','进步榜',lbMap['进步榜'],valFns['进步榜']);
   renderBoard('cbl-stable',  '稳定榜',lbMap['稳定榜'],valFns['稳定榜']);
   renderBoard('cbl-rules',   '守则榜',lbMap['守则榜'],valFns['守则榜']);
+  renderBoard('cbl-decline', '缩水榜',lbMap['缩水榜'],valFns['缩水榜']);
 }
 
 // 仅刷新排行榜（不重载主表），供定时器调用
 // 刷新时保留各榜当前的展开/折叠状态
 async function refreshLeaderboards(){
   try{
-    const [weekScores,{activeSet:activeThisWeek},lbRows]=await Promise.all([
+    const [weekScores,{activeSet:activeThisWeek},lbRows,shrinkSummary]=await Promise.all([
       fetchCurrentWeekScores(),
       fetchActiveThisWeek(),
-      fetchLeaderboards()
+      fetchLeaderboards(),
+      fetchShrinkSummary()
     ]);
     syncStudentsWithLeaderboard(S.students,weekScores,activeThisWeek,lbRows);
     const lbMap={};
@@ -1475,6 +1569,7 @@ async function refreshLeaderboards(){
     window._lbMap=lbMap; // 同步缓存
     const pdfBtn=$('lbPdfBtn'); if(pdfBtn) pdfBtn.disabled = !(lbRows && lbRows.length);
     renderCatBoards(lbMap);
+    renderShrinkSummary(shrinkSummary);
     if(S.students.length){
       applyF(); // 主表排序/筛选与详情页名次一起刷新，避免与分类榜不同步
       refreshSelectedStudentDetail();

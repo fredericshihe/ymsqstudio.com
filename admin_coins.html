@@ -81,6 +81,7 @@
     .hi-meta { font-size: 0.75rem; color: var(--t3); display: flex; gap: 8px; }
     .hi-tag { padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; background: rgba(255,255,255,0.1); }
     .hi-tag.auto { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+    .hi-tag.auto-penalty { background: rgba(239, 68, 68, 0.15); color: var(--red); }
     .hi-tag.compensation { background: rgba(16, 185, 129, 0.15); color: var(--green); }
     .hi-tag.deduction { background: rgba(239, 68, 68, 0.15); color: var(--red); }
     .hi-tag.redemption { background: rgba(245, 158, 11, 0.15); color: var(--yellow); }
@@ -251,7 +252,7 @@
     <div class="settings-card-left">
       <div class="settings-icon">⚙️</div>
       <div class="settings-info">
-        <div class="settings-title">每周五自动发放音符币</div>
+        <div class="settings-title">每周五自动结算音符币</div>
         <div class="settings-desc" id="rewardSettingDesc">正在读取...</div>
       </div>
     </div>
@@ -664,7 +665,8 @@
             month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
           });
           const typeTagMap = {
-            auto_reward: '<span class="hi-tag auto">系统结算</span>',
+            auto_reward: '<span class="hi-tag auto">系统奖励</span>',
+            auto_penalty: '<span class="hi-tag auto-penalty">系统扣除</span>',
             compensation: '<span class="hi-tag compensation">补偿</span>',
             deduction: '<span class="hi-tag deduction">扣除</span>',
             redemption: '<span class="hi-tag redemption">兑换</span>',
@@ -804,8 +806,8 @@
       badge.textContent = enabled ? '已开启' : '已关闭';
       badge.className   = 'reward-status-badge ' + (enabled ? 'on' : 'off');
       desc.textContent  = enabled
-        ? `每周五 BJT 21:32 自动结算 · 上次修改：${updatedAt}`
-        : `自动结算已暂停，不会发放音符币 · 上次修改：${updatedAt}`;
+        ? `每周五 BJT 21:32 自动发放榜单奖励并扣除缩水榜音符币 · 上次修改：${updatedAt}`
+        : `自动结算已暂停，不会发放奖励，也不会扣除缩水榜音符币 · 上次修改：${updatedAt}`;
     }
 
     async function toggleAutoReward(enabled) {

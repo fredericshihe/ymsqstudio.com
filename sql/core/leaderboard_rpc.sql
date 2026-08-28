@@ -44,6 +44,18 @@ week_monday AS (
     SELECT DATE_TRUNC('week', NOW() AT TIME ZONE 'Asia/Shanghai')::DATE AS monday
 ),
 
+/* ── 当前在读学生：学生库是唯一名单与基础信息来源，归档学生完全排除 ── */
+current_students AS (
+    SELECT DISTINCT ON (sd.name)
+        sd.name AS student_name,
+        NULLIF(BTRIM(sd.major), '') AS student_major,
+        NULLIF(BTRIM(sd.grade), '') AS student_grade
+    FROM public.student_database sd
+    WHERE COALESCE(sd.archived, FALSE) IS FALSE
+      AND NULLIF(BTRIM(sd.name), '') IS NOT NULL
+    ORDER BY sd.name, sd.updated_at DESC NULLS LAST, sd.id DESC
+),
+
 /* ── 近12周内最多20条有效工作日 session（用于三榜均时/异常率） ── */
 recent20 AS (
     SELECT
@@ -125,8 +137,8 @@ last_week_scores AS (
 ranked_pool AS (
     SELECT
         wc.student_name,
-        sb.student_major,
-        sb.student_grade,
+        COALESCE(cs.student_major, sb.student_major) AS student_major,
+        COALESCE(cs.student_grade, sb.student_grade) AS student_grade,
         /* display_score：本周快照优先，否则用基线存档值 */
         COALESCE(ws.composite_score, sb.composite_score)          AS display_score,
         sb.alpha,
@@ -135,6 +147,7 @@ ranked_pool AS (
         COALESCE(ws.record_count, sb.record_count)::INTEGER        AS record_count,
         wc.cnt                                                    AS week_sessions
     FROM week_cnt wc
+    JOIN current_students cs          ON cs.student_name = wc.student_name
     JOIN public.student_baseline sb ON sb.student_name = wc.student_name
     LEFT JOIN week_scores ws        ON ws.student_name = wc.student_name
     WHERE COALESCE(ws.composite_score, sb.composite_score, 0) > 0

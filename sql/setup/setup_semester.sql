@@ -108,7 +108,7 @@ DECLARE
     v_new_balance     INTEGER;
     v_new_semester_earned INTEGER;
 BEGIN
-    IF p_type NOT IN ('auto_reward', 'compensation', 'deduction', 'redemption') THEN
+    IF p_type NOT IN ('auto_reward', 'auto_penalty', 'compensation', 'deduction', 'redemption') THEN
         RAISE EXCEPTION '不支持的 p_type: %', p_type;
     END IF;
 
@@ -116,7 +116,7 @@ BEGIN
         RAISE EXCEPTION '类型 % 的 p_amount 必须为正数', p_type;
     END IF;
 
-    IF p_type IN ('deduction', 'redemption') AND p_amount >= 0 THEN
+    IF p_type IN ('auto_penalty', 'deduction', 'redemption') AND p_amount >= 0 THEN
         RAISE EXCEPTION '类型 % 的 p_amount 必须为负数', p_type;
     END IF;
 
@@ -139,7 +139,7 @@ BEGIN
     v_new_semester_earned := CASE
         WHEN p_type IN ('auto_reward', 'compensation')
             THEN v_new_semester_earned + p_amount
-        WHEN p_type = 'deduction'
+        WHEN p_type IN ('auto_penalty', 'deduction')
             THEN GREATEST(0, v_new_semester_earned + p_amount)
         ELSE
             v_new_semester_earned

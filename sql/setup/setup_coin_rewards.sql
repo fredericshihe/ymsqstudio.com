@@ -3,21 +3,22 @@
 -- 文件：setup_coin_rewards.sql
 --
 -- 功能概述：
---   每周五 北京时间 21:32 自动读取 get_weekly_leaderboards()，
---   按下表规则给各榜上榜学生发放音符币，并写入流水说明。
+--   每周五 北京时间 21:32 自动读取正向榜单与缩水榜，
+--   正向榜发放音符币、缩水榜前 6 名扣除音符币，并写入流水说明。
 --
 -- 发放规则（与 index.html Tips 弹窗保持一致；2026-08-22 起分类榜调整，2026-08-27 起综合榜下调 20%）：
---   名次        综合榜   稳定榜   守则榜   进步榜
---   第 1 名       80      12       11       10
---   第 2–3 名     64       9        8        6
---   第 4–6 名     48       5        5        4
---   第 7–10 名    32      —        —        —
+--   名次        综合榜   稳定榜   守则榜   进步榜   缩水榜
+--   第 1 名       80      12       11       10      -10
+--   第 2–3 名     64       9        8        6       -6
+--   第 4–6 名     48       5        5        4       -4
+--   第 7–10 名    32      —        —        —        —
 --
 -- 正式开始日期：北京时间 2026-03-27（周五）
 -- pg_cron 表达式（UTC）：32 13 * * 5
 --
 -- 依赖：
 --   public.get_weekly_leaderboards()    排行榜数据
+--   public.get_weekly_decline_leaderboard(DATE) 缩水榜数据
 --   public.adjust_student_coins()       原子写余额 + 流水
 --   pg_cron 扩展
 -- ============================================================
@@ -139,12 +140,15 @@ DECLARE
 
     /* ── 汇总统计 ── */
     v_total_events  INTEGER := 0;
-    v_total_coins   INTEGER := 0;
+    v_total_coins   INTEGER := 0; -- 奖励减扣币后的净变化
+    v_reward_coins  INTEGER := 0;
+    v_penalty_coins INTEGER := 0;
     -- 各榜统计（人次 / 音符币）
     v_comp_cnt      INTEGER := 0;  v_comp_coins    INTEGER := 0;
     v_stable_cnt    INTEGER := 0;  v_stable_coins  INTEGER := 0;
     v_rules_cnt     INTEGER := 0;  v_rules_coins   INTEGER := 0;
     v_prog_cnt      INTEGER := 0;  v_prog_coins    INTEGER := 0;
+    v_shrink_cnt    INTEGER := 0;
 BEGIN
 
     /* ── ① 检查自动结算开关（管理员可在后台关闭）── */
@@ -153,7 +157,7 @@ BEGIN
          WHERE key = 'auto_coin_reward_enabled'),
         TRUE
     ) THEN
-        RETURN '🔴 自动结算已关闭（管理员已在后台禁用），本次跳过。';
+        RETURN '🔴 自动音符币结算已关闭，本次奖励与缩水榜扣币均跳过。';
     END IF;
 
     /* ── ② 计算本周时间 ── */
@@ -303,9 +307,54 @@ BEGIN
 
             v_total_events := v_total_events + 1;
             v_total_coins  := v_total_coins  + v_amount;
+            v_reward_coins := v_reward_coins + v_amount;
         END IF;
 
     END LOOP; -- 遍历榜单结束
+
+    /* ── 缩水榜前6名：按进步榜同名次额度扣币，余额允许为负 ── */
+    FOR r IN
+        SELECT board, rank_no, student_name, display_score,
+               completed_minutes, completion_ratio, shortfall_minutes
+        FROM public.get_weekly_decline_leaderboard(v_monday)
+        WHERE rank_no <= 6
+        ORDER BY rank_no
+    LOOP
+        IF    r.rank_no = 1              THEN v_amount := -10;
+        ELSIF r.rank_no BETWEEN 2 AND 3  THEN v_amount :=  -6;
+        ELSIF r.rank_no BETWEEN 4 AND 6  THEN v_amount :=  -4;
+        ELSE v_amount := 0;
+        END IF;
+
+        IF v_amount < 0 THEN
+            v_reason := '【周榜结算】' || v_week_label
+                || ' · 缩水榜第' || r.rank_no || '名'
+                || ' · 当前应完成进度 '
+                || ROUND(COALESCE(r.completion_ratio, 0) * 100, 1)::TEXT || '%'
+                || ' · 本周累计 ' || ROUND(COALESCE(r.completed_minutes, 0), 0)::TEXT || ' 分钟'
+                || ' · 当前还差 ' || ROUND(COALESCE(r.shortfall_minutes, 0), 0)::TEXT || ' 分钟';
+
+            PERFORM public.adjust_student_coins(
+                p_student_name := r.student_name,
+                p_amount       := v_amount,
+                p_reason       := v_reason,
+                p_type         := 'auto_penalty'
+            );
+
+            INSERT INTO public.weekly_coin_reward_detail (
+                week_monday, board, rank_no, student_name,
+                amount, reason, display_score
+            ) VALUES (
+                v_monday, r.board, r.rank_no, r.student_name,
+                v_amount, v_reason, r.display_score
+            );
+
+            v_total_events  := v_total_events + 1;
+            v_total_coins   := v_total_coins + v_amount;
+            v_penalty_coins := v_penalty_coins + ABS(v_amount);
+            v_shrink_cnt    := v_shrink_cnt + 1;
+        END IF;
+    END LOOP;
 
     /* ── ⑦ 写入本周结算记录（防止下次重复执行）── */
     INSERT INTO public.weekly_coin_reward_log
@@ -318,26 +367,26 @@ BEGIN
             '综合榜', jsonb_build_object('人次', v_comp_cnt,   '币', v_comp_coins),
             '稳定榜', jsonb_build_object('人次', v_stable_cnt, '币', v_stable_coins),
             '守则榜', jsonb_build_object('人次', v_rules_cnt,  '币', v_rules_coins),
-            '进步榜', jsonb_build_object('人次', v_prog_cnt,   '币', v_prog_coins)
+            '进步榜', jsonb_build_object('人次', v_prog_cnt,   '币', v_prog_coins),
+            '缩水榜', jsonb_build_object('人次', v_shrink_cnt, '币', -v_penalty_coins),
+            '奖励合计', v_reward_coins,
+            '扣币合计', v_penalty_coins,
+            '净变化', v_total_coins
         )
     );
 
     /* ── ⑧ 返回本次结算摘要 ── */
-    RETURN '✅ ' || v_week_label || ' 周榜结算完成'
-        || ' | 总计 ' || v_total_events::TEXT || ' 次发放，共 ' || v_total_coins::TEXT || ' 枚音符币'
-        || ' | 综合榜 ' || v_comp_cnt::TEXT   || '人/' || v_comp_coins::TEXT   || '币'
-        || ' · 稳定榜 ' || v_stable_cnt::TEXT  || '人/' || v_stable_coins::TEXT  || '币'
-        || ' · 守则榜 ' || v_rules_cnt::TEXT   || '人/' || v_rules_coins::TEXT   || '币'
-        || ' · 进步榜 ' || v_prog_cnt::TEXT    || '人/' || v_prog_coins::TEXT    || '币';
+    RETURN '✅ ' || v_week_label || ' 音符币结算完成'
+        || ' | 奖励 ' || v_reward_coins::TEXT || ' 枚'
+        || ' · 缩水榜扣除 ' || v_penalty_coins::TEXT || ' 枚'
+        || ' · 净变化 ' || v_total_coins::TEXT || ' 枚'
+        || ' | 共 ' || v_total_events::TEXT || ' 笔';
 
 END;
 $$;
 
 COMMENT ON FUNCTION public.reward_weekly_coins() IS
-    '每周五 BJT 21:32 自动结算四榜音符币。
-     防重复：UNIQUE(week_monday) 保证同一周只发一次。
-     开始日期：2026-03-27。
-     流水 p_type 固定为 auto_reward（前端显示"系统结算"紫色标签）。';
+    '每周五自动结算音符币：四个正向榜单发放，缩水榜前6名按进步榜同名次额度扣除。奖励与扣币共同受 auto_coin_reward_enabled 控制；余额允许为负数。';
 
 REVOKE EXECUTE ON FUNCTION public.reward_weekly_coins() FROM anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.reward_weekly_coins() TO service_role;

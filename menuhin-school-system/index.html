@@ -728,6 +728,7 @@
   .coin-hi-meta { font-size: 0.75rem; color: var(--text-3); display: flex; gap: 8px; align-items: center; }
   .coin-hi-tag { padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; background: rgba(255,255,255,0.1); color: var(--text-2); }
   .coin-hi-tag.auto { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+  .coin-hi-tag.auto-penalty { background: rgba(239, 68, 68, 0.15); color: #f87171; }
   .coin-hi-amount { font-size: 1.1rem; font-weight: 800; }
   .coin-hi-amount.pos { color: #10b981; }
   .coin-hi-amount.neg { color: #ef4444; }
@@ -2472,7 +2473,7 @@
   
   /* （已移除：原 iOS 边缘右滑返回手势样式） */
 
-  /* ── 周榜（四榜）样式 ─────────────────────────── */
+  /* ── 周榜（五类榜单）样式 ─────────────────────────── */
   .wlb-section {
     margin-top: 14px;
     width: 100%;
@@ -2539,6 +2540,17 @@
     color: var(--text-3);
     padding: 6px 16px 2px;
     min-height: 20px;
+  }
+  .wlb-shrink-summary {
+    margin: 5px 16px 2px;
+    padding: 7px 10px;
+    border: 1px solid rgba(244,63,94,.18);
+    border-radius: 10px;
+    background: rgba(244,63,94,.07);
+    color: #be4b68;
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1.5;
   }
   .wlb-coin-reward-notice {
     margin: 6px 16px 0;
@@ -2813,7 +2825,7 @@
       }
       .ri-intro strong { color: var(--text-1); }
 
-      /* 四维列表 */
+      /* 五类榜单列表 */
       .ri-dims { display: flex; flex-direction: column; gap: 8px; }
       .ri-dim {
         display: flex; align-items: flex-start; gap: 10px;
@@ -3110,7 +3122,7 @@
         </div>
       </div>
 
-      <!-- ── 本周四大排行榜（后端实时） ── -->
+      <!-- ── 本周五类排行榜（后端实时） ── -->
       <div id="wlbSection" class="wlb-section" style="display:none;">
         <div class="wlb-header">
           <span class="wlb-title">🏅 本周排行榜</span>
@@ -3126,10 +3138,12 @@
           <div class="wlb-tab" data-board="稳定榜" role="button" tabindex="0">稳定榜</div>
           <div class="wlb-tab" data-board="守则榜" role="button" tabindex="0">守则榜</div>
           <div class="wlb-tab" data-board="进步榜" role="button" tabindex="0">进步榜</div>
+          <div class="wlb-tab" data-board="缩水榜" role="button" tabindex="0">缩水榜</div>
         </div>
         <div class="wlb-subtitle" id="wlbSubtitle"></div>
+        <div class="wlb-shrink-summary" id="wlbShrinkSummary" style="display:none"></div>
         <div id="wlbCoinRewardNotice" class="wlb-coin-reward-notice" style="display:none;">
-          本周为特殊周不进行音符币发放
+          自动音符币结算已关闭，本周奖励与缩水榜扣币均暂停
         </div>
         <div class="wlb-notice" id="wlbNotice" style="display:none"></div>
         <div class="wlb-list" id="wlbList">
@@ -3184,6 +3198,13 @@
                   <div class="ri-dim-desc">近 10 条工作日练琴中<strong>异常率最低</strong>者排前。要求：本周工作日练琴 ≥ 3 次，近 10 条工作日记录 ≥ 5 条，近 10 条均时 ≥ 30 分钟，异常率 ≤ 40%，α ≥ 0.60。</div>
                 </div>
               </div>
+              <div class="ri-dim">
+                <span class="ri-dim-label" style="background:rgba(244,63,94,.14);color:#e11d48">缩水榜</span>
+                <div class="ri-dim-content">
+                  <div class="ri-dim-title">当前应完成进度低于 70%</div>
+                  <div class="ri-dim-desc">只统计本周已经开始有效练琴的学生。按“本周实际累计有效时长 ÷ 截至当前工作日理论应完成时长”计算，低于<strong>70%</strong>即进入榜单，完成率越低排名越靠前。前 6 名按第 1 名 <strong>-10</strong>、第 2–3 名 <strong>-6</strong>、第 4–6 名 <strong>-4</strong> 扣除音符币；余额不足时继续显示负数。没有开始练琴的学生单独统计，不参与排名。</div>
+                </div>
+              </div>
             </div>
 
             <div class="ri-rank-note">
@@ -3218,8 +3239,8 @@
           <!-- Tab 2：音符币奖励 -->
           <div class="ri-panel" id="riPanel1">
             <div class="ri-coin-header">
-              <span class="ri-coin-title">🎵 音符币奖励规则</span>
-              <span class="ri-coin-sub">每周五晚 21:30 自动结算</span>
+              <span class="ri-coin-title">🎵 音符币奖励与扣币规则</span>
+              <span class="ri-coin-sub">每周五晚 21:32 自动结算</span>
             </div>
 
             <div class="ri-coin-table">
@@ -3231,6 +3252,7 @@
                     <th>🎯 稳定榜</th>
                     <th>🏅 守则榜</th>
                     <th>📈 进步榜</th>
+                    <th>📉 缩水榜</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3240,6 +3262,7 @@
                     <td class="gold">12</td>
                     <td class="gold">11</td>
                     <td class="gold">10</td>
+                    <td style="color:#f87171;font-weight:700">-10</td>
                   </tr>
                   <tr>
                     <td>🥈 第 2–3 名</td>
@@ -3247,6 +3270,7 @@
                     <td>9</td>
                     <td>8</td>
                     <td>6</td>
+                    <td style="color:#f87171;font-weight:700">-6</td>
                   </tr>
                   <tr>
                     <td>🥉 第 4–6 名</td>
@@ -3254,10 +3278,12 @@
                     <td>5</td>
                     <td>5</td>
                     <td>4</td>
+                    <td style="color:#f87171;font-weight:700">-4</td>
                   </tr>
                   <tr>
                     <td>🏅 第 7–10 名</td>
                     <td>32</td>
+                    <td>—</td>
                     <td>—</td>
                     <td>—</td>
                     <td>—</td>
@@ -3266,7 +3292,7 @@
               </table>
             </div>
 
-            <p class="ri-coin-note">上榜即获对应音符币，学期内可兑换下方奖励</p>
+            <p class="ri-coin-note">正向榜单发放、缩水榜前 6 名扣除；余额不足时可显示负数</p>
 
             <div class="ri-redeem">
               <div class="ri-redeem-head">
@@ -3292,8 +3318,9 @@
             <div style="background:var(--surface-0); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 14px; font-size:12.5px; color:var(--text-2); line-height:1.7; margin-bottom:8px;">
               <div style="font-weight:700; color:var(--text-1); margin-bottom:6px;">💡 小提示</div>
               <div>• <strong>综合榜前 10 名</strong>不参与三个分类榜，无法获得分类榜奖励；其余同学若同时上进步/稳定/守则榜，奖励<strong>叠加计算</strong></div>
+              <div>• <strong>缩水榜前 6 名</strong>按 -10 / -6 / -4 自动扣币；本周未开始练琴的学生单独统计且不参与排名</div>
               <div>• 音符币<strong>仅限本学期使用</strong>，学期结束由琴房管理老师手动全部清零</div>
-              <div>• 每周五结算后即可在个人页面查看余额</div>
+              <div>• 每周五结算后即可在个人页面查看余额；管理员关闭自动结算开关时，奖励与缩水榜扣币都会暂停</div>
               <div>• ⚠️ 前台管理员对存在<strong>违规练琴记录</strong>的学生有权<strong>扣除</strong>音符币</div>
             </div>
           </div>
@@ -3316,7 +3343,7 @@
 
             <div class="ru-section">
               <div class="ru-label">2 · 分类榜奖励</div>
-              <div class="ru-text">综合榜奖励同步下调 20%，调整为第 1 名 80、第 2–3 名 64、第 4–6 名 48、第 7–10 名 32；稳定榜为 12/9/5，守则榜为 11/8/5，进步榜为 10/6/4。综合榜前 10 名仍不参与三个分类榜，分类榜奖励可按规则叠加。</div>
+              <div class="ru-text">综合榜奖励同步下调 20%，调整为第 1 名 80、第 2–3 名 64、第 4–6 名 48、第 7–10 名 32；稳定榜为 12/9/5，守则榜为 11/8/5，进步榜为 10/6/4。缩水榜前 6 名按 -10/-6/-4 扣币，余额不足时允许显示负数。综合榜前 10 名仍不参与三个分类榜，分类榜奖励可按规则叠加。</div>
             </div>
 
             <div class="ru-section">
@@ -6419,7 +6446,7 @@
         }
         renderHomeBins();
         
-        // 返回首页时刷新当前真实线上榜单（四榜）
+        // 返回首页时刷新当前真实线上榜单（五类榜单）
         if (window.__leaderboardSyncSystem) {
           setTimeout(() => {
             window.__leaderboardSyncSystem.updateAllLeaderboards();
@@ -8766,6 +8793,11 @@
       const studentName = newRecord?.name || oldRecord?.name;
       
       dbg('👥 学生信息实时更新:', { eventType, studentName });
+
+      if (eventType === 'DELETE' || newRecord?.archived === true) {
+        removeArchivedStudentIncremental(studentName);
+        return;
+      }
       
       // 立即更新学生信息
       setTimeout(() => {
@@ -9483,6 +9515,41 @@
     }
     
     // ========== 👥 学生信息增量更新 ==========
+
+    function removeArchivedStudentIncremental(studentName) {
+      const normalizedName = utils.normalizeStudentName(studentName || '');
+      if (!normalizedName) return;
+
+      const wasSelected = isSelectedDetailStudent(normalizedName);
+      appState.studentsMeta.delete(normalizedName);
+      appState.students.delete(normalizedName);
+      appState.timeSlots.delete(normalizedName);
+      studentsCache.delete(normalizedName);
+
+      if (Array.isArray(window.studentDatabaseData)) {
+        window.studentDatabaseData = window.studentDatabaseData.filter(student =>
+          !sameStudentName(student?.name, normalizedName)
+        );
+      }
+
+      try { localStorage.removeItem('rank_cache_v2'); } catch (_) {}
+      if (window.__scoreCache) window.__scoreCache.clear();
+      if (window.__studentListRender) window.__studentListRender.lastSig = null;
+      if (typeof __rankTopCache !== 'undefined') __rankTopCache.clear();
+
+      if (wasSelected) {
+        uiState.previousView = 'detail';
+        uiState.view = 'home';
+        uiState.selectedStudent = null;
+        renderStudentDetail._lastStudent = null;
+      }
+
+      _wlbNeedsRefresh = true;
+      updateViews();
+      scheduleWlbRefresh(300, 'student-archived');
+      showToast(`${normalizedName} 已归档并从练琴统计中移除`, 'warning');
+      dbg(`👥 已实时移除归档学生: ${normalizedName}`);
+    }
     
     /**
      * 增量更新学生基础信息
@@ -11878,6 +11945,12 @@
               return;
             }
 
+            if (payload.eventType === 'DELETE' || payload.new?.archived === true) {
+              removeArchivedStudentIncremental(studentName);
+              realtimeThrottlers.metadata();
+              return;
+            }
+
             if (payload.eventType === 'UPDATE' && oldStudentName && newStudentName && oldStudentName !== newStudentName) {
               handleStudentRenameIncremental(oldStudentName, payload.new);
             }
@@ -12070,9 +12143,9 @@
           if (typeof loadWeeklyLeaderboards !== 'function') {
             return;
           }
-          dbg('[LeaderboardSync] 开始刷新当前四榜...');
+          dbg('[LeaderboardSync] 开始刷新当前五类榜单...');
           await loadWeeklyLeaderboards({ force, reason: force ? 'leaderboard-sync-force' : 'leaderboard-sync' });
-          dbg('[LeaderboardSync] 当前四榜已刷新');
+          dbg('[LeaderboardSync] 当前五类榜单已刷新');
           
         } catch (error) {
           console.error('[LeaderboardSync] 更新失败:', error);
@@ -12241,7 +12314,7 @@
     }
 
     // ══════════════════════════════════════════════════════
-    // 本周四大排行榜（后端 RPC 驱动，实时刷新）
+    // 本周五类排行榜（后端 RPC 驱动，实时刷新）
     // ══════════════════════════════════════════════════════
     let _wlbData = {};          // 缓存后端返回数据 { 综合榜:[], 进步榜:[], ... }
     let _wlbActiveTab = '综合榜';
@@ -12255,8 +12328,9 @@
     let _coinRewardSettingPromise = null;
     let _coinRewardEnabled = true;
     const _wlbExpanded = {};    // 每个榜单独立展开状态 { '综合榜': false, ... }
-    const WLB_DEFAULT_N = { '综合榜': 10, '进步榜': 6, '稳定榜': 6, '守则榜': 6 };
-    const WLB_BOARD_ORDER = ['综合榜', '稳定榜', '守则榜', '进步榜'];
+    const WLB_DEFAULT_N = { '综合榜': 10, '进步榜': 6, '稳定榜': 6, '守则榜': 6, '缩水榜': 6 };
+    const WLB_BOARD_ORDER = ['综合榜', '稳定榜', '守则榜', '进步榜', '缩水榜'];
+    let _wlbShrinkSummary = null;
 
     function isWlbRefreshRelevant() {
       if (!isPageVisible || !navigator.onLine) return false;
@@ -12269,6 +12343,7 @@
       '进步榜': '本周绝对涨分最大 · 涨分 ≥1.0 · 本周工作日 ≥2次 · 异常率 ≤45%',
       '稳定榜': 'α 最高 · α ≥0.60 · 近10条工作日记录 ≥8 · 均时 ≥30min · 异常率 ≤35%',
       '守则榜': '近10条异常率最低 · α ≥0.60 · 近10条 ≥5 · 均时 ≥30min · 本周工作日 ≥3次',
+      '缩水榜': '已开始练琴但当前应完成进度低于70% · 完成率越低越靠前 · 前6名按 -10/-6/-4 扣币',
     };
 
     const WLB_MAJ_SHORT = m => {
@@ -12284,6 +12359,15 @@
       return {bg:'rgba(75,94,130,.15)',c:'#94a3b8',bd:'rgba(75,94,130,.3)'};
     };
     const WLB_ESC = escapeHtml;
+
+    function weeklyCoinChange(board, rankNo) {
+      const rank = Number(rankNo);
+      if (board !== '缩水榜' || !Number.isFinite(rank)) return 0;
+      if (rank === 1) return -10;
+      if (rank >= 2 && rank <= 3) return -6;
+      if (rank >= 4 && rank <= 6) return -4;
+      return 0;
+    }
 
     function groupWeeklyLeaderboards(rows) {
       const grouped = {};
@@ -12315,6 +12399,24 @@
       if (!upd) return;
       const n = new Date(ts);
       upd.textContent = `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')} 更新`;
+    }
+
+    function renderWlbShrinkSummary(summary = _wlbShrinkSummary) {
+      const el = document.getElementById('wlbShrinkSummary');
+      if (!el) return;
+      if (_wlbActiveTab !== '缩水榜') {
+        el.style.display = 'none';
+        return;
+      }
+      const row = Array.isArray(summary) ? (summary[0] || null) : summary;
+      if (!row) {
+        el.textContent = '本周未开始人数暂不可用；未开始学生不参与缩水榜排名。';
+      } else {
+        const notStarted = Number(row.not_started_students || 0);
+        const shrink = Number(row.shrink_students || 0);
+        el.textContent = `本周未开始 ${notStarted} 人（不参与排名） · 缩水榜 ${shrink} 人`;
+      }
+      el.style.display = 'block';
     }
 
     function applyCoinRewardSetting(enabled) {
@@ -12408,6 +12510,15 @@
         const label = or < 0.1 ? '极佳' : or < 0.2 ? '优秀' : or < 0.35 ? '良好' : '一般';
         return `<div class="wlb-right"><div class="wlb-val" style="color:${c}">${orPct}%</div><div class="wlb-val-sub">${label}</div></div>`;
       }
+      if (board === '缩水榜') {
+        const ratio = Number(row.completion_ratio ?? (Number(row.display_score || 0) / 100));
+        const pctText = Number.isFinite(ratio) ? `${(ratio * 100).toFixed(1)}%` : '—';
+        const shortfall = Number(row.shortfall_minutes);
+        const penalty = weeklyCoinChange(board, row.rank_no);
+        const gap = Number.isFinite(shortfall) ? `还差 ${shortfall.toFixed(0)}min` : '进度不足70%';
+        const sub = penalty < 0 ? `${penalty} 币 · ${gap}` : gap;
+        return `<div class="wlb-right"><div class="wlb-val" style="color:#fb7185">${pctText}</div><div class="wlb-val-sub">${sub}</div></div>`;
+      }
       return '';
     }
 
@@ -12429,8 +12540,8 @@
           noticeEl.textContent = _wlbLastError
             ? `本周排行榜加载失败：${_wlbLastError.message || _wlbLastError}。请检查 Supabase 连接或后端函数状态。`
             : isWeekStart
-              ? '本周排行榜暂时为空。现在已经进入新的一周，需等本周第一批工作日练琴记录写入后，综合榜和三个分类榜才会自动出现。'
-              : '本周排行榜暂时为空。通常表示当前还没有满足上榜条件的本周数据，例如本周尚无有效工作日练琴记录、练琴次数不足或历史记录不足。';
+              ? '本周排行榜暂时为空。现在已经进入新的一周，需等本周数据写入后，综合榜、分类榜和缩水榜才会自动更新。'
+              : '本周排行榜暂时为空。通常表示当前还没有满足各榜上榜条件的本周数据。';
         }
         listEl.innerHTML = '<div class="wlb-empty">暂无足够数据</div>';
         return;
@@ -12478,6 +12589,7 @@
       _wlbActiveTab = board;
       document.querySelectorAll('.wlb-tab').forEach(t => t.classList.remove('active'));
       if (tabEl) tabEl.classList.add('active');
+      renderWlbShrinkSummary();
       renderWlbBoard(board);
     }
 
@@ -12515,10 +12627,26 @@
         _wlbNeedsRefresh = false;
         void loadCoinRewardSetting({ force, reason });
         try {
-          const { data, error } = await supabaseClient.rpc('get_weekly_leaderboards');
+          const [
+            { data, error },
+            { data: declineData, error: declineError },
+            { data: shrinkSummaryData, error: shrinkSummaryError }
+          ] = await Promise.all([
+            supabaseClient.rpc('get_weekly_leaderboards'),
+            supabaseClient.rpc('get_weekly_decline_leaderboard'),
+            supabaseClient.rpc('get_weekly_shrink_summary')
+          ]);
           if (error) throw error;
+          if (declineError) {
+            console.warn('[wlb] 缩水榜 RPC 暂不可用:', declineError);
+          }
+          if (shrinkSummaryError) {
+            console.warn('[wlb] 缩水榜汇总 RPC 暂不可用:', shrinkSummaryError);
+          } else {
+            _wlbShrinkSummary = shrinkSummaryData;
+          }
 
-          const nextData = groupWeeklyLeaderboards(data || []);
+          const nextData = groupWeeklyLeaderboards([...(data || []), ...(declineData || [])]);
           const nextSignature = buildWeeklyLeaderboardSignature(nextData);
           const changed = nextSignature !== _wlbDataSignature || !!_wlbLastError;
 
@@ -12528,6 +12656,7 @@
           _wlbLastLoadedAt = Date.now();
 
           if (section) section.style.display = 'block';
+          renderWlbShrinkSummary();
           if (changed || wasHidden) {
             updateWlbUpdatedLabel(_wlbLastLoadedAt);
             renderWlbBoard(_wlbActiveTab);
@@ -12635,9 +12764,11 @@
           const date = new Date(tx.created_at).toLocaleString('zh-CN', {
             month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
           });
-          const typeTag = tx.transaction_type === 'auto_reward' 
-            ? '<span class="coin-hi-tag auto">系统结算</span>' 
-            : '<span class="coin-hi-tag">手动操作</span>';
+          const typeTag = tx.transaction_type === 'auto_reward'
+            ? '<span class="coin-hi-tag auto">系统奖励</span>'
+            : tx.transaction_type === 'auto_penalty'
+              ? '<span class="coin-hi-tag auto-penalty">系统扣除</span>'
+              : '<span class="coin-hi-tag">手动操作</span>';
 
           return `
             <div class="coin-history-item">
