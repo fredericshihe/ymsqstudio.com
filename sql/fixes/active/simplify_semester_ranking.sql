@@ -57,7 +57,8 @@ GRANT EXECUTE ON FUNCTION public.start_new_semester(TEXT) TO anon, authenticated
 
 -- 3) 视图保持包含 semester_earned，供后台累计排行使用
 DROP VIEW IF EXISTS public.vw_student_coin_balances;
-CREATE VIEW public.vw_student_coin_balances AS
+CREATE VIEW public.vw_student_coin_balances
+WITH (security_invoker = true) AS
 SELECT
     sd.name                         AS student_name,
     sd.major                        AS student_major,
@@ -66,6 +67,7 @@ SELECT
     COALESCE(sc.semester_earned, 0) AS semester_earned,
     sc.updated_at
 FROM public.student_database sd
-LEFT JOIN public.student_coins sc ON sd.name = sc.student_name;
+LEFT JOIN public.student_coins sc ON sd.name = sc.student_name
+WHERE COALESCE(sd.archived, FALSE) IS FALSE;
 
 GRANT SELECT ON public.vw_student_coin_balances TO anon, authenticated;

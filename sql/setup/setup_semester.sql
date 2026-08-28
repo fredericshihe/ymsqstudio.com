@@ -170,7 +170,8 @@ GRANT EXECUTE ON FUNCTION public.adjust_student_coins(TEXT, INTEGER, TEXT, TEXT)
 --    必须先 DROP 再重建，否则 CREATE OR REPLACE 不允许改列顺序
 -- ============================================================
 DROP VIEW IF EXISTS public.vw_student_coin_balances;
-CREATE VIEW public.vw_student_coin_balances AS
+CREATE VIEW public.vw_student_coin_balances
+WITH (security_invoker = true) AS
 SELECT
     sd.name                              AS student_name,
     sd.major                             AS student_major,

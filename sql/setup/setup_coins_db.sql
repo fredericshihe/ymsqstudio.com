@@ -74,7 +74,8 @@ $$;
 GRANT EXECUTE ON FUNCTION public.adjust_student_coins(TEXT, INTEGER, TEXT, TEXT) TO anon, authenticated;
 
 -- 4. 创建一个视图，方便前端一次性拉取学生信息和余额
-CREATE OR REPLACE VIEW public.vw_student_coin_balances AS
+CREATE OR REPLACE VIEW public.vw_student_coin_balances
+WITH (security_invoker = true) AS
 SELECT 
     sd.name AS student_name,
     sd.major AS student_major,
@@ -82,7 +83,8 @@ SELECT
     COALESCE(sc.balance, 0) AS balance,
     sc.updated_at
 FROM public.student_database sd
-LEFT JOIN public.student_coins sc ON sd.name = sc.student_name;
+LEFT JOIN public.student_coins sc ON sd.name = sc.student_name
+WHERE COALESCE(sd.archived, FALSE) IS FALSE;
 
 GRANT SELECT ON public.vw_student_coin_balances TO anon, authenticated;
 GRANT SELECT ON public.coin_transactions TO anon, authenticated;
