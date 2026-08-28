@@ -607,7 +607,9 @@ table#schedule{border-collapse:separate;border-spacing:0;min-width:1100px;width:
 .student-library-preview-table td{height:46px;padding:7px 6px;border:1px solid #dce3ed;background:#fff;color:#17233d;line-height:1.35;text-align:center;vertical-align:middle;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;}
 .student-library-preview-table td:first-child{background:#f7f9fc;color:#52617d;font-weight:700;white-space:nowrap;}
 .student-library-preview-table td.is-filled{background:var(--library-cell-fill,#eaf0f8);color:var(--library-cell-text,#344c6a);font-weight:650;}
-.student-library-preview-table td.is-course-highlight{box-shadow:inset 0 0 0 2px rgba(63,96,178,.62),inset 0 -3px 0 rgba(63,96,178,.18);font-weight:800;}
+.student-library-preview-table td.is-current-time{position:relative;z-index:1;box-shadow:inset 0 0 0 2px rgba(34,197,94,.9),inset 0 -3px 0 rgba(34,197,94,.22);font-weight:800;}
+.student-library-preview-table td.is-current-time::after{content:'现在';position:absolute;top:-8px;right:-5px;padding:2px 5px;border-radius:5px;background:#22c55e;color:#fff;font-size:.58rem;font-weight:850;line-height:1.2;box-shadow:0 2px 5px rgba(22,101,52,.2);}
+.student-library-preview-table td.is-current-time-label{background:#eaf8f1!important;color:#23765d!important;font-weight:850;}
 .student-library-preview-note{margin-top:12px;color:var(--text-secondary);font-size:.76rem;line-height:1.55;}
 .student-library-preview-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
 .student-library-modal-open{overflow:hidden;}
@@ -5341,6 +5343,22 @@ function updateStudentLibrarySelectionUi(rows){
   if(summary) summary.textContent = `已选择 ${count} 名学生`;
 }
 
+function isStudentLibraryCurrentTime(time, day, now = new Date()){
+  const parts = String(time || '').split('-');
+  if(parts.length !== 2) return false;
+  const parseTime = value => {
+    const match = String(value).match(/^(\d{1,2}):(\d{2})$/);
+    if(!match) return NaN;
+    return Number(match[1]) * 60 + Number(match[2]);
+  };
+  const start = parseTime(parts[0]);
+  const end = parseTime(parts[1]);
+  if(!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return false;
+  if(((now.getDay() + 6) % 7) !== Number(day)) return false;
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  return currentMinutes >= start && currentMinutes < end;
+}
+
 function renderStudentLibraryPreview(student){
   const empty = document.getElementById('studentLibraryPreviewEmpty');
   const content = document.getElementById('studentLibraryPreviewContent');
@@ -5370,16 +5388,19 @@ function renderStudentLibraryPreview(student){
     body.innerHTML = `<tr><td class="student-library-empty" colspan="${visibleDayNames.length + 1}">暂无课表记录</td></tr>`;
     note.textContent = '暂无课表记录，可在课表工作台创建或编辑。';
   }else{
+    const now = new Date();
     body.innerHTML = axis.map(time=>{
+      const isCurrentTimeRow = visibleDayIndexes.some(day=>isStudentLibraryCurrentTime(time, day, now));
       const cellsHtml = visibleDayIndexes.map(day=>{
         const cell = cells[`${time}|${day}`];
-        if(!cell || !hasScheduleCellContent(cell)) return '<td></td>';
+        const currentClass = isStudentLibraryCurrentTime(time, day, now) ? ' is-current-time' : '';
+        if(!cell || !hasScheduleCellContent(cell)) return `<td class="${currentClass.trim()}"></td>`;
         const visual = scheduleVisual(cell);
         const text = String(cell.text || '').trim() || (visual.kind === 'practice' ? '练琴' : visual.kind === 'rest' ? '休息' : '');
-        const highlightClass = visual.kind !== 'rest' && visual.kind !== 'empty' ? ' is-course-highlight' : '';
-        return `<td class="is-filled${highlightClass}" style="--library-cell-fill:${esc(visual.fill)};--library-cell-text:${esc(visual.text)}">${esc(text)}</td>`;
+        return `<td class="is-filled${currentClass}" style="--library-cell-fill:${esc(visual.fill)};--library-cell-text:${esc(visual.text)}">${esc(text)}</td>`;
       }).join('');
-      return `<tr><td>${esc(time)}</td>${cellsHtml}</tr>`;
+      const timeClass = isCurrentTimeRow ? ' class="is-current-time-label"' : '';
+      return `<tr><td${timeClass}>${esc(time)}</td>${cellsHtml}</tr>`;
     }).join('');
     const practiceCount = Object.values(student.cells || {}).filter(cell=>resolvedCellKind(cell) === 'practice').length;
     note.textContent = `共 ${axis.length} 个时间段 · ${practiceCount} 个练琴标记`;
@@ -5390,18 +5411,35 @@ function renderStudentLibraryPreview(student){
 
 let studentLibraryScheduleCloseTimer = null;
 let studentLibraryScheduleModalOpener = null;
+let studentLibraryScheduleHighlightTimer = null;
+
+function stopStudentLibraryScheduleHighlightTimer(){
+  if(studentLibraryScheduleHighlightTimer){
+    clearInterval(studentLibraryScheduleHighlightTimer);
+    studentLibraryScheduleHighlightTimer = null;
+  }
+}
+
+function refreshStudentLibraryScheduleHighlight(){
+  const modal = document.getElementById('studentLibraryScheduleModal');
+  if(!modal || !modal.classList.contains('is-open')) return;
+  const student = studentLibraryFind(studentLibraryUi.selectedName);
+  if(student) renderStudentLibraryPreview(student);
+}
 
 function openStudentLibraryScheduleModal(student){
   const modal = document.getElementById('studentLibraryScheduleModal');
   const title = document.getElementById('studentLibraryScheduleModalTitle');
   if(!modal || !student) return;
   if(studentLibraryScheduleCloseTimer) clearTimeout(studentLibraryScheduleCloseTimer);
+  stopStudentLibraryScheduleHighlightTimer();
   studentLibraryScheduleModalOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   if(title) title.textContent = '学生课表';
   renderStudentLibraryPreview(student);
   modal.hidden = false;
   document.body.classList.add('student-library-modal-open');
   requestAnimationFrame(()=>{ if(!modal.hidden) modal.classList.add('is-open'); });
+  studentLibraryScheduleHighlightTimer = setInterval(refreshStudentLibraryScheduleHighlight, 15000);
   document.getElementById('studentLibraryScheduleClose')?.focus();
 }
 
@@ -5411,6 +5449,7 @@ function closeStudentLibraryScheduleModal(options={}){
   if(studentLibraryScheduleCloseTimer) clearTimeout(studentLibraryScheduleCloseTimer);
   modal.classList.remove('is-open');
   const finish = ()=>{
+    stopStudentLibraryScheduleHighlightTimer();
     modal.hidden = true;
     document.body.classList.remove('student-library-modal-open');
     studentLibraryScheduleCloseTimer = null;
