@@ -179,7 +179,8 @@ SELECT
     COALESCE(sc.semester_earned, 0)      AS semester_earned,
     sc.updated_at
 FROM public.student_database sd
-LEFT JOIN public.student_coins sc ON sd.name = sc.student_name;
+LEFT JOIN public.student_coins sc ON sd.name = sc.student_name
+WHERE COALESCE(sd.archived, FALSE) IS FALSE;
 
 GRANT SELECT ON public.vw_student_coin_balances TO anon, authenticated;
 
