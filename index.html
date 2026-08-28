@@ -1135,18 +1135,22 @@
 				<p class="section-title">运行状态</p>
 				<div class="list-small" id="runtimeInfo"></div>
 			</div>
-			<div style="margin-top:22px;">
-				<p class="section-title" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:nowrap;">
-					<span style="white-space:nowrap;">重要提醒</span>
-					<span style="display:flex;gap:8px;flex-wrap:nowrap;align-items:center;white-space:nowrap;">
-						<span class="alert-filters" style="display:flex;gap:4px;flex-wrap:nowrap;">
-							<button class="alert-filter-btn act" data-filter="all">全部</button>
-							<button class="alert-filter-btn" data-filter="absent">缺勤</button>
-						</span>
-						<button id="ignoreAllBtn" class="alert-ignore-all-btn" title="忽略当前筛选条件下的所有提醒">一键忽略</button>
-					</span>
-				</p>
-				<div id="alertList" class="list-small alert-empty" style="max-height:680px;overflow:auto;display:flex;flex-direction:column;gap:10px;"></div>
+			<div class="alert-section">
+				<div class="alert-section-head">
+					<div class="alert-heading">
+						<span class="alert-heading-dot" aria-hidden="true"></span>
+						<span class="alert-heading-title">重要提醒</span>
+						<span id="alertCountBadge" class="alert-count-badge" hidden>缺勤 0</span>
+					</div>
+					<button id="ignoreAllBtn" class="alert-ignore-all-btn" title="忽略全部当前提醒" hidden>全部忽略</button>
+				</div>
+				<div id="alertList" class="list-small alert-list alert-empty" aria-live="polite">
+					<div class="alert-empty-state">
+						<span class="alert-empty-icon" aria-hidden="true">✓</span>
+						<span class="alert-empty-title">暂无重要提醒</span>
+						<span class="alert-empty-subtitle">当前没有需要处理的缺勤</span>
+					</div>
+				</div>
 			</div>
 		</div>
 	</main>
@@ -18684,177 +18688,51 @@ body{--text:#e2ebf3; --text-dim:#a5b6c6;}
 .chip.warn{color:#ffbc55 !important;}
 </style>
 
-<!-- 批量时间段管理样式 (已删除) -->
+<!-- 练琴提醒样式 -->
 <style>
-.alert-filter-btn{border:1px solid #d0d7e2;background:#f5f8fc;color:#2e3b48;font-size:12px;padding:5px 12px;border-radius:18px;cursor:pointer;letter-spacing:.5px;font-weight:600;transition:.18s;line-height:1;}
-.alert-filter-btn:hover{background:#e1eaf3;color:#1d2730;border-color:#c2ccd8;}
-.alert-filter-btn:active{transform:translateY(1px);}
-.alert-filter-btn.act{background:#007aff;color:#fff;border-color:#007aff;box-shadow:0 0 0 1px #007aff55 inset;}
-.alert-filter-btn.act:hover{background:#0062d1;color:#fff;border-color:#0057bb;}
-.alert-filter-btn:focus-visible{outline:2px solid #4d90fe;outline-offset:1px;}
+.alert-section{margin-top:22px;}
+.alert-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px;min-height:28px;}
+.alert-heading{display:flex;align-items:center;gap:8px;min-width:0;}
+.alert-heading-dot{width:7px;height:7px;border:1px solid rgba(255,95,86,.65);border-radius:50%;background:rgba(255,95,86,.35);flex:0 0 auto;}
+.alert-heading-title{font-size:13px;font-weight:650;color:var(--text-dim);letter-spacing:.45px;white-space:nowrap;}
+.alert-count-badge{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;border:1px solid rgba(255,95,86,.28);background:rgba(255,95,86,.09);color:#ffaaa5;font-size:10.5px;font-weight:650;letter-spacing:.2px;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.alert-count-badge[hidden],.alert-ignore-all-btn[hidden]{display:none;}
 
-/* 优化提醒样式 */
-.alert-item {
-	border-radius: 8px;
-	padding: 8px 12px;
-	margin-bottom: 4px;
-	position: relative;
-	transition: all 0.2s ease;
-	border-left: 4px solid transparent;
-	background: #fff;
-	box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	min-height: 36px;
-}
+#alertList.alert-list{max-height:680px;overflow:auto;display:flex;flex-direction:column;gap:7px;padding:6px;background:rgba(10,13,18,.38);border:1px solid var(--outline);border-radius:10px;scrollbar-width:thin;scrollbar-color:var(--outline-hover) transparent;}
+#alertList.alert-list::-webkit-scrollbar{width:6px;}
+#alertList.alert-list::-webkit-scrollbar-thumb{background:var(--outline-hover);border-radius:999px;}
 
-/* 缺勤提醒 - 橙红色 */
-.alert-item.absent {
-	background: #fff8f8;
-	border-left-color: #f56565;
-}
+.alert-item{display:flex;align-items:center;gap:10px;min-height:62px;padding:10px 9px 10px 12px;border:1px solid var(--outline);border-left:3px solid rgba(255,95,86,.74);border-radius:8px;background:rgba(31,37,45,.88);transition:background-color .16s ease,border-color .16s ease;}
+.alert-item.absent[data-severity="2"]{border-left-color:var(--danger);background:rgba(52,35,39,.72);}
+.alert-item:hover{background:var(--surface);border-color:var(--outline-hover);border-left-color:#ff7770;}
+.alert-item.absent[data-severity="2"]:hover{background:rgba(60,38,43,.82);}
 
-.alert-item.absent[data-severity="2"] {
-	border-left-color: #e53e3e;
-	background: #fef1f1;
-}
+.alert-content{display:flex;flex:1;flex-direction:column;gap:6px;min-width:0;}
+.alert-main-line{display:flex;align-items:center;gap:7px;min-width:0;}
+.alert-student{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-size:15px;font-weight:650;line-height:1.15;letter-spacing:.15px;}
+.alert-info{display:flex;align-items:center;gap:7px;min-width:0;color:var(--text-dim);font-size:11px;line-height:1;}
+.alert-info-separator{width:2px;height:2px;border-radius:50%;background:#647181;flex:0 0 auto;}
+.alert-time{color:#778493;font-size:10.5px;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.alert-tag{display:inline-flex;align-items:center;white-space:nowrap;font-size:10px;font-weight:650;letter-spacing:.25px;}
+.alert-tag.type-absent{padding:2px 6px;border-radius:999px;background:rgba(255,95,86,.12);color:#ffaaa5;border:1px solid rgba(255,95,86,.22);}
+.alert-tag.type-anomaly{padding:2px 6px;border-radius:999px;background:rgba(255,179,71,.12);color:#ffd199;border:1px solid rgba(255,179,71,.22);}
+.alert-slot-time{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#c5d0dc;font:600 11px/1.1 'SF Mono','Roboto Mono','Consolas',monospace;font-variant-numeric:tabular-nums;}
 
-/* 悬停效果 */
-.alert-item:hover {
-	box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-	background-color: #f8f9fa;
-}
+.alert-actions{display:flex;align-items:center;flex:0 0 auto;}
+.alert-btn{min-height:28px;padding:4px 8px;border:1px solid transparent;border-radius:6px;background:transparent;color:#8794a3;font:600 11px/1 inherit;cursor:pointer;transition:color .15s ease,background-color .15s ease,border-color .15s ease;}
+.alert-btn.ignore:hover{background:rgba(255,255,255,.045);border-color:var(--outline);color:#d7e0ea;}
+.alert-btn:focus-visible,.alert-ignore-all-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
 
-.alert-item.absent:hover {
-	background: #fff6f6;
-}
+.alert-ignore-all-btn{min-height:28px;padding:4px 7px;border:1px solid transparent;border-radius:6px;background:transparent;color:#8592a1;font:600 11px/1 inherit;cursor:pointer;transition:color .15s ease,background-color .15s ease,border-color .15s ease;white-space:nowrap;}
+.alert-ignore-all-btn:hover{background:rgba(255,95,86,.07);border-color:rgba(255,95,86,.2);color:#ffaaa5;}
+.alert-ignore-all-btn:active{background:rgba(255,95,86,.12);}
+.alert-ignore-all-btn:disabled{opacity:.45;cursor:wait;pointer-events:none;}
 
-/* 内容布局 */
-.alert-content {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	flex: 1;
-}
-
-.alert-student {
-	font-weight: 600;
-	font-size: 14px;
-	color: #2d3748;
-	min-width: 60px;
-}
-
-.alert-info {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	font-size: 12px;
-	color: #718096;
-}
-
-.alert-time {
-	font-size: 11px;
-	color: #a0aec0;
-}
-
-/* 标签样式 */
-.alert-tag {
-	padding: 2px 6px;
-	border-radius: 8px;
-	font-size: 11px;
-	font-weight: 500;
-	letter-spacing: 0.3px;
-}
-
-.alert-tag.type-absent {
-	background: #fed7d7;
-	color: #c53030;
-}
-
-.alert-tag.slot-time {
-	background: #e6fffa;
-	color: #285e61;
-	font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-}
-
-/* 操作按钮 */
-.alert-actions {
-	display: flex;
-	gap: 4px;
-}
-
-.alert-btn {
-	padding: 4px 8px;
-	border: none;
-	border-radius: 4px;
-	font-size: 11px;
-	font-weight: 500;
-	cursor: pointer;
-	transition: all 0.15s ease;
-}
-
-.alert-btn.ignore {
-	background: #edf2f7;
-	color: #4a5568;
-	border: 1px solid #cbd5e0;
-}
-
-.alert-btn.ignore:hover {
-	background: #e2e8f0;
-	color: #2d3748;
-}
-
-/* 已忽略状态 */
-.alert-item.ignored {
-	opacity: 0.7;
-	filter: grayscale(0.2);
-}
-
-.alert-ignored-flag {
-	font-size: 10px;
-	color: #a0aec0;
-	margin-left: 8px;
-}
-
-/* 一键忽略按钮 */
-.alert-ignore-all-btn {
-	padding: 4px 8px;
-	border: 1px solid #cbd5e0;
-	border-radius: 4px;
-	background: #f7fafc;
-	color: #4a5568;
-	font-size: 11px;
-	font-weight: 500;
-	cursor: pointer;
-	transition: all 0.15s ease;
-}
-
-.alert-ignore-all-btn:hover {
-	background: #edf2f7;
-	border-color: #a0aec0;
-	color: #2d3748;
-}
-
-.alert-ignore-all-btn:active {
-	background: #e2e8f0;
-	transform: translateY(1px);
-}
-
-.alert-ignore-all-btn:disabled {
-	opacity: 0.5;
-	cursor: not-allowed;
-	pointer-events: none;
-}
-
-/* 空状态 */
-.alert-empty {
-	text-align: center;
-	color: #a0aec0;
-	font-style: italic;
-	padding: 40px 20px;
-	font-size: 14px;
-}
+#alertList.alert-empty{min-height:112px;justify-content:center;overflow:hidden;}
+.alert-empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px 12px;text-align:center;}
+.alert-empty-icon{display:flex;align-items:center;justify-content:center;width:28px;height:28px;margin-bottom:8px;border:1px solid rgba(63,191,107,.25);border-radius:50%;background:rgba(63,191,107,.08);color:#79d898;font-size:13px;font-weight:700;}
+.alert-empty-title{color:#b9c4cf;font-size:12px;font-weight:600;}
+.alert-empty-subtitle{margin-top:4px;color:#687583;font-size:10.5px;}
 </style>
 
 
@@ -20439,9 +20317,31 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			return false;
 		}
 	}
-	function currentFilter(){ return AlertStore.filter||'all'; }
-	function applyFilter(list){ const f=currentFilter(); if(f==='all') return list; if(f==='absent') return list.filter(a=>a.type==='absent'); return list; }
-	function updateFilterButtons(){ document.querySelectorAll('.alert-filter-btn').forEach(b=>{ b.classList.toggle('act', b.dataset.filter===currentFilter()); }); }
+	function updateAlertSummary(count){
+		const badge=document.getElementById('alertCountBadge');
+		const ignoreAll=document.getElementById('ignoreAllBtn');
+		if(badge){
+			badge.textContent=`缺勤 ${count}`;
+			badge.hidden=count===0;
+		}
+		if(ignoreAll) ignoreAll.hidden=count===0;
+	}
+	function renderEmptyAlertState(box){
+		const state=document.createElement('div');
+		state.className='alert-empty-state';
+		const icon=document.createElement('span');
+		icon.className='alert-empty-icon';
+		icon.setAttribute('aria-hidden','true');
+		icon.textContent='✓';
+		const title=document.createElement('span');
+		title.className='alert-empty-title';
+		title.textContent='暂无重要提醒';
+		const subtitle=document.createElement('span');
+		subtitle.className='alert-empty-subtitle';
+		subtitle.textContent='当前没有需要处理的缺勤';
+		state.append(icon,title,subtitle);
+		box.replaceChildren(state);
+	}
 	function patchAlertList(filtered, box){
 		const existing = new Map();
 		box.querySelectorAll('.alert-item[data-id]').forEach(el => existing.set(String(el.dataset.id), el));
@@ -20499,19 +20399,17 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			// 次级：同一时间段按 id 降序（新的在前）
 			return (b.id||0)-(a.id||0);
 		});
-		const filtered=applyFilter(sorted); 
-		console.log('[PracticeAlerts] 过滤后提醒数量:', filtered.length);
-		if(!filtered.length){ 
+		updateAlertSummary(sorted.length);
+		if(!sorted.length){
 			box.classList.add('alert-empty'); 
-			box.textContent='暂无提醒'; 
+			renderEmptyAlertState(box);
 			console.log('[PracticeAlerts] 显示：暂无提醒');
 		} else { 
 			box.classList.remove('alert-empty'); 
-			patchAlertList(filtered, box);
+			patchAlertList(sorted, box);
 			bindAlertListDelegation(box);
-			console.log('[PracticeAlerts] 渲染了', filtered.length, '条提醒');
-		} 
-		updateFilterButtons(); 
+			console.log('[PracticeAlerts] 渲染了', sorted.length, '条提醒');
+		}
 	}
 	function scheduleRenderAlerts(){
 		if(AlertStore._renderQueued) return;
@@ -20550,20 +20448,30 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			const content = document.createElement('div');
 			content.className = 'alert-content';
 
+			const mainLine = document.createElement('div');
+			mainLine.className = 'alert-main-line';
 			const student = document.createElement('div');
 			student.className = 'alert-student';
 			student.textContent = a.student_name || '';
-			content.appendChild(student);
+			mainLine.appendChild(student);
+			mainLine.appendChild(createAlertTag(a.type === 'absent' ? '缺勤' : '异常', `alert-tag type-${a.type}`));
+			content.appendChild(mainLine);
 
 			const info = document.createElement('div');
 			info.className = 'alert-info';
-			info.appendChild(createAlertTag(a.type === 'absent' ? '缺勤' : '异常', `alert-tag type-${a.type}`));
 			if(a.slot){
-				info.appendChild(createAlertTag(normalizeAlertSlotTimeRange(a.slot), 'alert-tag slot-time'));
+				const slotTime=document.createElement('span');
+				slotTime.className='alert-slot-time';
+				slotTime.textContent=normalizeAlertSlotTimeRange(a.slot);
+				info.appendChild(slotTime);
+				const separator=document.createElement('span');
+				separator.className='alert-info-separator';
+				separator.setAttribute('aria-hidden','true');
+				info.appendChild(separator);
 			}
 			const time = document.createElement('span');
 			time.className = 'alert-time';
-			time.textContent = fmt(a.created_at || a.createdAt || Date.now());
+			time.textContent = `提醒于 ${fmt(a.created_at || a.createdAt || Date.now())}`;
 			info.appendChild(time);
 			content.appendChild(info);
 
@@ -20573,14 +20481,8 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			ignoreBtn.className = 'alert-btn ignore';
 			ignoreBtn.dataset.act = 'ignore';
 			ignoreBtn.dataset.id = String(a.id);
-			ignoreBtn.textContent = a.ignored ? '已忽略' : '忽略';
+			ignoreBtn.textContent = '忽略';
 			actions.appendChild(ignoreBtn);
-			if(a.ignored){
-				const ignoredFlag = document.createElement('span');
-				ignoredFlag.className = 'alert-ignored-flag';
-				ignoredFlag.textContent = '已忽略';
-				actions.appendChild(ignoredFlag);
-			}
 
 			item.appendChild(content);
 			item.appendChild(actions);
@@ -20608,7 +20510,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			}catch(e){ console.error(e); AlertStore.byId.set(String(id),a); AlertStore.list.unshift(a); scheduleRenderAlerts(); }
 	}
 
-		// 一键忽略当前筛选条件下的所有提醒
+		// 忽略当前列表中的全部提醒
 		let _bulkIgnoreLock = false;
 		async function ignoreAllAlerts() {
 			if(_bulkIgnoreLock){ console.log('[PracticeAlerts] ignoreAll 已在执行'); return; }
@@ -20624,9 +20526,9 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				if(kb!==ka) return kb-ka;
 				return (b.id||0)-(a.id||0);
 			});
-			const candidates = applyFilter(sorted).filter(a=>!a.ignored);
-			if(!candidates.length){ console.log('[PracticeAlerts] 一键忽略：无可忽略条目'); toast?.('没有可忽略的提醒'); return; }
-			console.log('[PracticeAlerts] 一键忽略 开始 数量=', candidates.length);
+			const candidates = sorted.filter(a=>!a.ignored);
+			if(!candidates.length){ console.log('[PracticeAlerts] 全部忽略：无可忽略条目'); toast?.('没有可忽略的提醒'); return; }
+			console.log('[PracticeAlerts] 全部忽略 开始 数量=', candidates.length);
 			_bulkIgnoreLock = true;
 			const todayStr=businessDateKey();
 			// 本地批量处理（一次渲染）
@@ -20646,11 +20548,11 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					if(error){ console.warn('[PracticeAlerts] 批量忽略远端失败，回滚', error); // 回滚
 						for(const a of candidates){ a.ignored=false; AlertStore.byId.set(String(a.id), a); AlertStore.list.push(a); }
 						scheduleRenderAlerts();
-						toast?.('一键忽略失败');
+						toast?.('全部忽略失败');
 					}else{
 						// 单次广播，避免每条提醒产生一个跨标签事件
 						try{ if(AlertStore._rtChannel){ AlertStore._rtChannel.send({type:'broadcast', event:'ignore', payload:{ids}}); } }catch(e){ console.warn('[PracticeAlerts][BC][bulk-ignore] 广播失败', e); }
-						console.log('[PracticeAlerts] 一键忽略 成功 ids=', ids.length);
+						console.log('[PracticeAlerts] 全部忽略 成功 ids=', ids.length);
 						toast?.(`已忽略 ${ids.length} 条提醒`);
 					}
 				}catch(e){ console.error('[PracticeAlerts] 批量忽略异常', e); toast?.('批量忽略异常'); }
@@ -21341,7 +21243,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			await forceReloadSlots();
 			if(runDetect) await detectionTick();
 		}
-		window.PracticeAlerts={ initAlerts, refreshFromCloud:refreshAlertsFromCloud, renderAlerts, detectionTick, ignoreAlert, ignoreAllAlerts, createAlert, refreshSlots, recalcToday, resetConnection, setFilter(f){ AlertStore.filter=f; renderAlerts(); } };
+		window.PracticeAlerts={ initAlerts, refreshFromCloud:refreshAlertsFromCloud, renderAlerts, detectionTick, ignoreAlert, ignoreAllAlerts, createAlert, refreshSlots, recalcToday, resetConnection };
 	document.addEventListener('DOMContentLoaded',()=>{ 
 		console.log('[PracticeAlerts] DOMContentLoaded 触发');
 		console.log('[PracticeAlerts] window.supabaseClient:', !!window.supabaseClient);
@@ -21363,10 +21265,8 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		} 
 		document.addEventListener('click',e=>{ 
 			const t=e.target; 
-			if(t.classList && t.classList.contains('alert-filter-btn')){ 
-				PracticeAlerts.setFilter(t.dataset.filter); 
-			} else if(t.id === 'ignoreAllBtn') {
-				// 一键忽略功能
+			if(t.id === 'ignoreAllBtn') {
+				// 全部忽略功能
 				const sorted=[...AlertStore.list].sort((a,b)=>{
 					function slotKey(x){
 						if(x.slot){
@@ -21379,24 +21279,22 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					if(kb!==ka) return kb-ka;
 					return (b.id||0)-(a.id||0);
 				});
-				const filtered=applyFilter(sorted);
-				
-				if(filtered.length === 0) {
-					alert('当前筛选条件下没有可忽略的提醒');
+				if(sorted.length === 0) {
+					alert('当前没有可忽略的提醒');
 					return;
 				}
 				
-				if(confirm(`确定要忽略当前筛选条件下的所有 ${filtered.length} 条提醒吗？`)) {
+				if(confirm(`确定要忽略全部 ${sorted.length} 条提醒吗？`)) {
 					t.disabled = true;
 					t.textContent = '忽略中...';
 					PracticeAlerts.ignoreAllAlerts().then(() => {
 						t.disabled = false;
-						t.textContent = '一键忽略';
+						t.textContent = '全部忽略';
 					}).catch(error => {
-						console.error('一键忽略失败:', error);
+						console.error('全部忽略失败:', error);
 						t.disabled = false;
-						t.textContent = '一键忽略';
-						alert('一键忽略操作失败，请稍后重试');
+						t.textContent = '全部忽略';
+						alert('全部忽略操作失败，请稍后重试');
 					});
 				}
 			}
