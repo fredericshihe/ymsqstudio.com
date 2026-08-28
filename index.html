@@ -13202,7 +13202,7 @@
 			await syncPracticeLogsToCloud();
 
 			// 提醒数据：practice_alerts 已直接写云，无需上行；此处刷新一次以确保 UI 最新
-			if(window.PracticeAlerts){ await PracticeAlerts.initAlerts?.(); }
+			if(window.PracticeAlerts){ await PracticeAlerts.refreshFromCloud?.({runDetection:true,reason:'manual-sync'}); }
 			
 			// 更新云端数量显示
 			const cloudRoomCountEl = document.getElementById('cloudRoomCount');
@@ -17587,8 +17587,8 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 					toast('课表已保存，但界面刷新失败，请点击更新时间确认', 'warn');
 					return;
 				}
-				try{ await window.PracticeAlerts?.refreshSlots?.(true); }catch(alertError){ console.warn('[课表编辑] 刷新练琴提醒失败', alertError); }
-				try{ await window.PracticeAlerts?.recalcToday?.(true); }catch(alertError){ console.warn('[课表编辑] 重算练琴提醒失败', alertError); }
+				try{ await window.PracticeAlerts?.refreshSlots?.(false); }catch(alertError){ console.warn('[课表编辑] 刷新练琴提醒失败', alertError); }
+				try{ await window.PracticeAlerts?.recalcToday?.(); }catch(alertError){ console.warn('[课表编辑] 重算练琴提醒失败', alertError); }
 				window.dispatchEvent(new CustomEvent('student-schedule-updated', {detail:{id:scheduleRow.id,name:scheduleRow.name}}));
 				toast('课表与练琴时段已同步', 'success');
 			}catch(error){
@@ -20318,18 +20318,127 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		console.log('[PracticeAlerts] 已存在，跳过初始化');
 		return;
 	}
-		const AlertStore={ list:[], byId:new Map(), slotsToday:null, timer:null, lastSlotLoadDay:null, _lastPeriodicReload:0, _lastFullReload:0, _reconcileInterval:null, dedupe:new Set(), silenced:new Map(), prevActive:new Map(), resolving:new Set() };
-		const ALERT_TYPES={ ABSENT:'absent', ANOMALY:'anomaly' };
+		const AlertStore={
+			list:[],
+			byId:new Map(),
+			slotsToday:null,
+			practiceLogsToday:new Map(),
+			practiceLogsLoadedDay:null,
+			practiceLogsLoadedAt:0,
+			timer:null,
+			lastSlotLoadDay:null,
+			_lastPeriodicReload:0,
+			_lastFullReload:0,
+			_reconcileInterval:null,
+			dedupe:new Set(),
+			silenced:new Map(),
+			prevActive:new Map(),
+			resolving:new Set(),
+			detectionPromise:null,
+			recalcLock:false,
+			initialized:false,
+			initPromise:null
+		};
+		const ALERT_TYPES={ ABSENT:'absent' };
 		const ALERT_FULL_RELOAD_INTERVAL = 15 * 60 * 1000;
-		// 阈值可调（分钟）
-		const THRESHOLDS={ ABSENT_WINDOW_START:5, ABSENT_WINDOW_END:15, ANOMALY_OVERRUN:15, ENDED_OVERRUN:30, ABSENT_PAST_GRACE:10, START_ABSENT_CONFIRM_DELAY:2 }; // ABSENT_PAST_GRACE: 过去 slot 结束后多少分钟仍允许补发缺勤; START_ABSENT_CONFIRM_DELAY: 开始窗口持续无重叠确认分钟数
+		const ABSENT_GRACE_MINUTES = 5;
+		const SHANGHAI_TIME_ZONE = 'Asia/Shanghai';
+		const SHANGHAI_CLOCK_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+			timeZone:SHANGHAI_TIME_ZONE,
+			year:'numeric',
+			month:'2-digit',
+			day:'2-digit',
+			hour:'2-digit',
+			minute:'2-digit',
+			hourCycle:'h23'
+		});
 	function now(){ return Date.now(); }
-	function fmt(ts){ const d=new Date(ts); return d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}); }
+	function shanghaiClock(date=new Date()){
+		const d=date instanceof Date ? date : new Date(date);
+		const values={};
+		for(const part of SHANGHAI_CLOCK_FORMATTER.formatToParts(d)){
+			if(part.type!=='literal') values[part.type]=part.value;
+		}
+		const year=Number(values.year);
+		const month=Number(values.month);
+		const day=Number(values.day);
+		const weekday=((new Date(Date.UTC(year, month-1, day)).getUTCDay()+6)%7)+1;
+		return {
+			dateKey:`${values.year}-${values.month}-${values.day}`,
+			weekday,
+			minutes:Number(values.hour)*60+Number(values.minute)
+		};
+	}
+	function minutesAtShanghai(timestamp){
+		const date=timestamp instanceof Date ? timestamp : new Date(timestamp);
+		if(Number.isNaN(date.getTime())) return null;
+		return shanghaiClock(date).minutes;
+	}
+	function businessDateKey(date=new Date()){ return shanghaiClock(date).dateKey; }
+	function businessDateStartIso(date=new Date()){
+		return new Date(`${businessDateKey(date)}T00:00:00+08:00`).toISOString();
+	}
+	function businessDateRangeIso(date=new Date()){
+		const start=businessDateStartIso(date);
+		return { start, end:new Date(new Date(start).getTime()+24*60*60*1000).toISOString() };
+	}
+	function fmt(ts){
+		const d=new Date(ts);
+		return d.toLocaleTimeString('zh-CN',{timeZone:SHANGHAI_TIME_ZONE,hour:'2-digit',minute:'2-digit'});
+	}
 		function ensureSlotsLoaded(){ const todayKey=businessDateKey(); if(AlertStore.lastSlotLoadDay===todayKey && AlertStore.slotsToday) return Promise.resolve(); return loadTodaySlots(); }
-	async function loadTodaySlots(){ if(!window.supabaseClient) return; const weekday=(new Date().getDay()+6)%7 +1; // 1-7; we only use 1-5
+	async function loadTodaySlots(){ if(!window.supabaseClient) return; const weekday=shanghaiClock().weekday;
 			try{ const {data,error}=await supabaseClient.from('student_time_slots').select('student_name,start_time,end_time').eq('weekday', weekday).order('start_time'); if(error){ console.warn('loadTodaySlots error', error); return; } const map={}; (data||[]).forEach(r=>{ if(!map[r.student_name]) map[r.student_name]=[]; map[r.student_name].push(r); }); AlertStore.slotsToday=map; AlertStore.lastSlotLoadDay=businessDateKey(); }catch(e){ console.error(e); }
 	}
 		function forceReloadSlots(){ AlertStore.lastSlotLoadDay=null; return ensureSlotsLoaded(); }
+	function normalizePracticeLog(raw, fallbackStudent=''){
+		if(!raw) return null;
+		const student=String(raw.student_name || fallbackStudent || '').trim();
+		const start=raw.session_start || raw.start_time;
+		const end=raw.session_end || raw.end_time || null;
+		if(!student || !start || Number.isNaN(new Date(start).getTime())) return null;
+		return {student_name:student,start_time:start,end_time:end};
+	}
+	function groupPracticeLogs(rows){
+		const grouped=new Map();
+		const deduped=new Map();
+		for(const raw of rows||[]){
+			const log=normalizePracticeLog(raw);
+			if(!log || businessDateKey(new Date(log.start_time))!==businessDateKey()) continue;
+			const key=`${log.student_name}|${log.start_time}`;
+			const previous=deduped.get(key);
+			if(!previous || (!previous.end_time && log.end_time)) deduped.set(key,log);
+		}
+		for(const log of deduped.values()){
+			if(!grouped.has(log.student_name)) grouped.set(log.student_name,[]);
+			grouped.get(log.student_name).push(log);
+		}
+		return grouped;
+	}
+	async function loadTodayPracticeLogs({force=false}={}){
+		if(!window.supabaseClient) return false;
+		const dateKey=businessDateKey();
+		if(!force && AlertStore.practiceLogsLoadedDay===dateKey) return true;
+		const range=businessDateRangeIso();
+		try{
+			const {data,error}=await supabaseClient.from('practice_logs')
+				.select('student_name,session_start,session_end')
+				.gte('session_start',range.start)
+				.lt('session_start',range.end);
+			if(error){
+				console.warn('[PracticeAlerts] loadTodayPracticeLogs error', error);
+				return false;
+			}
+			AlertStore.practiceLogsToday=groupPracticeLogs(data||[]);
+			AlertStore.practiceLogsLoadedDay=dateKey;
+			AlertStore.practiceLogsLoadedAt=Date.now();
+			console.log('[PracticeAlerts] 当天练琴会话已加载:', data?.length||0, '条');
+			return true;
+		}catch(error){
+			console.warn('[PracticeAlerts] loadTodayPracticeLogs exception', error);
+			return false;
+		}
+	}
 	function currentFilter(){ return AlertStore.filter||'all'; }
 	function applyFilter(list){ const f=currentFilter(); if(f==='all') return list; if(f==='absent') return list.filter(a=>a.type==='absent'); return list; }
 	function updateFilterButtons(){ document.querySelectorAll('.alert-filter-btn').forEach(b=>{ b.classList.toggle('act', b.dataset.filter===currentFilter()); }); }
@@ -20523,7 +20632,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			// 本地批量处理（一次渲染）
 			for(const a of candidates){
 				try{ a.ignored = true; removeAlertLocal(a.id); }catch(_e){}
-				try{ setSilenced(a.student_name, a.type, a.slot||{start_time:a.slot_start,end_time:a.slot_end}); }catch(_e){}
+				try{ setSilenced(a.student_name, a.type, a.slot||{start_time:a.slot_start,end_time:a.slot_end}, {persist:false}); }catch(_e){}
 				try{ if(a.slot){ const k=`${a.student_name}|${a.type}|${a.slot.start_time}-${a.slot.end_time}|${todayStr}`; AlertStore.dedupe.delete(k);} }catch(_e){}
 			}
 			try{ persistSilenced(); }catch(_e){}
@@ -20556,15 +20665,16 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		}
 		let _reconcileTimer=null; function scheduleReconcile(delay=0){ if(_reconcileTimer) clearTimeout(_reconcileTimer); _reconcileTimer=setTimeout(()=>{ reconcileIgnored(); }, delay); }
 		// —— 静默控制：忽略后静默到“该生重新登记”为止 ——
-		function businessDateKey(date=new Date()){
-			return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).format(date);
-		}
-		function businessDateStartIso(date=new Date()){
-			return new Date(`${businessDateKey(date)}T00:00:00+08:00`).toISOString();
-		}
 		function todayKey(){ return businessDateKey(); }
 		function silenceKey(stu,type,slot){ const d=todayKey(); const sp=slot?`${slot.start_time}-${slot.end_time}`:'none'; return `${d}|${stu}|${type}|${sp}`; }
-		function setSilenced(stu,type,slot){ const k=silenceKey(stu,type,slot); AlertStore.silenced.set(k,true); try{ localStorage.setItem('practice_alerts_silence_ping', JSON.stringify({k,t:Date.now()})); }catch(_){} }
+		function setSilenced(stu,type,slot,{persist=true,broadcast=true}={}){
+			const k=silenceKey(stu,type,slot);
+			AlertStore.silenced.set(k,true);
+			if(broadcast){
+				try{ localStorage.setItem('practice_alerts_silence_ping', JSON.stringify({k,t:Date.now()})); }catch(_){}
+			}
+			if(persist) persistSilenced();
+		}
 		// ---- 静默持久化支持 (A) ----
 		function persistSilenced(){
 			try{ const d=todayKey(); const list=Array.from(AlertStore.silenced.keys()).filter(k=>k.startsWith(d+'|')); localStorage.setItem('practice_alerts_silence_cache_'+d, JSON.stringify({d,list,ts:Date.now()})); }catch(e){ console.warn('[PracticeAlerts] persistSilenced fail', e); }
@@ -20589,8 +20699,6 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				console.log('[PracticeAlerts] 恢复本地静默条目数', obj.list.length, '(缓存时间:', Math.round(cacheAge/60000), '分钟前)'); 
 			}catch(e){ console.warn('[PracticeAlerts] restoreSilenced fail', e); }
 		}
-		// 包装 setSilenced 以自动持久化
-		const __origSetSilenced = setSilenced; setSilenced = function(stu,type,slot){ __origSetSilenced(stu,type,slot); persistSilenced(); };
 		function clearSilenced(stu,type,slot){ const k=silenceKey(stu,type,slot); AlertStore.silenced.delete(k); try{ localStorage.setItem('practice_alerts_silence_clear', JSON.stringify({k,t:Date.now()})); }catch(_){} }
 		function clearSilencedForStudent(stu){ const d=todayKey(); const prefix=`${d}|${stu}|`; for(const k of Array.from(AlertStore.silenced.keys())){ if(k.startsWith(prefix)) AlertStore.silenced.delete(k); } }
 		function isSilenced(stu,type,slot){ const k=silenceKey(stu,type,slot); return AlertStore.silenced.has(k); }
@@ -20618,6 +20726,8 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					.select(fields)
 					.eq('business_date', dateKey)
 					.is('archived_at', null)
+					.or('ignored.eq.true,resolved.eq.false')
+					.order('ignored',{ascending:true})
 					.order('created_at',{ascending:false})
 					.limit(400);
 			if(error){ 
@@ -20647,9 +20757,9 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				const ignoredList=(data||[]).filter(a=>a.ignored && !a.archived_at);
 				for(const ig of ignoredList){
 					if(ig.slot_start&&ig.slot_end){ 
-						setSilenced(ig.student_name, ig.type, {start_time:ig.slot_start,end_time:ig.slot_end}); 
+						setSilenced(ig.student_name, ig.type, {start_time:ig.slot_start,end_time:ig.slot_end}, {persist:false,broadcast:false});
 					} else { 
-						setSilenced(ig.student_name, ig.type, null); 
+						setSilenced(ig.student_name, ig.type, null, {persist:false,broadcast:false});
 					} 
 				} 
 				if(ignoredList.length) console.log('[PracticeAlerts] 已从服务端 ignored 重建静默状态', ignoredList.length); 
@@ -20686,12 +20796,10 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		}catch(e){ console.warn('[PracticeAlerts] pruneOrphanedAlerts 异常', e); }
 	}
 		function getActivePractice(student){ // approximate current ongoing log
-				// 优先使用 practiceLogs（如果有后台写入）
-				if(window.practiceLogs){
-					const nowTs=Date.now();
-					const found=(practiceLogs[student]||[]).find(l=>!l.end_time && nowTs - (new Date(l.start_time).getTime()) < 6*60*60*1000);
-					if(found) return found;
-				}
+				// 优先使用当天云端会话、本地待同步会话和旧版内存会话的合并结果
+				const nowTs=Date.now();
+				const found=anyPracticeLogs(student).find(l=>!l.end_time && nowTs - (new Date(l.start_time).getTime()) < 6*60*60*1000);
+				if(found) return found;
 				// 回退：根据当前房间占用推断（无日志情况下）
 				// 支持多人登记：检查occupant_student_name中是否包含该学生（逗号分隔）
 				for(const r of Store.rooms){ 
@@ -20705,75 +20813,97 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				}
 				return null;
 			}
-		function anyPracticeLogs(student){ if(!window.practiceLogs) return []; return practiceLogs[student]||[]; }
+		function anyPracticeLogs(student){
+			const merged=[];
+			for(const log of AlertStore.practiceLogsToday.get(student)||[]) merged.push(log);
+			for(const raw of Store.localPracticeLogs||[]){
+				if(String(raw?.student_name||'').trim()!==student) continue;
+				const log=normalizePracticeLog(raw,student);
+				if(log && businessDateKey(new Date(log.start_time))===businessDateKey()) merged.push(log);
+			}
+			if(window.practiceLogs && Array.isArray(window.practiceLogs[student])){
+				for(const raw of window.practiceLogs[student]){
+					const log=normalizePracticeLog(raw,student);
+					if(log && businessDateKey(new Date(log.start_time))===businessDateKey()) merged.push(log);
+				}
+			}
+			const deduped=new Map();
+			for(const log of merged){
+				const previous=deduped.get(log.start_time);
+				if(!previous || (!previous.end_time && log.end_time)) deduped.set(log.start_time,log);
+			}
+			return [...deduped.values()];
+		}
 		function timeStrToMinutes(t){ const [h,m]=t.split(':').map(Number); return h*60+m; }
-		function minutesNow(){ const d=new Date(); return d.getHours()*60 + d.getMinutes(); }
+		function minutesNow(){ return shanghaiClock().minutes; }
 		// 判断是否有任意练琴日志与 slot 时间段重叠（开始早于 slot 结束，结束晚于 slot 开始）
 		function hasPracticeOverlap(student, slot){
 			const slotStart=toMinutes(slot.start_time); const slotEnd=toMinutes(slot.end_time);
 			// 1) 先看已知练琴日志
 			const logs=anyPracticeLogs(student) || []; 
 			const logOverlap = logs.some(l=>{
-				const startMs=new Date(l.start_time).getTime();
-				const endMs = l.end_time ? new Date(l.end_time).getTime() : Date.now();
-				const sMin = new Date(startMs).getHours()*60 + new Date(startMs).getMinutes();
-				const eMin = new Date(endMs).getHours()*60 + new Date(endMs).getMinutes();
+				const sMin=minutesAtShanghai(l.start_time);
+				const eMin=minutesAtShanghai(l.end_time || new Date());
+				if(sMin==null || eMin==null) return false;
 				return sMin < slotEnd && eMin >= slotStart; // 包含式判定，修正边界
 			});
 			if(logOverlap) return true;
 			// 2) 无日志时，兼容实时占用：将“当前占用”视作一条 [registerTime, now] 的临时会话
 			const active = getActivePractice(student);
 			if(active){
-				const startMs=new Date(active.start_time).getTime();
-				const endMs = Date.now();
-				const sMin = new Date(startMs).getHours()*60 + new Date(startMs).getMinutes();
-				const eMin = new Date(endMs).getHours()*60 + new Date(endMs).getMinutes();
+				const sMin=minutesAtShanghai(active.start_time);
+				const eMin=minutesAtShanghai(new Date());
 				if(sMin < slotEnd && eMin >= slotStart) return true;
 			}
 			return false;
 			function toMinutes(t){ const [h,m]=t.split(':').map(Number); return h*60+m; }
 		}
-		function slotAt(student){ const arr=AlertStore.slotsToday?.[student]; if(!arr) return null; const nowMin=minutesNow(); return arr.find(s=>{ const st=timeStrToMinutes(s.start_time); const et=timeStrToMinutes(s.end_time); return nowMin>=st && nowMin<=et; }); }
-		function nextSlot(student){ const arr=AlertStore.slotsToday?.[student]; if(!arr) return null; const nowMin=minutesNow(); return arr.find(s=> timeStrToMinutes(s.start_time) > nowMin ); }
-		function findSlotByStart(student, activeLog){ // 根据活动日志开始时间所属 slot - 使用重叠判断
-			if(!activeLog) return null; 
-			const arr=AlertStore.slotsToday?.[student]; 
-			if(!arr) return null; 
-			const stTime=new Date(activeLog.start_time); 
-			const practiceStartMin=stTime.getHours()*60+stTime.getMinutes(); 
-			// 假设练琴至少持续1分钟来检查重叠
-			const practiceEndMin = activeLog.end_time ? 
-				(new Date(activeLog.end_time).getHours()*60 + new Date(activeLog.end_time).getMinutes()) : 
-				(practiceStartMin + 1);
-			return arr.find(s=>{ 
-				const sMin=timeStrToMinutes(s.start_time); 
-				const eMin=timeStrToMinutes(s.end_time); 
-				// 使用重叠判断：练琴开始时间 < 时间段结束 && 练琴结束时间 > 时间段开始
-				return practiceStartMin < eMin && practiceEndMin > sMin; 
-			})||null; 
-		}
 		let _lastDetectionDate=businessDateKey();
-		// 记录“开始窗口内首次判定为无重叠”的时间戳，键: `${student}|${slot.start_time}-${slot.end_time}`
-		const _startWindowNoOverlapSeen = new Map();
 		// 观察到“该生在该时段有过任意重叠练琴”的标记（当天生效），一旦成立，永久不再对该时段生成缺勤
 		const _presentSeen = new Set();
 		function presentKey(stu,slot){ const d=businessDateKey(); return `${d}|${stu}|${slot.start_time}-${slot.end_time}`; }
-		async function detectionTick(){ // 顺序: 跨日重置 -> 确保slots -> 周期刷新 -> 缺勤 -> 活动超时 -> 结束超时
+		async function runDetectionTick(){
 			if(AlertStore.recalcLock){
 				return; // 重算期间暂停检测
 			}
-			if(!window.supabaseClient) return; const todayStr=businessDateKey(); if(todayStr!==_lastDetectionDate){ // 跨日：重置slots与当日alerts缓存
-			_lastDetectionDate=todayStr; AlertStore.slotsToday=null; AlertStore.lastSlotLoadDay=null; await fetchExistingAlerts(); }
-				// 补偿：每5分钟强制刷新未忽略提醒，防止错过 UPDATE 事件导致另一端已忽略却仍显示
+			if(!window.supabaseClient) return;
+			const todayStr=businessDateKey();
+			if(todayStr!==_lastDetectionDate){
+				// 跨日：所有按业务日缓存一起失效，避免昨天的会话或到场标记影响今天
+				_lastDetectionDate=todayStr;
+				AlertStore.slotsToday=null;
+				AlertStore.lastSlotLoadDay=null;
+				AlertStore.practiceLogsToday=new Map();
+				AlertStore.practiceLogsLoadedDay=null;
+				AlertStore.prevActive.clear();
+				_presentSeen.clear();
+				await Promise.all([
+					fetchExistingAlerts({reason:'business-date-change'}),
+					ensureSlotsLoaded(),
+					loadTodayPracticeLogs({force:true})
+				]);
+			}
+				// Realtime 为主，每15分钟刷新提醒与当天会话作为断线兜底
 				if(!AlertStore._lastFullReload || (Date.now()-AlertStore._lastFullReload) > ALERT_FULL_RELOAD_INTERVAL){
 					console.log('[PracticeAlerts] 触发周期性全量刷新 (15min)');
-					await fetchExistingAlerts();
+					await Promise.all([
+						fetchExistingAlerts({reason:'periodic'}),
+						loadTodayPracticeLogs({force:true})
+					]);
 				}
 				// 小频率对账：每次 tick 后排一个延迟对账（避免高并发立刻多次请求）
 				scheduleReconcile(4000);
-			await ensureSlotsLoaded(); const nowMin=minutesNow(); const students=Object.keys(AlertStore.slotsToday||{}); const pendingAlerts=[];
+			await Promise.all([ensureSlotsLoaded(),loadTodayPracticeLogs()]);
+			const nowMin=minutesNow();
+			const students=Object.keys(AlertStore.slotsToday||{});
+			const pendingAlerts=[];
+			const pendingResolutionIds=new Set();
 			// 周期刷新：每10分钟强制 (分钟数 %10 ==0) 且距离上次>2分钟，避免同一分钟多次
-			const minute=new Date().getMinutes(); if(minute%10===0 && (now()-AlertStore._lastPeriodicReload)>120000){ forceReloadSlots().then(()=>{ AlertStore._lastPeriodicReload=now(); }); }
+			const minute=shanghaiClock().minutes%60;
+			if(minute%10===0 && (now()-AlertStore._lastPeriodicReload)>120000){
+				await forceReloadSlots();
+				AlertStore._lastPeriodicReload=now();
+			}
 			for(const name of students){ 
 				const arr=AlertStore.slotsToday[name]; 
 				if(!arr||!arr.length) continue; 
@@ -20787,7 +20917,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					const nowM=minutesNow();
 					// 1) 优先根据 active.start_time 落在哪个 slot
 					if(activeLogEdge){ 
-						const stDate=new Date(activeLogEdge.start_time); const stM=stDate.getHours()*60+stDate.getMinutes();
+						const stM=minutesAtShanghai(activeLogEdge.start_time);
 						curSlot = arr.find(s=>{ const sM=timeStrToMinutes(s.start_time), eM=timeStrToMinutes(s.end_time); return stM>=sM && stM<=eM; }) || null;
 					}
 					// 2) 若未命中，使用当前时间落在哪个 slot
@@ -20803,26 +20933,14 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					const et=timeStrToMinutes(slot.end_time);
 					
 					// 只检测当前正在进行的时间段（开始后5分钟开始检测，时段结束后停止检测）
-					if(nowMin>=st+THRESHOLDS.ABSENT_WINDOW_START && nowMin<=et){
+					if(nowMin>=st+ABSENT_GRACE_MINUTES && nowMin<=et){
 						// 若已观察到该时段出现过重叠，则不再对该时段生成缺勤
 						const pk = presentKey(name,slot);
-						// 即时检测当前是否有重叠（含占用兜底），若有则打标
-						if(!_presentSeen.has(pk) && hasPracticeOverlap(name,slot)) _presentSeen.add(pk);
-						
-						// 若学生当前正处于本时段并在练琴，不应判为缺勤
-						const activeNow = getActivePractice(name);
-						if(!(activeNow && nowMin>=st && nowMin<=et)){
-							if(_presentSeen.has(pk)) continue; // 曾出现过重叠 -> 永不缺勤
-							const key = `${name}|${slot.start_time}-${slot.end_time}`;
-							const overlapNow = hasPracticeOverlap(name,slot);
-							if(overlapNow){
-								// 一旦出现重叠，清除可能存在的无重叠标记
-								_startWindowNoOverlapSeen.delete(key);
-								_presentSeen.add(pk);
-							}else if(!hasAlert(name,'absent',slot) && !isSilenced(name,'absent',slot)){
-								// 简化逻辑：直接创建缺勤提醒，不需要等待确认期
-								pendingAlerts.push({type:ALERT_TYPES.ABSENT, student_name:name, slot, message:`${slot.start_time}-${slot.end_time} 时段缺勤`, severity:2});
-							}
+						const overlapNow=hasPracticeOverlap(name,slot);
+						if(overlapNow) _presentSeen.add(pk);
+						if(_presentSeen.has(pk)) continue;
+						if(!hasAlert(name,'absent',slot) && !isSilenced(name,'absent',slot)){
+							pendingAlerts.push({type:ALERT_TYPES.ABSENT, student_name:name, slot, message:`${slot.start_time}-${slot.end_time} 时段缺勤`, severity:2});
 						}
 					}
 				}
@@ -20836,106 +20954,56 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 						
 						// 情况1：时段内有了练琴记录
 						if(hasPracticeOverlap(name, alert.slot)) {
-							const k = `${name}|${alert.slot.start_time}-${alert.slot.end_time}`;
-							_startWindowNoOverlapSeen.delete(k);
-							await autoResolveAlert(alert.id, `${alert.slot.start_time} 时段已开始练琴`);
+							pendingResolutionIds.add(alert.id);
 						}
 						// 情况2：时段已经结束
 						else if(nowMin > alertSlotEnd) {
-							await autoResolveAlert(alert.id, `${alert.slot.start_time}-${alert.slot.end_time} 时段已结束`);
-						}
-					}
-				}
-				// 异常：活动仍在 (已移除异常检测逻辑)
-				const active=getActivePractice(name); 
-				if(active){
-					if(active.pseudo && !window.practiceLogs){
-						window.practiceLogs = window.practiceLogs || {}; 
-						const arr2 = window.practiceLogs[name] || (window.practiceLogs[name]=[]);
-						if(!arr2.some(l=>l.pseudo && !l.end_time)){
-							arr2.push({start_time:active.start_time, room:active.room, pseudo:true});
+							pendingResolutionIds.add(alert.id);
 						}
 					}
 				}
 			} // end students loop
+			if(pendingResolutionIds.size) await autoResolveAlerts([...pendingResolutionIds]);
 			if(pendingAlerts.length) await createAlertsBatch(pendingAlerts);
-		} // end detectionTick
+		}
+		function detectionTick(){
+			if(AlertStore.detectionPromise) return AlertStore.detectionPromise;
+			const task=runDetectionTick().finally(()=>{
+				if(AlertStore.detectionPromise===task) AlertStore.detectionPromise=null;
+			});
+			AlertStore.detectionPromise=task;
+			return task;
+		}
 
 		// ==== 今日重算并对账云端 practice_alerts ====
-		async function recalcToday(full=false){
+		async function recalcToday(){
 			if(!window.supabaseClient){ console.warn('[PracticeAlerts][Recalc] no supabaseClient'); return; }
+			if(AlertStore.detectionPromise) await AlertStore.detectionPromise;
 			if(AlertStore.recalcLock){ console.warn('[PracticeAlerts][Recalc] already running'); return; }
 			AlertStore.recalcLock = true;
 			console.log('[PracticeAlerts][Recalc] 开始');
 			const startedAt = Date.now();
 			try{
 				// 1. 准备数据
-				const todayIso = businessDateStartIso();
-				const weekday=(new Date().getDay()+6)%7 +1; // 1-7
-				const {data:slotRows, error:slotErr}=await supabaseClient.from('student_time_slots').select('student_name,start_time,end_time').eq('weekday', weekday);
-				if(slotErr){ console.error('[PracticeAlerts][Recalc] slot fetch error', slotErr); return; }
-				const slotsMap={}; (slotRows||[]).forEach(s=>{ (slotsMap[s.student_name] ||= []).push(s); });
-				Object.values(slotsMap).forEach(arr=>arr.sort((a,b)=>a.start_time.localeCompare(b.start_time)));
-				// ---- 获取练琴日志：兼容多版本列名 (start_time/end_time 或 session_start/session_end) ----
-				let logRows=[]; let logErr=null; let variantUsed=null;
-				const variants=[
-					{start:'start_time', end:'end_time'},
-					{start:'session_start', end:'session_end'}
-				];
-				for(const v of variants){
-					try{
-						let q=supabaseClient.from('practice_logs').select(`student_name,${v.start},${v.end}`);
-						q=q.gte(v.start, todayIso);
-						const {data:eRows, error:eErr}=await q;
-						if(eErr){ logErr=eErr; continue; }
-						if(eRows && eRows.length){ logRows=eRows; variantUsed=v; break; }
-						// 若无数据尝试下一个变体
-					}catch(e){ logErr=e; }
-				}
-				if(!variantUsed){
-					console.warn('[PracticeAlerts][Recalc] 未匹配到含数据的列名变体，最后错误=', logErr); 
-				}else{
-					console.log('[PracticeAlerts][Recalc] 使用日志列变体', variantUsed);
-				}
-				// 归一化日志 -> {student_name, start_time, end_time}
+				await Promise.all([ensureSlotsLoaded(),loadTodayPracticeLogs({force:true})]);
+				const slotsMap=AlertStore.slotsToday||{};
 				const logsByStu={};
-				for(const raw of (logRows||[])){
-					const stu=(raw.student_name||'').trim();
-					const sCol=variantUsed? variantUsed.start : 'start_time';
-					const eCol=variantUsed? variantUsed.end : 'end_time';
-					const sVal=raw[sCol]; const eVal=raw[eCol];
-					if(!sVal) continue; // 没有开始时间无法参与重叠
-					(constArr => { constArr.push({student_name:stu,start_time:sVal,end_time:eVal}); })( (logsByStu[stu] ||= []) );
-				}
-				// 合并：同一 start_time 若同时存在已结束与未结束，会优先保留已结束（避免“幽灵未结束”导致整上午被视为仍在练琴）
-				for(const stu of Object.keys(logsByStu)){
-					const grouped = new Map();
-					for(const l of logsByStu[stu]){
-						const key=l.start_time; const prev=grouped.get(key);
-						if(!prev) grouped.set(key,l);
-						else{
-							// 选择策略：优先 end_time 存在的；若都无 end_time 取最早（保持原）
-							if(prev.end_time) continue; // 已有结束的，不替换
-							if(l.end_time){ grouped.set(key,l); }
-						}
-					}
-					logsByStu[stu] = Array.from(grouped.values());
-				}
-				console.log('[PracticeAlerts][Recalc] slots 学生数=', Object.keys(slotsMap).length, 'logs 条数(规范化)=', logRows?.length||0);
+				for(const student of Object.keys(slotsMap)) logsByStu[student]=anyPracticeLogs(student);
+				const logCount=Object.values(logsByStu).reduce((sum,logs)=>sum+logs.length,0);
+				console.log('[PracticeAlerts][Recalc] slots 学生数=', Object.keys(slotsMap).length, 'logs 条数(规范化)=', logCount);
 				// 2. 生成候选
-				const now=new Date(); const nowMin=now.getHours()*60+now.getMinutes();
+				const nowMin=minutesNow();
 				const alerts=[]; const dedupe=new Set();
 				function toMin(t){ const [h,m]=t.split(':').map(Number); return h*60+m; }
 				// 复用页面实时逻辑：重叠条件与 hasPracticeOverlap 保持一致 (sMin < slotEnd && eMin >= slotStart)
 				function overlap(slot,log){
 					const sS=toMin(slot.start_time), sE=toMin(slot.end_time);
-					const stDate=new Date(log.start_time); const enDate = log.end_time? new Date(log.end_time): now;
-					const sM=stDate.getHours()*60+stDate.getMinutes();
-					const eM=enDate.getHours()*60+enDate.getMinutes();
+					const sM=minutesAtShanghai(log.start_time);
+					const eM=minutesAtShanghai(log.end_time || new Date());
+					if(sM==null || eM==null) return false;
 					return sM < sE && eM >= sS; // 修正 >= 边界
 				}
-				const T=THRESHOLDS || {ABSENT_WINDOW_START:5,ABSENT_WINDOW_END:15,ABSENT_PAST_GRACE:25, ANOMALY_OVERRUN:15};
-				let absentCount=0, anomalyCount=0;
+				let absentCount=0;
 				for(const student of Object.keys(slotsMap)){
 					const slots=slotsMap[student]; const logs=logsByStu[student]||[];
 					for(let i=0;i<slots.length;i++){
@@ -20945,7 +21013,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 						// console.debug('[Recalc][OverlapDebug]', student, slot.start_time, slot.end_time, 'hasOverlap=', hasOverlap);
 						if(!hasOverlap){
 							// 只检测当前正在进行的时间段（开始后5分钟开始检测，时段结束后停止检测）
-							const inCurrentSlot = nowMin>=st+T.ABSENT_WINDOW_START && nowMin<=et;
+							const inCurrentSlot = nowMin>=st+ABSENT_GRACE_MINUTES && nowMin<=et;
 							if(inCurrentSlot){
 								const key=`${student}|absent|${slot.start_time}-${slot.end_time}`;
 								// 增加静默判断：若该学生该时段缺勤已被忽略（静默），则不再生成
@@ -20958,7 +21026,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 						}
 					}
 				}
-				console.log('[PracticeAlerts][Recalc] 生成候选', alerts.length, '缺勤=', absentCount, 'full=', full);
+				console.log('[PracticeAlerts][Recalc] 生成候选', alerts.length, '缺勤=', absentCount);
 				// 3. 在数据库事务内插入新增提醒并关闭已失效提醒，保留 ignored 状态和历史记录
 				const {data:reconcileResult,error:reconcileErr}=await supabaseClient.rpc('reconcile_practice_alerts', {
 					p_business_date: businessDateKey(),
@@ -20973,41 +21041,58 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			}
 		}
 	function hasAlert(student,type,slot){ return AlertStore.list.some(a=> a.student_name===student && a.type===type && a.slot && slot && a.slot.start_time===slot.start_time && !a.resolved ); }
-	async function autoResolveAlert(id, reason) {
-		const a = AlertStore.byId.get(String(id));
-		if (!a) return;
-		const alertKey = String(id);
-		// detectionTick can be entered again before a previous network request
-		// completes. Keep the alert removed locally while one resolution is in
-		// flight so the same row cannot generate repeated PATCH/RPC attempts.
-		if (AlertStore.resolving.has(alertKey)) return;
-		AlertStore.resolving.add(alertKey);
-		// 本地移除
-		removeAlertLocal(id);
+	function restoreResolvedAlerts(alerts){
+		for(const alert of alerts){
+			const key=String(alert.id);
+			if(!AlertStore.byId.has(key)){
+				AlertStore.byId.set(key,alert);
+				AlertStore.list.unshift(alert);
+			}
+		}
+	}
+	function batchResolveRpcMissing(error){
+		return error?.code==='PGRST202' || /resolve_practice_alerts/i.test(error?.message||'') && /schema cache|function/i.test(error?.message||'');
+	}
+	async function autoResolveAlerts(ids){
+		if(!window.supabaseClient || !Array.isArray(ids) || !ids.length) return;
+		const alerts=[];
+		for(const id of new Set(ids.map(String))){
+			if(AlertStore.resolving.has(id)) continue;
+			const alert=AlertStore.byId.get(id);
+			if(!alert) continue;
+			AlertStore.resolving.add(id);
+			alerts.push(alert);
+			removeAlertLocal(id);
+		}
+		if(!alerts.length) return;
 		scheduleRenderAlerts();
-			// 服务端标记为 resolved，保留可审计历史
-			if (!window.supabaseClient) {
-				AlertStore.resolving.delete(alertKey);
+		try{
+			const numericIds=alerts.map(alert=>Number(alert.id));
+			const {error}=await supabaseClient.rpc('resolve_practice_alerts',{p_alert_ids:numericIds});
+			if(!error) return;
+			if(!batchResolveRpcMissing(error)){
+				console.warn('[PracticeAlerts] batch resolve failed', error);
+				restoreResolvedAlerts(alerts);
+				scheduleRenderAlerts();
 				return;
 			}
-			try {
-				const {error} = await supabaseClient.rpc('resolve_practice_alert', {
-					p_alert_id: Number(id)
-				});
-			if (error) {
-					console.warn('auto resolve alert RPC fail', error);
-				// 回滚
-				AlertStore.byId.set(String(id), a);
-				AlertStore.list.unshift(a);
+			// 兼容数据库迁移与前端发布之间的短暂时间窗；部署完成后不会进入此分支。
+			console.warn('[PracticeAlerts] batch resolve RPC unavailable, using single-row compatibility path');
+			const failed=[];
+			for(const alert of alerts){
+				const {error:singleError}=await supabaseClient.rpc('resolve_practice_alert',{p_alert_id:Number(alert.id)});
+				if(singleError) failed.push(alert);
+			}
+			if(failed.length){
+				restoreResolvedAlerts(failed);
 				scheduleRenderAlerts();
 			}
-		} catch(e) {
-			console.error(e);
-			AlertStore.byId.set(String(id), a);
-			AlertStore.list.unshift(a);
+		}catch(error){
+			console.error('[PracticeAlerts] batch resolve exception', error);
+			restoreResolvedAlerts(alerts);
 			scheduleRenderAlerts();
-		} finally {
-			AlertStore.resolving.delete(alertKey);
+		}finally{
+			for(const alert of alerts) AlertStore.resolving.delete(String(alert.id));
 		}
 	}
 		function dedupeKey(raw){ const dKey=businessDateKey(); const slotPart=raw.slot?`${raw.slot.start_time}-${raw.slot.end_time}`:'none'; return `${raw.student_name}|${raw.type}|${slotPart}|${dKey}`; }
@@ -21071,7 +21156,9 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		if(AlertStore.timer) return; 
 		const DETECTION_INTERVAL = 300000; // 5分钟间隔，减少服务器请求
 		logInfo(`练习时间检测启动，间隔${DETECTION_INTERVAL/60000}分钟`);
-		AlertStore.timer=setInterval(detectionTick, DETECTION_INTERVAL); 
+		AlertStore.timer=setInterval(()=>{
+			detectionTick().catch(error=>console.error('[PracticeAlerts] 定时检测失败',error));
+		}, DETECTION_INTERVAL);
 	}
 		function removeAlertLocal(id){ const idx=AlertStore.list.findIndex(i=>String(i.id)===String(id)); if(idx>=0) AlertStore.list.splice(idx,1); AlertStore.byId.delete(String(id)); }
 		function buildAlertMessage(a){
@@ -21158,6 +21245,8 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 								AlertStore._lastSuccessConnect = Date.now();
 								if(hadReconnectAttempts) {
 									console.log('[PracticeAlerts][RT] ✅ 已连接');
+									refreshAlertsFromCloud({runDetection:true,reason:'realtime-reconnect'})
+										.catch(error=>console.warn('[PracticeAlerts][RT] 重连后刷新失败',error));
 								}
 								return;
 							}
@@ -21197,28 +21286,62 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			state.connecting = false;
 			window.RealtimeOrchestrator.clearReconnectTimer();
 			window.RealtimeOrchestrator.reconnectAll('practice-alerts-manual-reset');
+			refreshAlertsFromCloud({runDetection:true,reason:'manual-reconnect'})
+				.catch(error=>console.warn('[PracticeAlerts] 手动重连后刷新失败',error));
 			return;
 		}
 		setTimeout(() => setupRealtime(), 1000);
 	}
-		async function initAlerts(){ 
-			console.log('[PracticeAlerts] initAlerts 开始');
-			await fetchExistingAlerts(); 
-			await ensureSlotsLoaded(); 
-			startTimer(); 
-			await setupRealtime(); 
-			await detectionTick();
-					// 周期对账仅作为 Realtime 兜底
-					if(!AlertStore._reconcileInterval){
-						const RECONCILE_INTERVAL = ALERT_FULL_RELOAD_INTERVAL;
+		async function refreshAlertsFromCloud({runDetection=true,reason='manual-refresh'}={}){
+			if(!window.supabaseClient) return;
+			await Promise.all([
+				fetchExistingAlerts({reason}),
+				forceReloadSlots(),
+				loadTodayPracticeLogs({force:true})
+			]);
+			if(runDetection) await detectionTick();
+		}
+		async function initAlerts(){
+			if(AlertStore.initialized){
+				return refreshAlertsFromCloud({runDetection:true,reason:'repeat-init'});
+			}
+			if(AlertStore.initPromise) return AlertStore.initPromise;
+			AlertStore.initPromise=(async()=>{
+				console.log('[PracticeAlerts] initAlerts 开始');
+				await Promise.all([
+					fetchExistingAlerts({reason:'initial'}),
+					ensureSlotsLoaded(),
+					loadTodayPracticeLogs({force:true})
+				]);
+				startTimer();
+				await setupRealtime();
+				AlertStore.initialized=true;
+				await detectionTick();
+				// 周期对账仅作为 Realtime 兜底
+				if(!AlertStore._reconcileInterval){
+					const RECONCILE_INTERVAL = ALERT_FULL_RELOAD_INTERVAL;
 					logInfo(`忽略状态协调启动，间隔${RECONCILE_INTERVAL/60000}分钟`);
-					AlertStore._reconcileInterval = setInterval(()=>reconcileIgnored(), RECONCILE_INTERVAL); 
+					AlertStore._reconcileInterval = setInterval(()=>{
+						reconcileIgnored().catch(error=>console.warn('[PracticeAlerts] 忽略状态对账失败',error));
+					}, RECONCILE_INTERVAL);
 				}
 				scheduleReconcile(3000);
-			console.log('[PracticeAlerts] initAlerts 完成');
+				console.log('[PracticeAlerts] initAlerts 完成');
+			})();
+			try{
+				return await AlertStore.initPromise;
+			}catch(error){
+				AlertStore.initialized=false;
+				throw error;
+			}finally{
+				AlertStore.initPromise=null;
+			}
 		}
-		async function refreshSlots(runDetect){ await forceReloadSlots(); if(runDetect) detectionTick(); }
-		window.PracticeAlerts={ initAlerts, renderAlerts, detectionTick, ignoreAlert, ignoreAllAlerts, createAlert, refreshSlots, recalcToday, resetConnection, setFilter(f){ AlertStore.filter=f; renderAlerts(); } };
+		async function refreshSlots(runDetect){
+			await forceReloadSlots();
+			if(runDetect) await detectionTick();
+		}
+		window.PracticeAlerts={ initAlerts, refreshFromCloud:refreshAlertsFromCloud, renderAlerts, detectionTick, ignoreAlert, ignoreAllAlerts, createAlert, refreshSlots, recalcToday, resetConnection, setFilter(f){ AlertStore.filter=f; renderAlerts(); } };
 	document.addEventListener('DOMContentLoaded',()=>{ 
 		console.log('[PracticeAlerts] DOMContentLoaded 触发');
 		console.log('[PracticeAlerts] window.supabaseClient:', !!window.supabaseClient);
