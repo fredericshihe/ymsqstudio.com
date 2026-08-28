@@ -13195,9 +13195,6 @@
 
 			// 提醒数据：practice_alerts 已直接写云，无需上行；此处刷新一次以确保 UI 最新
 			if(window.PracticeAlerts){ await PracticeAlerts.initAlerts?.(); }
-
-			// 若需要将今日 slots 缓存刷新（可选）
-			if(window.PracticeAlerts && window.PracticeAlerts.detectionTick){ await PracticeAlerts.detectionTick(); }
 			
 			// 更新云端数量显示
 			const cloudRoomCountEl = document.getElementById('cloudRoomCount');
@@ -20301,7 +20298,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		console.log('[PracticeAlerts] 已存在，跳过初始化');
 		return;
 	}
-		const AlertStore={ list:[], byId:new Map(), slotsToday:null, timer:null, lastSlotLoadDay:null, _lastPeriodicReload:0, _lastFullReload:0, _reconcileInterval:null, dedupe:new Set(), silenced:new Map(), prevActive:new Map() };
+		const AlertStore={ list:[], byId:new Map(), slotsToday:null, timer:null, lastSlotLoadDay:null, _lastPeriodicReload:0, _lastFullReload:0, _reconcileInterval:null, dedupe:new Set(), silenced:new Map(), prevActive:new Map(), resolving:new Set() };
 		const ALERT_TYPES={ ABSENT:'absent', ANOMALY:'anomaly' };
 		const ALERT_FULL_RELOAD_INTERVAL = 15 * 60 * 1000;
 		// 阈值可调（分钟）
@@ -20959,19 +20956,26 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	async function autoResolveAlert(id, reason) {
 		const a = AlertStore.byId.get(String(id));
 		if (!a) return;
+		const alertKey = String(id);
+		// detectionTick can be entered again before a previous network request
+		// completes. Keep the alert removed locally while one resolution is in
+		// flight so the same row cannot generate repeated PATCH/RPC attempts.
+		if (AlertStore.resolving.has(alertKey)) return;
+		AlertStore.resolving.add(alertKey);
 		// 本地移除
 		removeAlertLocal(id);
 		scheduleRenderAlerts();
 			// 服务端标记为 resolved，保留可审计历史
-			if (!window.supabaseClient) return;
+			if (!window.supabaseClient) {
+				AlertStore.resolving.delete(alertKey);
+				return;
+			}
 			try {
-				const {error} = await supabaseClient.from('practice_alerts').update({
-					resolved: true,
-					resolved_at: new Date().toISOString(),
-					updated_at: new Date().toISOString()
-				}).eq('id', id);
+				const {error} = await supabaseClient.rpc('resolve_practice_alert', {
+					p_alert_id: Number(id)
+				});
 			if (error) {
-					console.warn('auto resolve alert update fail', error);
+					console.warn('auto resolve alert RPC fail', error);
 				// 回滚
 				AlertStore.byId.set(String(id), a);
 				AlertStore.list.unshift(a);
@@ -20982,6 +20986,8 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			AlertStore.byId.set(String(id), a);
 			AlertStore.list.unshift(a);
 			scheduleRenderAlerts();
+		} finally {
+			AlertStore.resolving.delete(alertKey);
 		}
 	}
 		function dedupeKey(raw){ const dKey=businessDateKey(); const slotPart=raw.slot?`${raw.slot.start_time}-${raw.slot.end_time}`:'none'; return `${raw.student_name}|${raw.type}|${slotPart}|${dKey}`; }
@@ -21181,7 +21187,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			await ensureSlotsLoaded(); 
 			startTimer(); 
 			await setupRealtime(); 
-			detectionTick(); 
+			await detectionTick();
 					// 周期对账仅作为 Realtime 兜底
 					if(!AlertStore._reconcileInterval){
 						const RECONCILE_INTERVAL = ALERT_FULL_RELOAD_INTERVAL;
