@@ -1205,7 +1205,7 @@
 			<div id="alertDetailResultMeta" class="alert-detail-result-meta">正在加载…</div>
 			<div id="alertDetailList" class="alert-detail-list" aria-live="polite"></div>
 			<footer class="alert-detail-footer">
-				<button id="alertAcknowledgeAll" class="alert-secondary-btn" type="button" hidden>全部标记已阅</button>
+				<button id="alertAcknowledgeAll" class="alert-secondary-btn" type="button" hidden>标记当前未阅</button>
 				<div class="alert-pagination">
 					<button id="alertPrevPage" class="alert-secondary-btn" type="button">上一页</button>
 					<span id="alertPageLabel">第 1 页</span>
@@ -18912,6 +18912,8 @@ body.alert-modal-open{overflow:hidden;}
 .alert-detail-profile{min-width:0;color:#9aa7b5;font-size:12.5px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .alert-slot-chips{display:flex;flex-wrap:wrap;gap:6px;min-width:0;}
 .alert-slot-chip{padding:5px 7px;border:1px solid #394653;border-radius:6px;background:#1b242d;color:#d1dae3;font:600 11.5px/1 'SF Mono','Roboto Mono','Consolas',monospace;white-space:nowrap;}
+.alert-slot-chip.is-unread{display:inline-flex;align-items:center;gap:6px;border-color:#76504d;background:#2a2021;color:#f0d8d6;}
+.alert-slot-new{padding:2px 4px;border-radius:4px;background:#a14e49;color:#fff;font:700 9px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:.2px;}
 .alert-detail-count{color:#a6b2bf;font-size:12.5px;white-space:nowrap;}
 .alert-detail-empty{display:grid;min-height:240px;place-items:center;color:#8e9ba9;font-size:14px;text-align:center;}
 .alert-detail-footer,.alert-settings-footer{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 22px;border-top:1px solid var(--outline);background:#1a212a;}
@@ -20428,6 +20430,11 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	const PAGE_SIZE=50;
 	const ABSENT_GRACE_MINUTES=5;
 	const SHANGHAI_TIME_ZONE='Asia/Shanghai';
+	const REALTIME_MODULE_KEY='practice-alert-dashboard';
+	const REALTIME_CHANNEL_KEY='practice-alert-dashboard-v2';
+	const SUMMARY_CACHE_KEY='practice-alert-dashboard-summary-v1';
+	const MAX_INCREMENTAL_AGE_MS=6*60*60*1000;
+	const MAX_INCREMENTAL_STUDENTS=500;
 	const clockFormatter=new Intl.DateTimeFormat('en-CA',{
 		timeZone:SHANGHAI_TIME_ZONE,year:'numeric',month:'2-digit',day:'2-digit',
 		hour:'2-digit',minute:'2-digit',hourCycle:'h23'
@@ -20436,9 +20443,10 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		settings:{monitored_grades:[...DEFAULT_GRADES],available_grades:[],updated_at:null},
 		summary:{active_students:0,active_slots:0,confirmed_students:0,confirmed_slots:0,unread_students:0},
 		slotsToday:null,slotsDay:null,profiles:new Map(),practiceLogs:new Map(),logsDay:null,
-		recalcPromise:null,summaryPromise:null,initialized:false,initPromise:null,timer:null,timerTicks:0,
-		realtimeChannel:null,recalcTimer:null,summaryTimer:null,
-		detail:{status:'active',search:'',grade:'',major:'',slot:'',page:0,total:0,requestId:0},
+		recalcPromise:null,incrementalPromise:null,summaryPromise:null,initialized:false,initPromise:null,timer:null,timerTicks:0,
+		realtimeChannel:null,recalcTimer:null,incrementalTimer:null,summaryTimer:null,resumeTimer:null,resumePromise:null,hiddenAt:null,
+		lastSourceSyncAt:null,sourceDay:null,pendingStudents:new Set(),
+		detail:{status:'active',search:'',grade:'',major:'',slot:'',page:0,total:0,hasUnread:false,requestId:0},
 		settingsDraft:new Set(DEFAULT_GRADES)
 	};
 
@@ -20503,6 +20511,21 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	function notify(message,type='info'){
 		if(typeof window.toast==='function') window.toast(message,type);
 		else console.log('[PracticeAlerts]',message);
+	}
+	function cacheSummary(){
+		try{
+			sessionStorage.setItem(SUMMARY_CACHE_KEY,JSON.stringify({
+				business_date:businessDateKey(),saved_at:Date.now(),summary:State.summary
+			}));
+		}catch(_error){}
+	}
+	function restoreCachedSummary(){
+		try{
+			const cached=JSON.parse(sessionStorage.getItem(SUMMARY_CACHE_KEY)||'null');
+			if(!cached||cached.business_date!==businessDateKey()||!cached.summary) return false;
+			State.summary={...State.summary,...cached.summary};
+			return true;
+		}catch(_error){ return false; }
 	}
 
 	async function loadSettings({refreshOptions=true}={}){
@@ -20613,12 +20636,14 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			return start!=null&&end!=null&&start<slotEnd&&end>=slotStart;
 		});
 	}
-	function buildCandidates(){
+	function buildCandidates(studentNames=null){
 		const nowMinutes=clock().minutes;
 		const monitored=monitoredSet();
 		const profiles=studentMap();
+		const scopedStudents=studentNames instanceof Set?studentNames:(Array.isArray(studentNames)?new Set(studentNames):null);
 		const candidates=[];
 		for(const [student,slots] of Object.entries(State.slotsToday||{})){
+			if(scopedStudents&&!scopedStudents.has(student)) continue;
 			const profile=profiles.get(student);
 			if(!profile||!isMonitoredGrade(profile.grade,monitored)) continue;
 			for(const slot of slots||[]){
@@ -20663,7 +20688,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		}
 		if(confirmedMeta){
 			confirmedMeta.textContent=confirmedStudents
-				?`${confirmedStudents} 人 · 共 ${confirmedSlots} 个缺勤时段${unreadStudents?` · ${unreadStudents} 人未阅`:''}`
+				?`${confirmedStudents} 人 · ${confirmedSlots} 个缺勤时段 · ${unreadStudents?`新增未阅 ${unreadStudents} 人`:'已全部阅'}`
 				:'今日暂无确认缺勤';
 		}
 		document.querySelector('.alert-summary-active')?.classList.toggle('is-empty',activeStudentsCount===0);
@@ -20675,15 +20700,24 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		const list=document.getElementById('alertList');
 		if(list) list.setAttribute('aria-busy','false');
 	}
-	async function fetchSummary(){
-		if(State.summaryPromise) return State.summaryPromise;
+	async function fetchSummary({force=false}={}){
+		if(State.summaryPromise){
+			if(!force) return State.summaryPromise;
+			try{ await State.summaryPromise; }catch(_error){}
+		}
 		State.summaryPromise=(async()=>{
 			if(!window.supabaseClient){ State.summary=localSummary(); renderSummary(); return State.summary; }
 			const {data,error}=await supabaseClient.rpc('get_practice_alert_summary',{p_business_date:businessDateKey()});
 			if(error){
 				if(!isRpcMissing(error,'get_practice_alert_summary')) console.warn('[PracticeAlerts] 汇总加载失败',error);
-				State.summary=localSummary();
-			}else State.summary={...State.summary,...(data||{})};
+				const local=localSummary();
+				const hasCurrentSummary=State.summary?.business_date===businessDateKey();
+				const hasLocalData=asCount(local.active_slots)>0||asCount(local.confirmed_slots)>0;
+				if(!hasCurrentSummary||hasLocalData) State.summary={...local,business_date:businessDateKey()};
+			}else{
+				State.summary={...State.summary,...(data||{})};
+				cacheSummary();
+			}
 			renderSummary();
 			return State.summary;
 		})().finally(()=>{ State.summaryPromise=null; });
@@ -20700,6 +20734,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	async function recalcToday({reloadSettings=false,reloadSlots=false}={}){
 		if(State.recalcPromise) return State.recalcPromise;
 		State.recalcPromise=(async()=>{
+			const syncStartedAt=new Date().toISOString();
 			if(reloadSettings) await loadSettings();
 			await Promise.all([loadSlots({force:reloadSlots}),loadPracticeLogs({force:true})]);
 			const candidates=buildCandidates();
@@ -20713,6 +20748,9 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			State.summary=localSummary(candidates);
 			renderSummary();
 			await fetchSummary();
+			State.lastSourceSyncAt=syncStartedAt;
+			State.sourceDay=businessDateKey();
+			State.pendingStudents.clear();
 			return candidates;
 		})().finally(()=>{ State.recalcPromise=null; });
 		return State.recalcPromise;
@@ -20720,6 +20758,139 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	function scheduleRecalc(delay=800,options={}){
 		clearTimeout(State.recalcTimer);
 		State.recalcTimer=setTimeout(()=>recalcToday(options).catch(error=>console.warn('[PracticeAlerts] 延迟重算失败',error)),delay);
+	}
+	function mergeIncrementalPracticeLogs(rows){
+		const affected=new Set();
+		for(const row of rows||[]){
+			const student=String(row.student_name||'').trim();
+			if(!student||!row.session_start) continue;
+			affected.add(student);
+			const existing=State.practiceLogs.get(student)||[];
+			const index=existing.findIndex(item=>item.session_start===row.session_start);
+			if(index>=0) existing[index]={...existing[index],...row};
+			else existing.push(row);
+			State.practiceLogs.set(student,existing);
+		}
+		return affected;
+	}
+	function timelineAffectedStudents(sinceValue){
+		const sinceDate=new Date(sinceValue);
+		if(Number.isNaN(sinceDate.getTime())||clock(sinceDate).dateKey!==businessDateKey()) return null;
+		const sinceMinutes=clock(sinceDate).minutes;
+		const nowMinutes=clock().minutes;
+		if(sinceMinutes>nowMinutes) return null;
+		const affected=new Set();
+		for(const [student,slots] of Object.entries(State.slotsToday||{})){
+			for(const slot of slots||[]){
+				const start=timeToMinutes(slot.start_time),end=timeToMinutes(slot.end_time);
+				if(start==null||end==null) continue;
+				if((sinceMinutes<start+ABSENT_GRACE_MINUTES&&nowMinutes>=start+ABSENT_GRACE_MINUTES)
+					||(sinceMinutes<=end&&nowMinutes>end)){
+					affected.add(student);
+					break;
+				}
+			}
+		}
+		return affected;
+	}
+	async function replaceSlotsForStudents(studentNames){
+		const names=[...new Set(studentNames)].filter(Boolean);
+		if(!names.length) return;
+		const {data,error}=await supabaseClient.from('student_time_slots')
+			.select('student_name,start_time,end_time')
+			.eq('weekday',clock().weekday).in('student_name',names).order('start_time');
+		if(error) throw error;
+		for(const name of names) delete State.slotsToday[name];
+		for(const row of data||[]){
+			if(!row.student_name||!row.start_time||!row.end_time) continue;
+			(State.slotsToday[row.student_name]||(State.slotsToday[row.student_name]=[])).push(row);
+		}
+	}
+	async function loadIncrementalSources(sinceValue,seedStudents=new Set()){
+		const sinceDate=new Date(sinceValue);
+		if(Number.isNaN(sinceDate.getTime())) return null;
+		const overlapSince=new Date(sinceDate.getTime()-5000).toISOString();
+		const range=dateRange();
+		const affected=new Set(seedStudents);
+		const [logResult,scheduleResult,profileResult]=await Promise.all([
+			supabaseClient.from('practice_logs')
+				.select('student_name,session_start,session_end,created_at')
+				.gte('created_at',overlapSince).gte('session_start',range.start).lt('session_start',range.end)
+				.order('created_at').limit(5000),
+			supabaseClient.from('student_schedules')
+				.select('name,updated_at').gte('updated_at',overlapSince).limit(MAX_INCREMENTAL_STUDENTS+1),
+			supabaseClient.from('student_database')
+				.select('name,grade,major,archived,updated_at').gte('updated_at',overlapSince).limit(MAX_INCREMENTAL_STUDENTS+1)
+		]);
+		if(logResult.error) throw logResult.error;
+		if(scheduleResult.error) throw scheduleResult.error;
+		if(profileResult.error) throw profileResult.error;
+		for(const student of mergeIncrementalPracticeLogs(logResult.data||[])) affected.add(student);
+		const changedSchedules=new Set((scheduleResult.data||[]).map(row=>String(row.name||'').trim()).filter(Boolean));
+		for(const name of changedSchedules) affected.add(name);
+		for(const profile of profileResult.data||[]){
+			const name=String(profile.name||'').trim();
+			if(!name) continue;
+			affected.add(name);
+			if(profile.archived) State.profiles.delete(name);
+			else State.profiles.set(name,profile);
+		}
+		if(changedSchedules.size) await replaceSlotsForStudents(changedSchedules);
+		const timelineStudents=timelineAffectedStudents(sinceDate);
+		if(timelineStudents===null) return null;
+		for(const student of timelineStudents) affected.add(student);
+		return affected;
+	}
+	async function incrementalRecalc({since=State.lastSourceSyncAt,summaryAlreadyLoaded=false}={}){
+		if(State.incrementalPromise) return State.incrementalPromise;
+		State.incrementalPromise=(async()=>{
+			if(!window.supabaseClient||!since||State.sourceDay!==businessDateKey()){
+				return recalcToday({reloadSettings:true,reloadSlots:true});
+			}
+			const sinceDate=new Date(since);
+			if(Number.isNaN(sinceDate.getTime())||Date.now()-sinceDate.getTime()>MAX_INCREMENTAL_AGE_MS){
+				return recalcToday({reloadSettings:true,reloadSlots:true});
+			}
+			const syncStartedAt=new Date().toISOString();
+			const previousGrades=JSON.stringify(State.settings.monitored_grades||[]);
+			await loadSettings({refreshOptions:false});
+			if(previousGrades!==JSON.stringify(State.settings.monitored_grades||[])){
+				return recalcToday({reloadSlots:true});
+			}
+			const pending=new Set(State.pendingStudents);
+			const affected=await loadIncrementalSources(sinceDate,pending);
+			if(affected===null||affected.size>MAX_INCREMENTAL_STUDENTS){
+				return recalcToday({reloadSlots:true});
+			}
+			if(affected.size){
+				const candidates=buildCandidates(affected);
+				const {error}=await supabaseClient.rpc('reconcile_practice_alerts_incremental',{
+					p_business_date:businessDateKey(),p_alerts:candidates,p_student_names:[...affected]
+				});
+				if(error){
+					if(isRpcMissing(error,'reconcile_practice_alerts_incremental')) return recalcToday({reloadSlots:true});
+					throw error;
+				}
+			}
+			State.lastSourceSyncAt=syncStartedAt;
+			State.sourceDay=businessDateKey();
+			for(const student of affected) State.pendingStudents.delete(student);
+			if(!summaryAlreadyLoaded||affected.size) await fetchSummary();
+			return {incremental:true,affected_students:affected.size};
+		})().finally(()=>{ State.incrementalPromise=null; });
+		return State.incrementalPromise;
+	}
+	function scheduleIncrementalRecalc(delay=900){
+		clearTimeout(State.incrementalTimer);
+		State.incrementalTimer=setTimeout(()=>{
+			State.incrementalTimer=null;
+			incrementalRecalc().catch(error=>console.warn('[PracticeAlerts] 增量重算失败',error));
+		},delay);
+	}
+	function markAffectedStudent(payload){
+		const name=String(payload?.new?.student_name||payload?.new?.name||payload?.old?.student_name||payload?.old?.name||'').trim();
+		if(name) State.pendingStudents.add(name);
+		return name;
 	}
 
 	function refreshDetailFilterOptions(){
@@ -20753,7 +20924,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			if(State.detail.slot&&`${item.slot_start}|${item.slot_end}`!==State.detail.slot) continue;
 			if(!grouped.has(item.student_name)) grouped.set(item.student_name,{
 				student_name:item.student_name,grade:profile.grade||'',major:profile.major||'',
-				alert_count:0,unread:State.detail.status==='confirmed_absent',slot_ranges:[],alert_ids:[]
+				alert_count:0,unread:false,slot_ranges:[],alert_ids:[]
 			});
 			const row=grouped.get(item.student_name);
 			row.alert_count++;
@@ -20783,6 +20954,9 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		const meta=document.getElementById('alertDetailResultMeta');
 		if(!list||!meta) return;
 		list.replaceChildren();
+		const pageHasUnread=State.detail.status==='confirmed_absent'&&rows.some(row=>row.unread);
+		if(State.detail.page===0) State.detail.hasUnread=pageHasUnread;
+		else if(pageHasUnread) State.detail.hasUnread=true;
 		if(!rows.length){
 			const empty=document.createElement('div');
 			empty.className='alert-detail-empty';
@@ -20793,7 +20967,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			for(const row of rows){
 				const item=document.createElement('article'); item.className='alert-detail-row';
 				const identity=document.createElement('div'); identity.className='alert-detail-identity';
-				if(row.unread){ const dot=document.createElement('span'); dot.className='alert-unread-dot'; dot.title='未阅'; identity.appendChild(dot); }
+				if(row.unread){ const dot=document.createElement('span'); dot.className='alert-unread-dot'; dot.title='含新确认的未阅缺勤'; identity.appendChild(dot); }
 				const name=document.createElement('span'); name.className='alert-detail-name'; name.textContent=row.student_name||''; identity.appendChild(name);
 				const scheduleButton=document.createElement('button');
 				scheduleButton.type='button'; scheduleButton.className='alert-detail-schedule-btn'; scheduleButton.textContent='课表';
@@ -20804,7 +20978,16 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				const profile=document.createElement('div'); profile.className='alert-detail-profile'; profile.textContent=[row.grade,row.major].filter(Boolean).join(' · ')||'资料未填写';
 				const slots=document.createElement('div'); slots.className='alert-slot-chips';
 				const ranges=Array.isArray(row.slot_ranges)?row.slot_ranges:[];
-				for(const range of ranges){ const chip=document.createElement('span'); chip.className='alert-slot-chip'; chip.textContent=`${range.start||'--:--'}–${range.end||'--:--'}`; slots.appendChild(chip); }
+				for(const range of ranges){
+					const chip=document.createElement('span'); chip.className='alert-slot-chip';
+					const rangeText=document.createElement('span'); rangeText.textContent=`${range.start||'--:--'}–${range.end||'--:--'}`;
+					chip.appendChild(rangeText);
+					if(State.detail.status==='confirmed_absent'&&!range.acknowledged_at){
+						chip.classList.add('is-unread');
+						const badge=document.createElement('span'); badge.className='alert-slot-new'; badge.textContent='新'; chip.appendChild(badge);
+					}
+					slots.appendChild(chip);
+				}
 				const count=document.createElement('div'); count.className='alert-detail-count'; count.textContent=`${asCount(row.alert_count)} 个时段`;
 				item.append(identity,profile,slots,count); fragment.appendChild(item);
 			}
@@ -20813,14 +20996,18 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		const total=State.detail.total;
 		const start=total?State.detail.page*PAGE_SIZE+1:0;
 		const end=Math.min((State.detail.page+1)*PAGE_SIZE,total);
-		meta.textContent=`共 ${total} 名学生${total?`，当前显示 ${start}–${end}`:''}`;
+		const readState=State.detail.status==='confirmed_absent'&&total
+			?` · ${State.detail.hasUnread?'有新确认缺勤未阅':'当前筛选已全部阅'}`:'';
+		meta.textContent=`共 ${total} 名学生${total?`，当前显示 ${start}–${end}`:''}${readState}`;
 		const pages=Math.max(1,Math.ceil(total/PAGE_SIZE));
 		document.getElementById('alertPageLabel').textContent=`第 ${State.detail.page+1} / ${pages} 页`;
 		document.getElementById('alertPrevPage').disabled=State.detail.page===0;
 		document.getElementById('alertNextPage').disabled=State.detail.page+1>=pages;
 		const ack=document.getElementById('alertAcknowledgeAll');
 		ack.hidden=State.detail.status!=='confirmed_absent';
-		ack.disabled=State.detail.status!=='confirmed_absent'||total===0;
+		ack.disabled=State.detail.status!=='confirmed_absent'||total===0||!State.detail.hasUnread;
+		ack.textContent=State.detail.hasUnread?'标记当前未阅':'当前筛选已全部阅';
+		ack.title=State.detail.hasUnread?'仅标记当前筛选条件下已经确认的新缺勤':'当前筛选条件下没有未阅缺勤';
 		list.setAttribute('aria-busy','false');
 		const wasUpdating=list.classList.contains('is-updating');
 		if(wasUpdating){
@@ -20847,6 +21034,8 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				list.replaceChildren(loading);
 			}
 		}
+		const acknowledge=document.getElementById('alertAcknowledgeAll');
+		if(acknowledge) acknowledge.disabled=true;
 		document.getElementById('alertPrevPage').disabled=true;
 		document.getElementById('alertNextPage').disabled=true;
 		let rows=[];
@@ -20874,6 +21063,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		if(!force&&nextStatus===State.detail.status) return;
 		State.detail.status=nextStatus;
 		State.detail.page=0;
+		State.detail.hasUnread=false;
 		document.querySelectorAll('[data-alert-tab]').forEach(tab=>tab.setAttribute('aria-selected',String(tab.dataset.alertTab===State.detail.status)));
 		document.getElementById('alertDetailTitle').textContent=State.detail.status==='active'?'当前正在缺勤':'今日已确认缺勤';
 		const acknowledge=document.getElementById('alertAcknowledgeAll');
@@ -20898,7 +21088,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	}
 	async function acknowledgeVisibleFilter(){
 		const button=document.getElementById('alertAcknowledgeAll');
-		if(!window.supabaseClient||!button) return;
+		if(!window.supabaseClient||!button||!State.detail.hasUnread) return;
 		button.disabled=true; button.textContent='标记中…';
 		try{
 			const [slotStart,slotEnd]=State.detail.slot?State.detail.slot.split('|'):[null,null];
@@ -20908,10 +21098,17 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				p_slot_start:slotStart,p_slot_end:slotEnd
 			});
 			if(error) throw error;
-			notify(`已标记 ${asCount(data?.acknowledged)} 个缺勤时段为已阅`,'success');
-			await Promise.all([fetchSummary(),loadDetails()]);
+			const acknowledged=asCount(data?.acknowledged);
+			notify(acknowledged?`已标记 ${acknowledged} 个新缺勤时段为已阅`:'当前筛选没有新的未阅缺勤',acknowledged?'success':'info');
+			State.detail.page=0;
+			State.detail.hasUnread=false;
+			await fetchSummary({force:true});
+			await loadDetails();
 		}catch(error){ console.warn('[PracticeAlerts] 标记已阅失败',error); notify('标记已阅失败，请稍后重试','error'); }
-		finally{ button.disabled=false; button.textContent='全部标记已阅'; }
+		finally{
+			button.disabled=!State.detail.hasUnread;
+			button.textContent=State.detail.hasUnread?'标记当前未阅':'当前筛选已全部阅';
+		}
 	}
 
 	function renderGradeChoices(){
@@ -20967,21 +21164,92 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		finally{ button.disabled=false; button.textContent='保存并重算'; }
 	}
 
-	function setupRealtime(){
-		if(!window.supabaseClient||State.realtimeChannel) return;
-		let channel=supabaseClient.channel('practice-alert-dashboard-v2');
-		if(window.RealtimeRegistry) channel=window.RealtimeRegistry.register('practice-alert-dashboard-v2',channel);
+	function connectRealtimeChannel(){
+		if(!window.supabaseClient) return;
+		window.RealtimeOrchestrator?.prepareChannelStates([REALTIME_CHANNEL_KEY]);
+		let channel=supabaseClient.channel(REALTIME_CHANNEL_KEY);
+		if(window.RealtimeRegistry) channel=window.RealtimeRegistry.register(REALTIME_CHANNEL_KEY,channel);
+		State.realtimeChannel=channel;
+		window.RealtimeOrchestrator?.setChannel(REALTIME_CHANNEL_KEY,channel);
 		channel
 			.on('postgres_changes',{event:'*',schema:'public',table:'practice_alerts'},()=>scheduleSummary())
 			.on('postgres_changes',{event:'*',schema:'public',table:'practice_alert_settings'},()=>scheduleRecalc(500,{reloadSettings:true}))
-			.on('postgres_changes',{event:'*',schema:'public',table:'practice_logs'},()=>scheduleRecalc(900))
-			.on('postgres_changes',{event:'*',schema:'public',table:'student_time_slots'},()=>scheduleRecalc(900,{reloadSlots:true}))
-			.on('postgres_changes',{event:'*',schema:'public',table:'student_database'},()=>scheduleRecalc(900,{reloadSettings:true,reloadSlots:true}))
+			.on('postgres_changes',{event:'*',schema:'public',table:'practice_logs'},payload=>{
+				markAffectedStudent(payload); scheduleIncrementalRecalc();
+			})
+			.on('postgres_changes',{event:'*',schema:'public',table:'student_time_slots'},payload=>{
+				if(markAffectedStudent(payload)) scheduleIncrementalRecalc();
+				else scheduleRecalc(900,{reloadSlots:true});
+			})
+			.on('postgres_changes',{event:'*',schema:'public',table:'student_schedules'},payload=>{
+				if(markAffectedStudent(payload)) scheduleIncrementalRecalc();
+				else scheduleRecalc(900,{reloadSlots:true});
+			})
+			.on('postgres_changes',{event:'*',schema:'public',table:'student_database'},payload=>{
+				if(markAffectedStudent(payload)) scheduleIncrementalRecalc();
+				else scheduleRecalc(900,{reloadSettings:true,reloadSlots:true});
+			})
 			.subscribe(status=>{
-				if(status==='SUBSCRIBED') console.log('[PracticeAlerts] 汇总实时通道已连接');
-				else if(['CHANNEL_ERROR','TIMED_OUT'].includes(status)) console.warn('[PracticeAlerts] 汇总实时通道异常',status);
+				if(status==='SUBSCRIBED'){
+					window.RealtimeOrchestrator?.markConnected(REALTIME_CHANNEL_KEY);
+					console.log('[PracticeAlerts] 汇总实时通道已连接');
+				}else if(['CHANNEL_ERROR','TIMED_OUT','CLOSED'].includes(status)){
+					console.warn('[PracticeAlerts] 汇总实时通道异常',status);
+					window.RealtimeOrchestrator?.requestReconnect(REALTIME_CHANNEL_KEY,status,{
+						label:'[PracticeAlerts][Dashboard]',minDelay:2000
+					});
+				}
 			});
-		State.realtimeChannel=channel;
+		return channel;
+	}
+	async function setupRealtime({force=false}={}){
+		if(!window.supabaseClient) return;
+		if(window.RealtimeOrchestrator){
+			if(!window.RealtimeOrchestrator.getModule(REALTIME_MODULE_KEY)){
+				window.RealtimeOrchestrator.registerModule(REALTIME_MODULE_KEY,{
+					order:30,channelKeys:[REALTIME_CHANNEL_KEY],connect:connectRealtimeChannel
+				});
+			}
+			const channelState=window.RealtimeOrchestrator.ensureChannelState(REALTIME_CHANNEL_KEY);
+			const reconnectNeeded=force||(
+				channelState.channel &&
+				!channelState.connected &&
+				['CHANNEL_ERROR','TIMED_OUT','CLOSED'].includes(channelState.lastStatus)
+			);
+			await window.RealtimeOrchestrator.ensureModuleConnected(
+				REALTIME_MODULE_KEY,'practice-alert-dashboard',{force:reconnectNeeded}
+			);
+			let currentChannelState=window.RealtimeOrchestrator.ensureChannelState(REALTIME_CHANNEL_KEY);
+			if(!currentChannelState.channel){
+				await window.RealtimeOrchestrator.ensureModuleConnected(
+					REALTIME_MODULE_KEY,'practice-alert-dashboard-retry',{force:true}
+				);
+				currentChannelState=window.RealtimeOrchestrator.ensureChannelState(REALTIME_CHANNEL_KEY);
+			}
+			return currentChannelState.channel;
+		}
+		if(State.realtimeChannel&&!force) return State.realtimeChannel;
+		if(force&&State.realtimeChannel){
+			if(window.RealtimeRegistry) window.RealtimeRegistry.unregister(REALTIME_CHANNEL_KEY);
+			else try{ supabaseClient.removeChannel(State.realtimeChannel); }catch(_error){}
+			State.realtimeChannel=null;
+		}
+		return connectRealtimeChannel();
+	}
+	function scheduleForegroundRefresh({forceReconnect=false,since=State.lastSourceSyncAt,delay=350}={}){
+		clearTimeout(State.resumeTimer);
+		State.resumeTimer=setTimeout(()=>{
+			State.resumeTimer=null;
+			if(document.hidden||!window.supabaseClient) return;
+			if(State.resumePromise) return;
+			State.resumePromise=(async()=>{
+				await setupRealtime({force:forceReconnect});
+				await fetchSummary();
+				await incrementalRecalc({since,summaryAlreadyLoaded:true});
+				if(!document.getElementById('alertDetailBackdrop')?.hidden) await loadDetails();
+			})().catch(error=>console.warn('[PracticeAlerts] 前台恢复刷新失败',error))
+				.finally(()=>{ State.resumePromise=null; });
+		},delay);
 	}
 	function bindUI(){
 		if(document.body.dataset.practiceAlertDashboardBound==='1') return;
@@ -21008,6 +21276,17 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		document.getElementById('alertSettingsSave')?.addEventListener('click',saveSettings);
 		document.getElementById('alertDetailBackdrop')?.addEventListener('click',event=>{ if(event.target===event.currentTarget) closeDetails(); });
 		document.getElementById('alertSettingsBackdrop')?.addEventListener('click',event=>{ if(event.target===event.currentTarget) closeSettings(); });
+		document.addEventListener('visibilitychange',()=>{
+			if(document.hidden){ State.hiddenAt=Date.now(); return; }
+			const hiddenDuration=State.hiddenAt?Date.now()-State.hiddenAt:0;
+			const since=State.lastSourceSyncAt||(State.hiddenAt?new Date(State.hiddenAt).toISOString():null);
+			State.hiddenAt=null;
+			scheduleForegroundRefresh({forceReconnect:hiddenDuration>=60000,since});
+		});
+		window.addEventListener('pageshow',event=>{
+			if(event.persisted) scheduleForegroundRefresh({forceReconnect:true,delay:0});
+		});
+		window.addEventListener('online',()=>scheduleForegroundRefresh({forceReconnect:true,delay:500}));
 		document.addEventListener('keydown',event=>{
 			if(event.key!=='Escape') return;
 			if(document.getElementById('scheduleModalBackdrop')) return;
@@ -21025,7 +21304,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			await recalcToday({reloadSlots:true});
 			if(!State.timer) State.timer=setInterval(()=>{
 				State.timerTicks++;
-				recalcToday({reloadSettings:State.timerTicks%3===0}).catch(error=>console.warn('[PracticeAlerts] 定时重算失败',error));
+				incrementalRecalc().catch(error=>console.warn('[PracticeAlerts] 定时增量重算失败',error));
 			},300000);
 			State.initialized=true;
 		})().finally(()=>{ State.initPromise=null; });
@@ -21042,8 +21321,9 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		await loadSlots({force:true});
 		return runDetect===false?undefined:recalcToday();
 	}
-	function resetConnection(){
-		State.realtimeChannel=null; setupRealtime(); return refreshFromCloud({runDetection:true});
+	async function resetConnection(){
+		await setupRealtime({force:true});
+		return refreshFromCloud({runDetection:true});
 	}
 
 	window.PracticeAlerts={
@@ -21052,7 +21332,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	};
 
 	document.addEventListener('DOMContentLoaded',()=>{
-		bindUI(); renderScope(); renderSummary();
+		bindUI(); restoreCachedSummary(); renderScope(); renderSummary();
 		if(window.supabaseClient) setTimeout(initAlerts,800);
 		else{
 			const wait=setInterval(()=>{
