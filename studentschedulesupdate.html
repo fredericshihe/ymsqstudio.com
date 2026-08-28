@@ -579,9 +579,16 @@ table#schedule{border-collapse:separate;border-spacing:0;min-width:1100px;width:
 .library-row-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:stretch;gap:6px;width:100%;max-width:100%;}
 .library-row-actions button{width:100%;min-width:0;min-height:36px;padding:0 6px;border:1px solid var(--border);border-radius:8px;background:#f7f9fc;color:var(--text-secondary);font-size:.76rem;font-weight:800;cursor:pointer;white-space:nowrap;}
 .library-row-actions button:hover{position:relative;z-index:1;border-color:#acb9d1;background:#eef1ff;color:var(--primary-color);transform:none;box-shadow:none;}
-.library-row-actions button.library-row-unarchive{border-color:#cbd3df;background:#fff;color:#596779;}
-.library-row-actions button.library-row-unarchive:hover{border-color:#98a6b9;background:#fff;color:#344054;}
-.library-row-actions button.library-row-danger:hover{border-color:#e3b1b5;background:#fff0f1;color:#b33e49;}
+.library-row-actions button.library-action-schedule{border-color:#b9d7ef;background:#edf7ff;color:#246b9b;}
+.library-row-actions button.library-action-schedule:hover{border-color:#7eb7df;background:#dff1ff;color:#17577f;}
+.library-row-actions button.library-action-edit{border-color:#d5c7ef;background:#f6f1ff;color:#6f4aa6;}
+.library-row-actions button.library-action-edit:hover{border-color:#b49adb;background:#eee4ff;color:#563588;}
+.library-row-actions button.library-action-archive{border-color:#ead09a;background:#fff8e8;color:#956111;}
+.library-row-actions button.library-action-archive:hover{border-color:#d8ad55;background:#fff0cd;color:#744906;}
+.library-row-actions button.library-action-restore{border-color:#b9decf;background:#edf9f4;color:#247357;}
+.library-row-actions button.library-action-restore:hover{border-color:#7bc0a5;background:#dcf4e9;color:#185a43;}
+.library-row-actions button.library-action-delete{border-color:#edc0c5;background:#fff3f4;color:#a63c48;}
+.library-row-actions button.library-action-delete:hover{border-color:#d9828c;background:#ffe4e7;color:#842b36;}
 .student-library-empty{padding:52px 20px!important;color:var(--text-secondary)!important;text-align:center;}
 .student-library-preview{min-height:360px;padding:20px;position:sticky;top:14px;}
 .student-library-preview-empty{display:flex;min-height:320px;flex-direction:column;align-items:center;justify-content:center;text-align:center;}
@@ -5473,10 +5480,10 @@ function renderStudentLibrary(){
         <td><span class="library-pill ${statusClass}">${student.archived ? '已归档' : '在读'}</span></td>
         <td>${esc(studentLibraryFormatTime(student.updated_at || student.created_at))}</td>
         <td><div class="library-row-actions">
-          <button type="button" data-library-act="view">查看课表</button>
-          <button type="button" data-library-act="edit">编辑资料</button>
-          <button type="button" class="${student.archived ? 'library-row-unarchive' : ''}" data-library-act="archive" aria-label="${student.archived ? '取消归档' : '归档'} ${esc(name)}">${student.archived ? '取消归档' : '归档'}</button>
-          <button type="button" class="library-row-danger" data-library-act="delete">删除</button>
+          <button type="button" class="library-action-schedule" data-library-act="view" aria-label="查看 ${esc(name)} 的课表">课表</button>
+          <button type="button" class="library-action-edit" data-library-act="edit" aria-label="编辑 ${esc(name)} 的资料">编辑</button>
+          <button type="button" class="${student.archived ? 'library-action-restore' : 'library-action-archive'}" data-library-act="archive" aria-label="${student.archived ? '取消归档' : '归档'} ${esc(name)}">${student.archived ? '恢复' : '归档'}</button>
+          <button type="button" class="library-action-delete" data-library-act="delete" aria-label="永久删除 ${esc(name)}">删除</button>
         </div></td>
       </tr>`;
     }).join('');
@@ -5524,6 +5531,15 @@ function closeStudentLibraryDialog(){
   document.querySelectorAll('.library-dialog-backdrop').forEach(dialog=>dialog.remove());
 }
 
+function studentLibraryProfileSuggestions(field, currentValue=''){
+  const values = (state.directory || [])
+    .map(student=>String(student?.[field] || '').trim())
+    .filter(value=>value && value !== '未填写');
+  const current = String(currentValue || '').trim();
+  if(current && current !== '未填写') values.push(current);
+  return [...new Set(values)].sort((left,right)=>left.localeCompare(right,'zh-CN',{numeric:true}));
+}
+
 async function saveStudentLibraryProfile(student, values){
   const ctx = getSupabaseContext();
   if(!ctx) throw new Error('云端连接不可用');
@@ -5555,15 +5571,19 @@ async function saveStudentLibraryProfile(student, values){
 
 function openStudentLibraryProfileDialog(student=null){
   closeStudentLibraryDialog();
+  const gradeSuggestions = studentLibraryProfileSuggestions('grade', student?.grade);
+  const majorSuggestions = studentLibraryProfileSuggestions('major', student?.major);
   const backdrop = document.createElement('div');
   backdrop.className = 'library-dialog-backdrop';
   backdrop.innerHTML = `<form class="library-dialog" role="dialog" aria-modal="true" aria-labelledby="libraryDialogTitle">
     <h3 id="libraryDialogTitle">${student ? '编辑学生资料' : '新增学生'}</h3>
-    <p class="library-dialog-help">学生姓名会按系统规范自动去除多余空格；课表内容不会在此处被修改。</p>
+    <p class="library-dialog-help">年级和教研室可从学生库已有选项中快速选择，也可以直接输入新内容；课表内容不会在此处被修改。</p>
     <div class="library-dialog-grid">
       <label class="library-dialog-field full">姓名 *<input name="name" required maxlength="40" value="${esc(studentLibraryProfileName(student) || '')}" placeholder="例如：王淇" /></label>
-      <label class="library-dialog-field">年级<input name="grade" maxlength="20" value="${esc(student?.grade || '')}" placeholder="例如 G10-1" /></label>
-      <label class="library-dialog-field">专业 / 教研室<input name="major" maxlength="60" value="${esc(student?.major || '')}" placeholder="例如 钢琴教研室" /></label>
+      <label class="library-dialog-field">年级<input name="grade" list="studentLibraryGradeSuggestions" maxlength="20" value="${esc(student?.grade || '')}" placeholder="选择已有年级或直接输入" autocomplete="off" /></label>
+      <label class="library-dialog-field">专业 / 教研室<input name="major" list="studentLibraryMajorSuggestions" maxlength="60" value="${esc(student?.major || '')}" placeholder="选择已有教研室或直接输入" autocomplete="off" /></label>
+      <datalist id="studentLibraryGradeSuggestions">${gradeSuggestions.map(value=>`<option value="${esc(value)}"></option>`).join('')}</datalist>
+      <datalist id="studentLibraryMajorSuggestions">${majorSuggestions.map(value=>`<option value="${esc(value)}"></option>`).join('')}</datalist>
     </div>
     <div class="library-dialog-message" aria-live="polite"></div>
     <div class="library-dialog-actions"><button type="button" class="library-button library-button-ghost" data-library-dialog-cancel>取消</button><button type="submit" class="library-button library-button-primary">保存资料</button></div>
