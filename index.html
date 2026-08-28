@@ -19782,12 +19782,12 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		strip.innerHTML = html;
 	}
 
-	function relTime(ts){
-		if(!ts) return '--';
-		const days = Math.floor((Date.now()-ts)/86400000);
-		if(days<=0) return '今天'; if(days<30) return days+' 天前';
-		const mo=Math.round(days/30); if(mo<12) return mo+' 个月前';
-		return Math.round(mo/12)+' 年前';
+	function formatUpdatedAt(ts){
+		if(ts === null || ts === undefined || ts === '') return '--';
+		const date = ts instanceof Date ? ts : new Date(ts);
+		if(!Number.isFinite(date.getTime())) return '--';
+		const pad = value => String(value).padStart(2, '0');
+		return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 	}
 
 	function renderTable(){
@@ -19805,7 +19805,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 					<td><div class="slw-name-cell"><span class="slw-avatar">${escapeHtml(s.name.slice(0,1))}</span>${escapeHtml(s.name)}</div></td>
 					<td><span class="slw-badge slw-grade ${gradeCls}">${escapeHtml(s.grade || '未填写')}${isInvalidGrade(s.grade)?' ⚠':''}</span></td>
 					<td><span class="slw-tag ${majorCls}">${escapeHtml(s.major||'未填写')}</span></td>
-					<td class="slw-updated-cell">${relTime(s.updated_at)}</td>
+					<td class="slw-updated-cell">${formatUpdatedAt(s.updated_at)}</td>
 					<td><span class="slw-status-pill ${s.archived?'slw-archived':'slw-active'}">${s.archived?'已归档':'在读'}</span></td>
 					<td>
 						<div class="slw-row-actions">
