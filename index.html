@@ -222,7 +222,7 @@
 		#studentLibraryPanel .slw-panel{ width:min(1220px,100%); height:min(880px,92vh); background:var(--surface); border:1px solid var(--outline); border-radius:var(--radius-lg); box-shadow:0 24px 70px -20px rgba(0,0,0,.65); display:flex; flex-direction:column; overflow:hidden; color:var(--text); font-family:inherit; font-size:13px; font-variant-numeric:tabular-nums; }
 		#studentLibraryPanel .slw-panel-head{ display:flex; align-items:center; gap:14px; padding:18px 22px; border-bottom:1px solid var(--outline); flex-shrink:0; }
 		#studentLibraryPanel .slw-panel-head h1{ margin:0; font-size:19px; font-weight:700; letter-spacing:.3px; background:linear-gradient(90deg,#91bdff,#c3daff); -webkit-background-clip:text; background-clip:text; color:transparent; }
-		#studentLibraryPanel .slw-count-pill{ font-size:12px; font-weight:600; color:var(--text-dim); background:var(--surface-alt); border:1px solid var(--outline); padding:3px 10px; border-radius:999px; }
+		#studentLibraryPanel .slw-count-pill{ font-size:12px; font-weight:600; color:var(--text-dim); background:var(--surface-alt); border:1px solid var(--outline); padding:3px 10px; border-radius:999px; white-space:nowrap; }
 		#studentLibraryPanel .slw-head-actions{ margin-left:auto; display:flex; gap:8px; align-items:center; }
 		#studentLibraryPanel .slw-icon-btn{ width:32px; height:32px; border-radius:8px; border:1px solid var(--outline); background:var(--surface-alt); color:var(--text-dim); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:15px; transition:.15s ease; }
 		#studentLibraryPanel .slw-icon-btn:hover{ background:var(--slw-surface-raised); color:var(--text); border-color:var(--outline-hover); }
@@ -1280,7 +1280,7 @@
 		<div class="slw-panel">
 			<div class="slw-panel-head">
 				<h1>学生库</h1>
-				<span class="slw-count-pill" id="slwTotalPill">-- 名学生</span>
+				<span class="slw-count-pill" id="slwTotalPill">共 -- 名 · 在读 -- · 已归档 --</span>
 				<div class="slw-head-actions">
 					<button class="slw-icon-btn" id="slwCloseBtn" title="关闭">✕</button>
 				</div>
@@ -1348,7 +1348,7 @@
 			</div>
 
 			<div class="slw-panel-foot">
-				<span id="slwFootCount">显示 0 / 0 名学生</span>
+				<span id="slwFootCount">显示 0 / 0 名 · 在读 0 · 已归档 0</span>
 			</div>
 		</div>
 	</div>
@@ -19974,6 +19974,8 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	function renderTable(){
 		if(!tbodyEl) return;
 		const rows = filteredRows();
+		const allStudents = getAll();
+		const statusCounts = computeStatusCounts();
 		if(!rows.length){
 			tbodyEl.innerHTML = `<tr><td colspan="7"><div class="slw-empty-state">没有匹配的学生 — 试试清除筛选条件</div></td></tr>`;
 		}else{
@@ -19999,8 +20001,8 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				</tr>`;
 			}).join('');
 		}
-		const footEl = document.getElementById('slwFootCount'); if(footEl) footEl.textContent = `显示 ${rows.length} / ${getAll().length} 名学生`;
-		const totalPill = document.getElementById('slwTotalPill'); if(totalPill) totalPill.textContent = getAll().length + ' 名学生';
+		const footEl = document.getElementById('slwFootCount'); if(footEl) footEl.textContent = `显示 ${rows.length} / ${allStudents.length} 名 · 在读 ${statusCounts.active} · 已归档 ${statusCounts.archived}`;
+		const totalPill = document.getElementById('slwTotalPill'); if(totalPill) totalPill.textContent = `共 ${allStudents.length} 名 · 在读 ${statusCounts.active} · 已归档 ${statusCounts.archived}`;
 		updateSortHeaders(); updateFilterButtons(); updateBatchBar(rows.length); updateSelectAllCb(rows);
 	}
 

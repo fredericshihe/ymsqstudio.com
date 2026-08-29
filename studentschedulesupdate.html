@@ -510,7 +510,7 @@ table#schedule{border-collapse:separate;border-spacing:0;min-width:1100px;width:
 .workspace-tabs{display:flex;align-items:center;gap:6px;width:max-content;max-width:100%;margin:0 0 20px;padding:5px;border:1px solid var(--border);border-radius:15px;background:#f7f9fc;}
 .workspace-tab{min-height:40px;padding:0 20px;border:0;border-radius:11px;background:transparent;color:var(--text-secondary);font-size:.84rem;font-weight:800;cursor:pointer;transition:var(--transition);}
 .workspace-tab:hover{color:var(--text-primary);background:#fff;}
-.workspace-tab.is-active{background:#fff;color:var(--primary-color);box-shadow:0 2px 8px rgba(36,53,91,.08);}
+.workspace-tab.is-active{background:#fff;color:var(--primary-color);outline:1px solid #dce3ef;outline-offset:-1px;box-shadow:none;}
 .workspace-view[hidden]{display:none!important;}
 .student-library-workspace{display:block;}
 .student-library-heading{display:flex;align-items:center;justify-content:space-between;gap:28px;margin-bottom:18px;padding:22px 26px;border:1px solid var(--border);border-radius:18px;background:#fff;}
@@ -1365,13 +1365,15 @@ const SCHEDULE_LEGEND_KINDS = SCHEDULE_CLASSIFICATION.LEGEND_KINDS;
 // 课表标题行专业关键词 → student_database.major 标准值（教研室名称）
 // 学校在标题行按 "G10 钢琴 罗舒筠" 格式写专业时，靠这张表精确识别，不依赖猜测
 const TITLE_MAJOR_MAP = {
-  '钢琴':'钢琴教研室', '小提琴':'小提琴教研室', '大提琴':'大提琴教研室', '中提琴':'中提琴教研室',
+  '钢琴':'钢琴教研室', '小提琴':'小提琴教研室', '大提琴':'大提琴教研室', '中提琴':'小提琴教研室',
   '低音提琴':'大提琴教研室', '竖琴':'竖琴教研室', '古典吉他':'吉他教研室', '吉他':'吉他教研室',
   '长笛':'木管教研室', '单簧管':'木管教研室', '双簧管':'木管教研室', '大管':'木管教研室', '巴松':'木管教研室',
   '萨克斯':'木管教研室', '笛子':'木管教研室', '箫':'木管教研室', '唢呐':'木管教研室',
   '小号':'铜管教研室', '圆号':'铜管教研室', '长号':'铜管教研室', '大号':'铜管教研室',
   '打击乐':'打击乐教研室', '架子鼓':'打击乐教研室', '马林巴':'打击乐教研室', '定音鼓':'打击乐教研室',
-  '声乐':'声乐教研室', '美声':'声乐教研室', '合唱':'声乐教研室', '歌唱':'声乐教研室'
+  '声乐':'声乐教研室', '美声':'声乐教研室', '歌唱':'声乐教研室',
+  '合唱团':'音乐综合学科教研室', '合唱课':'音乐综合学科教研室', '合唱':'音乐综合学科教研室',
+  '核心音乐素养':'音乐综合学科教研室', '音乐综合学科':'音乐综合学科教研室'
 };
 // 按关键词长度降序，确保"大提琴"不会被"大"这类更短的前缀提前吃掉，也保证"古典吉他"优先于"吉他"匹配
 const TITLE_MAJOR_KEYWORDS_SORTED = Object.keys(TITLE_MAJOR_MAP).sort((a,b)=>b.length-a.length);
@@ -1412,8 +1414,8 @@ function majorOfficeOptions(){
   state.students.forEach(student=>{
     const major = String(student?.major || '').trim();
     if(!major || major === '未填写') return;
-    existing.push(major);
-    major.split(MAJOR_SEP_RE).map(part=>part.trim()).filter(Boolean).forEach(part=>existing.push(part));
+    existing.push(resolveMajorSegment(major) || major);
+    major.split(MAJOR_SEP_RE).map(part=>part.trim()).filter(Boolean).forEach(part=>existing.push(resolveMajorSegment(part) || part));
   });
   existing.forEach(major=>{
     if(!options.some(option=>normalizeMajorText(option) === normalizeMajorText(major))) options.push(major);
@@ -1425,12 +1427,12 @@ function resolveMajorOffice(value){
   const input = String(value || '').trim();
   if(!input) return null;
   const normalizedInput = normalizeMajorText(input);
+  const fromSegment = resolveMajorSegment(input);
+  if(fromSegment) return fromSegment;
+
   const options = majorOfficeOptions();
   const exact = options.find(option=>normalizeMajorText(option) === normalizedInput);
   if(exact) return exact;
-
-  const fromSegment = resolveMajorSegment(input);
-  if(fromSegment) return fromSegment;
 
   const parts = input.split(/[\/／、，,+]|\s+和\s+/).map(part=>part.trim()).filter(Boolean);
   const offices = [];
@@ -1625,71 +1627,53 @@ function renderScheduleLegend(){
 function extractTeacherName(txt){
   if(!txt) return null;
   const raw = String(txt);
-  // 拆多行，逐行尝试（截图显示为多行：主修课-姓名 / 1to1 Major -Name / 时间）
-  const lines = raw.split(/\n+/).map(l=>l.trim()).filter(Boolean);
+  const lines = raw.split(/\n+/).map(line=>line.trim()).filter(Boolean);
 
-  // 内部尝试函数（返回 null 或 姓名）
   function attempt(line){
     if(!line) return null;
     let text = line.replace(/\s+/g,' ').trim();
     if(!text) return null;
 
-    // 直接匹配用户给的主要格式: 主修课-王博扬 / 主修-张三
-    let m = text.match(/^(主修课|主修)\s*[-–—－:：|\/]\s*([一-龯]{2,6})$/);
-    if(m){ return m[2]; }
+    let match = text.match(/^(主修课|主修)\s*[-–—－:：|\/]\s*([一-龯]{2,6})$/);
+    if(match) return match[2];
 
-    // 英文行: 1to1 Major -Wang boyang  (只取中文优先；若无中文再取英文首词)
-    // 先保证它包含 1to1 或 major
     if(/1to1/i.test(text) || /major/i.test(text)){
-      // Pattern: 1to1 Major -Wang boyang
-      let en = text.match(/1to1\s*major\s*[-–—－:：|\/]\s*([A-Za-z]+)(?:\s+[A-Za-z]+)?/i);
-      if(en){ return en[1]; }
+      const english = text.match(/1to1\s*major\s*[-–—－:：|\/]\s*([A-Za-z]+)(?:\s+[A-Za-z]+)?/i);
+      if(english) return english[1];
     }
 
-    // 通用分隔符: 课程 / 主修关键词 在左 + 中文姓名在右
-    const sepRegex = /\s*[-–—－:：|\/]\s*/;
-    const segParts = text.split(sepRegex);
-    if(segParts.length === 2){
-      const left = segParts[0].trim();
-      const right = segParts[1].trim();
-      if(isMajorCourse(left) && /^[一-龯]{2,6}$/.test(right)) { return right; }
-      if(/^[一-龯]{2,6}$/.test(left) && isMajorCourse(right)) { return left; }
+    const parts = text.split(/\s*[-–—－:：|\/]\s*/);
+    if(parts.length === 2){
+      const left = parts[0].trim();
+      const right = parts[1].trim();
+      if(isMajorCourse(left) && /^[一-龯]{2,6}$/.test(right)) return right;
+      if(/^[一-龯]{2,6}$/.test(left) && isMajorCourse(right)) return left;
     }
 
-    // 课程+空格+姓名
-    for(const k of MAJOR_COURSE_KEYWORDS){
-      const re1 = new RegExp(`${k}\\s*([一-龯]{2,6})$`,'i');
-      m = text.match(re1); if(m){ return m[1]; }
+    for(const keyword of MAJOR_COURSE_KEYWORDS){
+      const spaced = text.match(new RegExp(`${keyword}\\s*([一-龯]{2,6})$`,'i'));
+      if(spaced) return spaced[1];
     }
-    // 课程紧贴姓名
-    for(const k of MAJOR_COURSE_KEYWORDS){
-      const re2 = new RegExp(`${k}([一-龯]{2,6})$`,'i');
-      m = text.match(re2); if(m){ return m[1]; }
+    for(const keyword of MAJOR_COURSE_KEYWORDS){
+      const compact = text.match(new RegExp(`${keyword}([一-龯]{2,6})$`,'i'));
+      if(compact) return compact[1];
     }
-    // 姓名+课程
-    let m3 = text.match(/^([一-龯]{2,6})\s*(.+)$/); if(m3 && isMajorCourse(m3[2])) { return m3[1]; }
-    // 括号
-    for(const k of MAJOR_COURSE_KEYWORDS){
-      const re3 = new RegExp(`${k}[课]?\s*[\(（]([一-龯]{2,6})[\)）]`,'i');
-      m = text.match(re3); if(m){ return m[1]; }
+    const reversed = text.match(/^([一-龯]{2,6})\s*(.+)$/);
+    if(reversed && isMajorCourse(reversed[2])) return reversed[1];
+    for(const keyword of MAJOR_COURSE_KEYWORDS){
+      const wrapped = text.match(new RegExp(`${keyword}[课]?\\s*[\\(（]([一-龯]{2,6})[\\)）]`,'i'));
+      if(wrapped) return wrapped[1];
     }
-    // 称谓
-    let m4 = text.match(/([一-龯]{2,6})(老师|教授|讲师|导师)/); if(m4){ return m4[1]; }
-    return null;
+    const titled = text.match(/([一-龯]{2,6})(老师|教授|讲师|导师)/);
+    return titled ? titled[1] : null;
   }
 
-  // 逐行优先（中文行优先）
-  const chineseLineFirst = [...lines].sort((a,b)=>(/[一-龯]/.test(b)?1:0)-(/[一-龯]/.test(a)?1:0));
-  for(const line of chineseLineFirst){
-    const r = attempt(line);
-    if(r) return r;
+  const chineseFirst = [...lines].sort((left,right)=>(/[一-龯]/.test(right)?1:0)-(/[一-龯]/.test(left)?1:0));
+  for(const line of chineseFirst){
+    const teacher = attempt(line);
+    if(teacher) return teacher;
   }
-
-  // 退回：把全部行合并再试一次
-  const merged = lines.join(' ');
-  const r2 = attempt(merged);
-  if(r2) return r2;
-  return null;
+  return attempt(lines.join(' '));
 }
 
 // 提取课程类型
@@ -2859,20 +2843,21 @@ function populateStudentSelect(){
 
 function setCurrentStudent(index){
   if(state.editor.active && state.currentIndex !== index){
-    if(!stopStudentEditor(false)) return;
+    if(!stopStudentEditor(false)) return false;
   }
   if(index<0 || index>=state.students.length){
     state.currentIndex=-1;
     document.getElementById('currentStudent').style.display='none';
     renderTable();
     updateStudentEditorToolbar();
-    return;
+    return true;
   }
   state.currentIndex=index;
   document.getElementById('studentSelect').value=index;
   document.getElementById('currentStudent').style.display='block';
   renderTable();
   updateStudentEditorToolbar();
+  return true;
 }
 
 function updateStudentInfoPanel(){
@@ -4272,12 +4257,11 @@ function bootstrapScheduleTool(){
   syncExportScopeControls();
   if(state.students.length>0) setCurrentStudent(0);
   scheduleToolBooted = true;
-  state.remoteReady = loadRemoteStudents()
-    .catch(error=>{
-      console.error('课表工具云端初始化失败:',error);
-      notify(`云端数据读取失败：${error?.message || '请稍后重试'}`,'warning',5000);
-      return false;
-    })
+  state.remoteReady = loadRemoteStudents().catch(error=>{
+    console.error('课表工具云端初始化失败:',error);
+    notify(`云端数据读取失败：${error?.message || '请稍后重试'}`,'warning',5000);
+    return false;
+  })
     .finally(()=>{
       state.remoteLoaded = true;
       updateScheduleEmptyState();
@@ -4682,6 +4666,8 @@ async function loadRemoteStudents(options={}){
   state.directory = remoteDirectory;
   state.directoryLoaded = true;
   const remoteStudents = remoteDirectory.filter(student=>student.archived !== true);
+  const archivedStudentCount = remoteDirectory.length - remoteStudents.length;
+  const studentCountText = `共 ${remoteDirectory.length} 名 · 在读 ${remoteStudents.length} · 已归档 ${archivedStudentCount}`;
   if(remoteStudents.length === 0){
     state.students = [];
     state.currentIndex = -1;
@@ -4690,7 +4676,7 @@ async function loadRemoteStudents(options={}){
     populateStudentSelect();
     renderTable();
     if(typeof renderStudentLibrary === 'function') renderStudentLibrary();
-    if(status) status.textContent = '✅ 学生库当前为空';
+    if(status) status.textContent = `✅ 学生库 ${studentCountText}`;
     return true;
   }
   const normalizedPrefixCount = scheduleRows.filter(row=>{
@@ -4710,7 +4696,7 @@ async function loadRemoteStudents(options={}){
   const loadNotes = [];
   if(normalizedPrefixCount) loadNotes.push(`已合并${normalizedPrefixCount}条带专业前缀的旧课表姓名`);
   if(ignoredScheduleCount) loadNotes.push(`已按学生库基准忽略${ignoredScheduleCount}名课表外学生`);
-  if(status) status.textContent = `✅ 已读取 ${remoteStudents.length} 名云端学生${loadNotes.length ? `（${loadNotes.join('；')}）` : ''}`;
+  if(status) status.textContent = `✅ 学生库 ${studentCountText}${loadNotes.length ? `（${loadNotes.join('；')}）` : ''}`;
   if(ignoredScheduleCount){
     notify(`学生库是唯一基准，已隐藏 ${ignoredScheduleCount} 名课表外残留学生；如需恢复请先在学生库创建`, 'warning', 6500);
   }
@@ -5534,6 +5520,12 @@ function renderStudentLibrary(){
   renderStudentLibraryPreview(selectedStudent || null);
 }
 
+function studentLibraryCountStatus(){
+  const total = (state.directory || []).length;
+  const active = (state.directory || []).filter(student=>!student.archived).length;
+  return `共 ${total} 名 · 在读 ${active} · 已归档 ${total - active}`;
+}
+
 function studentLibraryFind(name){
   const target = normalizeStudentIdentity(name).name || String(name || '').trim();
   return (state.directory || []).find(student=>studentLibraryProfileName(student) === target) || null;
@@ -5652,7 +5644,7 @@ function openStudentLibraryProfileDialog(student=null){
       const loaded = await loadRemoteStudents({preferredName:nextName});
       if(!loaded) throw new Error('资料已提交，但刷新学生库失败，请点击刷新重试');
       const status = document.getElementById('studentLibraryCloudStatus');
-      if(status) status.textContent = '✅ 学生资料已同步';
+      if(status) status.textContent = `✅ 学生资料已同步 · ${studentLibraryCountStatus()}`;
       renderStudentLibrary();
     }catch(error){
       submit.disabled = false;
@@ -5810,7 +5802,13 @@ async function handleStudentLibraryAction(action, name){
   }
 }
 
+function prepareScheduleWorkspaceChange(tab){
+  if(tab === 'schedule' || !state.editor.active) return true;
+  return stopStudentEditor(false);
+}
+
 async function setScheduleWorkspaceTab(tab){
+  if(!prepareScheduleWorkspaceChange(tab)) return false;
   const scheduleView = document.getElementById('scheduleWorkspaceContent');
   const libraryView = document.getElementById('studentLibraryWorkspace');
   const scheduleTab = document.getElementById('workspaceTabSchedule');
@@ -5820,14 +5818,19 @@ async function setScheduleWorkspaceTab(tab){
   if(libraryView) libraryView.hidden = !showLibrary;
   if(scheduleTab){ scheduleTab.classList.toggle('is-active',!showLibrary); scheduleTab.setAttribute('aria-selected',String(!showLibrary)); }
   if(libraryTab){ libraryTab.classList.toggle('is-active',showLibrary); libraryTab.setAttribute('aria-selected',String(showLibrary)); }
-  if(!showLibrary) return;
-  renderStudentLibrary();
+  if(showLibrary) renderStudentLibrary();
+  if(!showLibrary) return true;
   if(!state.remoteLoaded && state.remoteReady){
     const status = document.getElementById('studentLibraryCloudStatus');
     if(status) status.textContent = '☁ 正在读取学生库…';
     try{ await state.remoteReady; }catch(_){ }
     if(showLibrary) renderStudentLibrary();
   }
+  if(showLibrary && state.directoryLoaded){
+    const status = document.getElementById('studentLibraryCloudStatus');
+    if(status) status.textContent = `✅ 学生库 ${studentLibraryCountStatus()}`;
+  }
+  return true;
 }
 
 function initStudentLibraryWorkspace(){
@@ -5892,7 +5895,7 @@ function initStudentLibraryWorkspace(){
     if(statusEl) statusEl.textContent = '☁ 正在刷新学生库…';
     try{
       await loadRemoteStudents({preferredName:studentLibraryUi.selectedName});
-      if(statusEl) statusEl.textContent = '✅ 学生库已刷新';
+      if(statusEl) statusEl.textContent = `✅ 学生库已刷新 · ${studentLibraryCountStatus()}`;
     }catch(error){
       if(statusEl) statusEl.textContent = `刷新失败：${error?.message || error}`;
     }finally{ button.disabled = false; }
