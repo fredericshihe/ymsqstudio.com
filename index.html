@@ -1,9 +1,43 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="auth-pending">
 <head>
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width,initial-scale=1.0" />
 	<title>青岛耶胡迪梅纽因学校 琴房管理系统 · 全新</title>
+	<style id="auth-first-paint">
+		html.auth-pending,
+		html.auth-pending body{min-height:100%;overflow:hidden;background:#0a0f14;}
+		html.auth-pending body > :not(#authOverlay):not(#passwordModalBackdrop):not(script):not(style){visibility:hidden !important;pointer-events:none !important;}
+		#authOverlay{display:flex;color:#d8e1e9;opacity:1;transition:opacity .22s ease;}
+		#authOverlay.auth-leaving{opacity:0;pointer-events:none;}
+		#authOverlay .login-shell{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;}
+		#authOverlay .login-panel{width:360px;max-width:92vw;padding:42px 40px 38px;background:linear-gradient(145deg,rgba(34,44,56,0.85),rgba(20,26,34,0.9));border:1px solid rgba(255,255,255,0.06);border-radius:22px;box-shadow:0 8px 42px -12px rgba(0,0,0,0.55),0 18px 80px -30px rgba(0,0,0,0.6);backdrop-filter:blur(10px);}
+		#authOverlay .brand-line{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;margin-bottom:28px;text-align:center;}
+		#authOverlay .logo-mark{width:54px;height:54px;border-radius:16px;background:linear-gradient(135deg,#2d72c4,#38518a 60%,#1c2d44);display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 4px 18px -6px rgba(45,114,196,.55),0 2px 6px -2px rgba(0,0,0,.55);margin:0 auto;}
+		#authOverlay .brand-text{text-align:center;}
+		#authOverlay .brand-text h1{margin:0;font-size:22px;font-weight:600;letter-spacing:.5px;background:linear-gradient(90deg,#c5d9f2,#ffffff);background-clip:text;-webkit-background-clip:text;color:transparent;}
+		#authOverlay .brand-text .sub{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#7f8c98;display:inline-block;margin-top:4px;}
+		#authOverlay form{display:flex;flex-direction:column;gap:20px;}
+		#authOverlay .field{display:flex;flex-direction:column;gap:8px;}
+		#authOverlay .field .label{font-size:13px;letter-spacing:.5px;color:#9fb1c0;font-weight:500;}
+		#authOverlay .field,#authOverlay .field .label,#authOverlay .login-msg{text-align:center;}
+		#authOverlay input{background:#12181f;border:1px solid #2a3945;border-radius:14px;padding:14px 16px;font-size:15px;color:#e6edf3;outline:none;transition:.25s;font-family:inherit;}
+		#authOverlay input:focus{border-color:#3d7bdc;box-shadow:0 0 0 1px #3d7bdc40,0 4px 18px -6px rgba(61,123,220,.35);}
+		#authOverlay input::placeholder{color:#5b6a75;}
+		#authOverlay .login-btn{background:linear-gradient(90deg,#2d72c4,#3f85e1);border:1px solid #3778d6;border-radius:14px;padding:14px 0;font-size:15px;font-weight:600;color:#fff;cursor:pointer;transition:.28s;box-shadow:0 6px 20px -8px rgba(47,118,195,.55);display:flex;align-items:center;justify-content:center;letter-spacing:.5px;}
+		#authOverlay .login-btn:hover{filter:brightness(1.07);transform:translateY(-2px);box-shadow:0 10px 26px -10px rgba(47,118,195,.65);}
+		#authOverlay .login-btn:active{transform:translateY(0);}
+		#authOverlay .login-btn:disabled{opacity:.55;cursor:not-allowed;}
+		#authOverlay .login-secondary-btn{align-self:center;margin-top:-9px;padding:5px 12px;border:0;border-radius:999px;background:transparent;color:#8293a3;font-size:12px;font-weight:500;line-height:1.4;letter-spacing:.2px;cursor:pointer;transition:color .2s ease,background .2s ease,transform .2s ease;}
+		#authOverlay .login-secondary-btn:hover{color:#d7e5f2;background:rgba(255,255,255,.07);transform:translateY(-1px);}
+		#authOverlay .login-secondary-btn:focus-visible{outline:2px solid rgba(101,161,235,.8);outline-offset:3px;}
+		#authOverlay .login-msg{min-height:18px;font-size:13px;color:#ff7a7a;font-weight:500;}
+		#authOverlay .hint{margin-top:-6px;font-size:11px;letter-spacing:.5px;color:#667582;text-align:center;}
+		#authOverlay .login-footer{margin-top:40px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#46515a;}
+		@media (max-width:520px){#authOverlay .login-panel{padding:34px 30px 30px;width:330px;border-radius:20px;}#authOverlay .logo-mark{width:50px;height:50px;font-size:24px;}#authOverlay .brand-text h1{font-size:20px;}}
+		@media (prefers-reduced-motion:reduce){#authOverlay{transition:none;}}
+	</style>
+	<script>window.__pianoRoomAuthenticated=false;</script>
 	<script src="./js/modules/schedule-classification.js"></script>
 	<script src="./libs/supabase.min.js"></script>
 	<style>
@@ -5532,7 +5566,8 @@
 	/*************************************************
 	 * Supabase 适配器
 	 *************************************************/
-	async function initSupabase(){
+	async function initSupabase(options={}){
+		const skipConnectionTest = options.skipConnectionTest === true;
 		updateSyncStatus('connecting', '连接中...');
 		let retryCount = 0;
 		const maxRetries = 3;
@@ -5589,24 +5624,26 @@
 				}
 				
 				// 🔧 优化：使用更轻量的连接测试，增加超时控制
-				logInfo('测试 Supabase 连接...');
-				updateSyncStatus('connecting', '测试连接...');
-				
-				// 创建一个带超时的连接测试（5秒超时）
-				const testConnection = async () => {
-					const { data, error } = await supabaseClient.from('rooms').select('name').limit(1).single();
-					if (error && error.code !== 'PGRST116') { // PGRST116 是 "没有行" 错误，可以接受
-						throw error;
-					}
-					return true;
-				};
-				
-				const timeoutPromise = new Promise((_, reject) => 
-					setTimeout(() => reject(new Error('连接测试超时')), 5000)
-				);
-				
-				await Promise.race([testConnection(), timeoutPromise]);
-				logInfo('Supabase 连接测试成功');
+				if(!skipConnectionTest){
+					logInfo('测试 Supabase 连接...');
+					updateSyncStatus('connecting', '测试连接...');
+
+					// 创建一个带超时的连接测试（5秒超时）
+					const testConnection = async () => {
+						const { data, error } = await supabaseClient.from('rooms').select('name').limit(1).single();
+						if (error && error.code !== 'PGRST116') { // PGRST116 是 "没有行" 错误，可以接受
+							throw error;
+						}
+						return true;
+					};
+
+					const timeoutPromise = new Promise((_, reject) =>
+						setTimeout(() => reject(new Error('连接测试超时')), 5000)
+					);
+
+					await Promise.race([testConnection(), timeoutPromise]);
+					logInfo('Supabase 连接测试成功');
+				}
 				
 				supabaseReady = true; 
 				logInfo('✅ Supabase 初始化完成（会话已持久化）');
@@ -18486,11 +18523,35 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 	// 直接调用 bootstrap 改为受登录控制
 	// bootstrap();
 	let appBooted = false;
-	function showLogin(){ const overlay=document.getElementById('authOverlay'); if(overlay) overlay.style.display='flex'; }
-	function hideLogin(){ const overlay=document.getElementById('authOverlay'); if(overlay) overlay.style.display='none'; }
+	let authHideTimer = null;
+	function showLogin(){
+		window.__pianoRoomAuthenticated=false;
+		document.documentElement.classList.add('auth-pending');
+		document.documentElement.classList.remove('auth-granted');
+		const overlay=document.getElementById('authOverlay');
+		if(overlay){
+			if(authHideTimer){ clearTimeout(authHideTimer); authHideTimer=null; }
+			overlay.classList.remove('auth-leaving');
+			overlay.style.display='flex';
+		}
+	}
+	function hideLogin(){
+		const overlay=document.getElementById('authOverlay');
+		document.documentElement.classList.remove('auth-pending');
+		document.documentElement.classList.add('auth-granted');
+		if(!overlay) return;
+		overlay.classList.add('auth-leaving');
+		authHideTimer=setTimeout(()=>{
+			authHideTimer=null;
+			if(window.__pianoRoomAuthenticated){
+				overlay.style.display='none';
+				overlay.classList.remove('auth-leaving');
+			}
+		},230);
+	}
 	async function ensureAuthBackend(){
 		if(supabaseClient) return true;
-		try{ await initSupabase(); }catch(_e){ }
+		try{ await initSupabase({skipConnectionTest:true}); }catch(_e){ }
 		return !!supabaseClient;
 	}
 	// 已移除登出按钮逻辑
@@ -18513,7 +18574,11 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			if(!await ensureAuthBackend()) throw new Error('后端连接失败');
 			const ok = await verifyPassword(pwd);
 			if(ok){
-				hideLogin(); if(!appBooted){ appBooted=true; bootstrap(); }
+				msg.textContent='登录成功，正在加载系统…';
+				if(!appBooted){ await bootstrap(); appBooted=true; }
+				window.__pianoRoomAuthenticated=true;
+				window.dispatchEvent(new CustomEvent('piano-room-authenticated'));
+				hideLogin();
 				msg.textContent='';
 			}else{
 				msg.textContent='密码错误';
@@ -18525,7 +18590,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		}
 	}
 	// logout 入口移除，仍保留函数以防外部引用
-	function logout(){ appBooted=false; showLogin(); }
+	function logout(){ appBooted=false; window.__pianoRoomAuthenticated=false; showLogin(); }
 	async function verifyPassword(pwd){
 		if(!pwd || !supabaseClient) return false;
 		const { data, error } = await supabaseClient.rpc('verify_piano_room_password', { p_password: pwd });
@@ -18560,9 +18625,8 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		if(modal) modal.style.display='none';
 		const msg=document.getElementById('passwordChangeMsg'); if(msg) msg.textContent='';
 	}
-	// 延迟到下一个事件循环，确保 DOM 已有遮罩
-	setTimeout(tryAuto,0);
 	document.addEventListener('DOMContentLoaded', ()=>{
+		tryAuto();
 		try{ restoreSilenced(); }catch(_e){}
 		const f=document.getElementById('loginForm');
 		if(f && !f.dataset.bound){ f.dataset.bound='1'; f.addEventListener('submit', handleLogin); }
@@ -18577,7 +18641,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 	</script>
 
 	<!-- 登录遮罩 -->
-	<div id="authOverlay" style="display:none;position:fixed;inset:0;z-index:9999;font-family:inherit;background:radial-gradient(circle at 30% 35%,#1d2530 0%,#0a0f14 70%);backdrop-filter:blur(14px);">
+	<div id="authOverlay" style="display:flex;position:fixed;inset:0;z-index:9999;font-family:inherit;background:radial-gradient(circle at 30% 35%,#1d2530 0%,#0a0f14 70%);backdrop-filter:blur(14px);">
 		<div class="login-shell">
 			<div class="login-panel">
 				<div class="brand-line">
@@ -20044,7 +20108,8 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	}
 
 	function bindGlobalButtons(){ if(!document.getElementById('openStudentLibraryBtn')){ const topBar=document.querySelector('header .top-actions')||document.querySelector('header'); if(topBar){ const btn=document.createElement('button'); btn.id='openStudentLibraryBtn'; btn.textContent='学生库'; btn.style.cssText='margin-left:8px;padding:6px 14px;background:#1e3a8a;color:#fff;border:1px solid #1e40af;border-radius:6px;cursor:pointer;font-size:13px;'; btn.onclick=openPanel; topBar.appendChild(btn);} } }
-	document.addEventListener('DOMContentLoaded', async () => {
+	document.addEventListener('DOMContentLoaded', () => {
+		const initializeAfterAuthentication = async () => {
 		// 先加载本地数据与待同步队列，保证未上行成功的本地录入不被云端覆盖
 		load();
 		loadPending();
@@ -20334,6 +20399,9 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 				refreshUI();
 			}
 		}, 1200);
+		};
+		if(window.__pianoRoomAuthenticated) initializeAfterAuthentication();
+		else window.addEventListener('piano-room-authenticated', initializeAfterAuthentication, {once:true});
 	});
 	// 手动同步学生数据功能
 	window.manualSyncStudentData = async function() {
@@ -21333,12 +21401,9 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 
 	document.addEventListener('DOMContentLoaded',()=>{
 		bindUI(); restoreCachedSummary(); renderScope(); renderSummary();
-		if(window.supabaseClient) setTimeout(initAlerts,800);
-		else{
-			const wait=setInterval(()=>{
-				if(window.supabaseClient){ clearInterval(wait); initAlerts(); }
-			},1500);
-		}
+		const initializeAfterAuthentication=()=>setTimeout(initAlerts,800);
+		if(window.__pianoRoomAuthenticated) initializeAfterAuthentication();
+		else window.addEventListener('piano-room-authenticated',initializeAfterAuthentication,{once:true});
 	});
 })();
 </script>
@@ -22595,7 +22660,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			// 强制验证标记存在时
 			sessionStorage.getItem('force_consistency_check');
 		
-		if (shouldValidate && window.supabaseReady && window.DataConsistencyValidator) {
+		if (shouldValidate && window.__pianoRoomAuthenticated && window.supabaseReady && window.DataConsistencyValidator) {
 			try {
 				logInfo('[INIT] 执行页面加载完成后的数据一致性检查');
 				const validation = await window.DataConsistencyValidator.validateOnPageLoad();
