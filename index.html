@@ -246,6 +246,19 @@
 		#studentLibraryPanel .slw-search-box input::placeholder{ color:var(--slw-text-faint); }
 		#studentLibraryPanel .slw-search-box input:focus{ outline:none; border-color:var(--accent); box-shadow:var(--slw-focus); }
 		#studentLibraryPanel .slw-search-box svg{ position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--slw-text-faint); pointer-events:none; }
+		#studentLibraryPanel .slw-search-suggestions{ position:absolute; top:calc(100% + 6px); left:0; width:min(420px,calc(100vw - 52px)); max-height:360px; overflow:auto; padding:6px; border:1px solid var(--outline-hover); border-radius:10px; background:var(--slw-surface-raised); box-shadow:0 16px 38px -10px rgba(0,0,0,.68); z-index:80; overscroll-behavior:contain; }
+		#studentLibraryPanel .slw-search-suggestions[hidden]{ display:none; }
+		#studentLibraryPanel .slw-search-suggestion{ width:100%; min-height:48px; display:flex; align-items:center; justify-content:space-between; gap:14px; padding:8px 10px; border:0; border-radius:7px; background:transparent; color:var(--text); text-align:left; font-family:inherit; }
+		#studentLibraryPanel .slw-search-suggestion:hover,
+		#studentLibraryPanel .slw-search-suggestion.slw-keyboard-active{ background:var(--slw-accent-soft); color:#fff; }
+		#studentLibraryPanel .slw-search-suggestion-main{ min-width:0; display:flex; flex-direction:column; gap:3px; }
+		#studentLibraryPanel .slw-search-suggestion-name{ font-size:13px; font-weight:700; }
+		#studentLibraryPanel .slw-search-suggestion-meta{ overflow:hidden; color:var(--text-dim); font-size:11.5px; line-height:1.35; text-overflow:ellipsis; white-space:nowrap; }
+		#studentLibraryPanel .slw-search-suggestion-status{ flex:0 0 auto; padding:2px 7px; border-radius:999px; background:var(--slw-ok-soft); color:#9fe4b6; font-size:10.5px; font-weight:650; }
+		#studentLibraryPanel .slw-search-suggestion-status.is-archived{ border:1px solid var(--outline); background:var(--surface-alt); color:var(--slw-text-faint); }
+		#studentLibraryPanel .slw-search-more{ padding:6px 10px 4px; color:var(--slw-text-faint); font-size:11px; }
+		#studentLibraryPanel tbody tr.slw-search-focus{ animation:slwSearchFocus 1.4s ease-out; }
+		@keyframes slwSearchFocus{ 0%,55%{ background:rgba(76,141,255,.27); box-shadow:inset 3px 0 0 var(--accent); } 100%{ background:transparent; box-shadow:none; } }
 
 		#studentLibraryPanel .slw-dd{ position:relative; }
 		#studentLibraryPanel .slw-dd-btn{ display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border-radius:8px; border:1px solid var(--outline); background:var(--surface-alt); color:var(--text-dim); font-size:13px; font-weight:500; cursor:pointer; font-family:inherit; }
@@ -1019,6 +1032,34 @@
 	.sched-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#64748b;font-size:13px;background:#0f172a;}
 	.sched-empty .se-icon{font-size:32px;margin-bottom:10px;}
 	.sched-raw{font-family:monospace;font-size:11px;color:#94a3b8;white-space:pre-wrap;word-break:break-all;padding:14px 18px;max-height:280px;overflow:auto;background:#1e293b;margin:14px 20px;border-radius:8px;border:1px solid #334155;}
+	.sched-mobile-view{display:none;}
+	@media (max-width:700px){
+		#scheduleModalBackdrop{padding:0;align-items:stretch;}
+		#scheduleModalBackdrop .modal{width:100vw;max-width:none;height:100dvh;max-height:none;border:0;border-radius:0;}
+		#scheduleModalBackdrop .modal-header{padding:10px 14px;}
+		#scheduleModalBackdrop .sched-info-bar{gap:7px;padding:8px 12px;flex-wrap:wrap;}
+		#scheduleModalBackdrop .sched-info-bar .s-updated{order:4;width:100%;margin-left:0;font-size:10px;}
+		#scheduleModalBackdrop .sched-edit-tools{margin-left:auto;gap:5px;}
+		#scheduleModalBackdrop .sched-edit-tools button{padding:5px 7px;}
+		#scheduleModalBackdrop .sched-edit-status{width:100%;order:5;}
+		#scheduleModalBackdrop .sched-wrap{padding:0;overflow:hidden auto;}
+		#scheduleModalBackdrop .sched-wrap:not(.is-edit-mode)>table.sched-table{display:none;}
+		#scheduleModalBackdrop .sched-wrap:not(.is-edit-mode)>.sched-mobile-view{display:flex;min-height:100%;flex-direction:column;}
+		#scheduleModalBackdrop .sched-wrap.is-edit-mode{padding:8px;overflow:auto;}
+		#scheduleModalBackdrop .sched-mobile-tabs{position:sticky;top:0;z-index:20;display:grid;grid-template-columns:repeat(var(--sched-day-count),minmax(42px,1fr));gap:5px;padding:8px 8px 7px;border-bottom:1px solid #334155;background:rgba(15,23,42,.96);backdrop-filter:blur(8px);}
+		#scheduleModalBackdrop .sched-mobile-tab{min-width:0;min-height:34px;justify-content:center;padding:6px 3px;border-color:#334155;border-radius:8px;background:#172131;color:#8fa1b7;font-size:11.5px;font-weight:650;}
+		#scheduleModalBackdrop .sched-mobile-tab[aria-selected="true"]{border-color:#4f7fbd;background:#263a5d;color:#e8f1ff;box-shadow:0 0 0 1px rgba(96,165,250,.16);}
+		#scheduleModalBackdrop .sched-mobile-days{padding:8px;}
+		#scheduleModalBackdrop .sched-mobile-day[hidden]{display:none;}
+		#scheduleModalBackdrop .sched-mobile-list{display:flex;flex-direction:column;gap:6px;}
+		#scheduleModalBackdrop .sched-mobile-slot{display:grid;grid-template-columns:82px minmax(0,1fr);align-items:stretch;min-height:43px;overflow:hidden;border:1px solid #334155;border-left:4px solid var(--sched-fill,#475569);border-radius:9px;background:#1a2635;color:#d8e4f3;}
+		#scheduleModalBackdrop .sched-mobile-slot-time{display:flex;align-items:center;justify-content:center;padding:7px 6px;border-right:1px solid #334155;background:#152131;color:#9db0c8;font-size:10.5px;font-weight:650;white-space:nowrap;}
+		#scheduleModalBackdrop .sched-mobile-slot-content{display:flex;align-items:center;justify-content:center;min-width:0;padding:7px 10px;color:#e5edf7;font-size:12px;font-weight:650;line-height:1.35;text-align:center;white-space:pre-wrap;word-break:break-word;}
+		#scheduleModalBackdrop .sched-mobile-empty{display:grid;min-height:220px;place-items:center;color:#64748b;font-size:13px;text-align:center;}
+		#scheduleModalBackdrop .sched-mobile-slot.sc-current{z-index:1;}
+		#scheduleModalBackdrop .sched-legend{flex-wrap:nowrap;gap:12px;padding:7px 12px;overflow-x:auto;white-space:nowrap;}
+		#scheduleModalBackdrop .sl-item{flex:0 0 auto;}
+	}
 	/* ==== 类型分隔线 ==== */
 		.room-type-separator{grid-column:1/-1;display:flex;align-items:center;gap:14px;margin:14px 2px 6px;position:relative;}
 		.room-type-separator .line{flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--outline),transparent);}
@@ -1293,7 +1334,8 @@
 			<div class="slw-toolbar">
 				<div class="slw-search-box">
 					<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.3-4.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-					<input type="text" id="slwSearchInput" placeholder="搜索姓名 / 拼音首字母" />
+					<input type="text" id="slwSearchInput" placeholder="搜索姓名 / 拼音首字母，如 pmq" role="combobox" aria-autocomplete="list" aria-controls="slwSearchSuggestions" aria-expanded="false" autocomplete="off" />
+					<div id="slwSearchSuggestions" class="slw-search-suggestions" role="listbox" hidden></div>
 				</div>
 				<div class="slw-dd" id="slwGradeDd">
 					<button class="slw-dd-btn" id="slwGradeDdBtn">年级 <span class="slw-car">▾</span></button>
@@ -5356,6 +5398,8 @@
 		
 		return false;
 	}
+	window.matchPinyin = matchPinyin;
+	window.getPinyinIndex = getPinyinIndex;
 
 	// 学生库智能轮询（增量同步 + 兜底机制）
 	// 注意：从搜索函数中抽离，避免“输入搜索”触发副作用
@@ -17445,6 +17489,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		let scheduleHighlightTimer = null;
 		let editorDragKey = '';
 		let editorDropTarget = null;
+		let mobileScheduleDay = null;
 
 		const removeCellEditor = () => {
 			if(activeCellEditor){ activeCellEditor.remove(); activeCellEditor = null; }
@@ -17455,14 +17500,52 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			editorDragKey = '';
 			editorDropTarget = null;
 		};
+		const activateMobileScheduleDay = (wrap, dayValue) => {
+			const day = Number(dayValue);
+			const targetButton = [...wrap.querySelectorAll('[data-sched-mobile-tab]')].find(button=>Number(button.dataset.schedMobileTab) === day);
+			if(!targetButton) return;
+			mobileScheduleDay = day;
+			wrap.querySelectorAll('[data-sched-mobile-tab]').forEach(button=>{
+				button.setAttribute('aria-selected', button === targetButton ? 'true' : 'false');
+			});
+			wrap.querySelectorAll('[data-sched-mobile-day]').forEach(panel=>{
+				panel.hidden = Number(panel.dataset.schedMobileDay) !== day;
+			});
+		};
+		const bindMobileScheduleTabs = wrap => {
+			const selected = wrap.querySelector('[data-sched-mobile-tab][aria-selected="true"]')
+				|| wrap.querySelector('[data-sched-mobile-tab]');
+			if(selected) activateMobileScheduleDay(wrap, selected.dataset.schedMobileTab);
+			wrap.onclick = event => {
+				const button = event.target instanceof Element ? event.target.closest('[data-sched-mobile-tab]') : null;
+				if(button) activateMobileScheduleDay(wrap, button.dataset.schedMobileTab);
+			};
+		};
+		const renderScheduleGrid = (cells, renderOptions = {}) => {
+			const wrap = document.getElementById('schedWrap');
+			if(!wrap) return null;
+			const editable = renderOptions.editable === true;
+			wrap.classList.toggle('is-edit-mode', editable);
+			wrap.onclick = null;
+			wrap.ondblclick = null;
+			wrap.ondragstart = null;
+			wrap.ondragover = null;
+			wrap.ondragleave = null;
+			wrap.ondrop = null;
+			wrap.ondragend = null;
+			wrap.innerHTML = buildSchedTable(cells, {...renderOptions, mobileDay:mobileScheduleDay});
+			if(!editable) bindMobileScheduleTabs(wrap);
+			return wrap;
+		};
 		const refreshCurrentScheduleHighlight = () => {
 			if(closed) return;
 			const wrap = backdrop.querySelector('#schedWrap');
 			if(!wrap) return;
 			const now = new Date();
-			wrap.querySelectorAll('td[data-schedule-time][data-schedule-day]').forEach(td=>{
-				const active = isCurrentSlot(td.dataset.scheduleTime, Number(td.dataset.scheduleDay), now);
-				td.classList.toggle('sc-current', active);
+			wrap.querySelectorAll('[data-schedule-time][data-schedule-day]').forEach(cell=>{
+				const kind = cell.dataset.scheduleKind || '';
+				const active = !!kind && kind !== 'rest' && isCurrentSlot(cell.dataset.scheduleTime, Number(cell.dataset.scheduleDay), now);
+				cell.classList.toggle('sc-current', active);
 			});
 		};
 		const onScheduleVisibilityChange = () => {
@@ -17662,9 +17745,9 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			wrap.ondragend = clearEditorDragState;
 		};
 		const renderEditorGrid = () => {
-			const wrap = document.getElementById('schedWrap');
-			if(!wrap || !editorModel) return;
-			wrap.innerHTML = buildSchedTable(materializeScheduleEditorCells(editorModel), {editable:true});
+			if(!editorModel) return;
+			const wrap = renderScheduleGrid(materializeScheduleEditorCells(editorModel), {editable:true});
+			if(!wrap) return;
 			bindEditorGrid();
 			updateEditorToolbar();
 		};
@@ -17687,7 +17770,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			editorModel = null;
 			editorHistory = [];
 			editorHistoryIndex = -1;
-			if(scheduleRow){ const wrap=document.getElementById('schedWrap'); if(wrap) wrap.innerHTML=buildSchedTable(scheduleRow.cells); }
+			if(scheduleRow) renderScheduleGrid(scheduleRow.cells);
 			updateEditorToolbar();
 		};
 		const undoEditor = () => {
@@ -17810,7 +17893,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 					wrap.classList.add('is-schedule-refreshing');
 					requestAnimationFrame(()=>{
 						if(!wrap.isConnected) return;
-						wrap.innerHTML = buildSchedTable(scheduleRow.cells);
+						renderScheduleGrid(scheduleRow.cells);
 						requestAnimationFrame(()=>wrap.classList.remove('is-schedule-refreshing'));
 					});
 					updateEditorToolbar();
@@ -17834,7 +17917,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 					</div>
 					<div class="sched-wrap" id="schedWrap"></div>
 					<div class="sched-legend">${buildScheduleLegend()}</div>`;
-				document.getElementById('schedWrap').innerHTML = buildSchedTable(scheduleRow.cells);
+				renderScheduleGrid(scheduleRow.cells);
 				body.querySelector('#scheduleEditBtn').onclick = enterEditor;
 				body.querySelector('#scheduleUndoBtn').onclick = undoEditor;
 				body.querySelector('#scheduleRedoBtn').onclick = redoEditor;
@@ -17919,6 +18002,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		});
 		const rowsByTime = new Map();
 		const usedDays  = new Set();
+		const daysWithContent = new Set();
 		Object.entries(layout.cells).forEach(([placement, cell]) => {
 			const separator = placement.lastIndexOf('|');
 			const timeLabel = placement.slice(0, separator);
@@ -17928,6 +18012,7 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 			const existing = row.get(di);
 			if (!existing || (!existing.cell?.text && cell?.text)) row.set(di, {cell, key:placement});
 			usedDays.add(di);
+			if(SCHED_CLASSIFICATION.hasCellContent(cell)) daysWithContent.add(di);
 		});
 
 		const hasDynamicTimes = layout.axis.some(time => !SCHED_NORMAL_SLOTS.includes(time));
@@ -17965,8 +18050,10 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 					? ` data-editor-cell="1" data-editor-key="${escapeHtml(timeLabel + '|' + di)}" draggable="true"`
 					: '';
 				
-				// 判断是否为当前正在进行的课程
-				const isNow = isCurrentSlot(timeLabel, di);
+				const isNow = Boolean(cell)
+					&& SCHED_CLASSIFICATION.hasCellContent(cell)
+					&& SCHED_CLASSIFICATION.resolvedCellKind(cell) !== 'rest'
+					&& isCurrentSlot(timeLabel, di);
 				const currentClass = isNow ? ' sc-current' : '';
 
 				// 空格子：检查是否有默认兜底文本
@@ -17994,6 +18081,45 @@ window.invokeRoomTransfer = async function(fromRoom,toRoom,student){
 		});
 
 		html += '</tbody></table>';
+		if(!options.editable){
+			const requestedDay = Number(options.mobileDay);
+			const hasRequestedDay = options.mobileDay !== null
+				&& options.mobileDay !== undefined
+				&& Number.isInteger(requestedDay)
+				&& requestedDay >= 0
+				&& requestedDay < dayCount;
+			const today = (new Date().getDay() + 6) % 7;
+			const firstContentDay = [...daysWithContent].filter(day=>day < dayCount).sort((a,b)=>a-b)[0];
+			const selectedDay = hasRequestedDay
+				? requestedDay
+				: (today < dayCount && daysWithContent.has(today) ? today : (firstContentDay ?? 0));
+			html += `<section class="sched-mobile-view" style="--sched-day-count:${dayCount}">`;
+			html += '<div class="sched-mobile-tabs" role="tablist" aria-label="选择星期">';
+			dayNames.forEach((dayName, dayIndex)=>{
+				html += `<button type="button" class="sched-mobile-tab" role="tab" data-sched-mobile-tab="${dayIndex}" aria-selected="${dayIndex === selectedDay ? 'true' : 'false'}" aria-controls="schedMobileDay${dayIndex}">${dayName}</button>`;
+			});
+			html += '</div><div class="sched-mobile-days">';
+			dayNames.forEach((dayName, dayIndex)=>{
+				let dayHtml = '';
+				slots.forEach(timeLabel=>{
+					const row = rowsByTime.get(timeLabel) || new Map();
+					const entry = row.get(dayIndex);
+					const cell = entry?.cell;
+					const legacyIndex = SCHED_NORMAL_SLOTS.indexOf(timeLabel);
+					const fallback = hasDynamicTimes ? '' : SLOT_DEFAULT[legacyIndex];
+					const sourceCell = cell || (fallback ? {text:fallback,kind:'rest',rest:true} : null);
+					if(!sourceCell || !SCHED_CLASSIFICATION.hasCellContent(sourceCell)) return;
+					const visual = SCHED_CLASSIFICATION.visualForCell(sourceCell);
+					const text = String(sourceCell.text || '').trim();
+					const displayText = text || (visual.kind === 'practice' ? '练琴' : visual.kind === 'rest' ? '休息' : '');
+					if(!displayText) return;
+					const isNow = visual.kind !== 'rest' && isCurrentSlot(timeLabel, dayIndex);
+					dayHtml += `<div class="sched-mobile-slot sc-content sc-kind-${visual.kind}${isNow ? ' sc-current' : ''}" data-schedule-kind="${visual.kind}" data-schedule-time="${escapeHtml(timeLabel)}" data-schedule-day="${dayIndex}" style="--sched-fill:${visual.fill};--sched-text:${visual.text}"><span class="sched-mobile-slot-time">${escapeHtml(timeLabel)}</span><span class="sched-mobile-slot-content">${escapeHtml(displayText)}</span></div>`;
+				});
+				html += `<div id="schedMobileDay${dayIndex}" class="sched-mobile-day" role="tabpanel" data-sched-mobile-day="${dayIndex}" aria-label="${dayName}"${dayIndex === selectedDay ? '' : ' hidden'}>${dayHtml ? `<div class="sched-mobile-list">${dayHtml}</div>` : '<div class="sched-mobile-empty">当天暂无课程</div>'}</div>`;
+			});
+			html += '</div></section>';
+		}
 		return html;
 	}
 
@@ -19857,12 +19983,97 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	}
 	function closePanel(){
 		if(!panel || panel.style.display === 'none') return;
+		closeSearchSuggestions();
 		panel.style.display='none';
 		unlockBodyScroll();
 	}
 
 	// ===== 筛选/排序/多选状态 =====
 	const uiState = { search:'', grades:new Set(), majors:new Set(), statuses:new Set(), sortKey:'name', sortDir:1, selected:new Set() };
+	let searchSuggestionRows = [];
+	let searchSuggestionIndex = -1;
+
+	function studentMatchesSearch(student, searchTerm){
+		const keyword = String(searchTerm || '').trim().toLowerCase();
+		if(!keyword) return true;
+		const name = String(student?.name || '');
+		return name.toLowerCase().includes(keyword)
+			|| (typeof window.matchPinyin === 'function' && window.matchPinyin(name, keyword));
+	}
+
+	function searchMatchRank(student, searchTerm){
+		const keyword = String(searchTerm || '').trim().toLowerCase();
+		const name = String(student?.name || '');
+		const nameLower = name.toLowerCase();
+		const index = typeof window.getPinyinIndex === 'function' ? window.getPinyinIndex(name) : null;
+		if(nameLower === keyword) return 0;
+		if(index?.firstLettersStr === keyword) return 1;
+		if(nameLower.startsWith(keyword)) return 2;
+		if(index?.firstLettersStr?.startsWith(keyword)) return 3;
+		return 4;
+	}
+
+	function closeSearchSuggestions(){
+		const box = document.getElementById('slwSearchSuggestions');
+		const input = document.getElementById('slwSearchInput');
+		searchSuggestionRows = [];
+		searchSuggestionIndex = -1;
+		if(box){ box.hidden = true; box.innerHTML = ''; }
+		if(input){ input.setAttribute('aria-expanded','false'); input.removeAttribute('aria-activedescendant'); }
+	}
+
+	function updateSearchSuggestionFocus(){
+		const box = document.getElementById('slwSearchSuggestions');
+		const input = document.getElementById('slwSearchInput');
+		if(!box || box.hidden) return;
+		box.querySelectorAll('[data-slw-suggestion-index]').forEach((button, index)=>{
+			const active = index === searchSuggestionIndex;
+			button.classList.toggle('slw-keyboard-active', active);
+			button.setAttribute('aria-selected', active ? 'true' : 'false');
+			if(active){
+				input?.setAttribute('aria-activedescendant', button.id);
+				button.scrollIntoView({block:'nearest'});
+			}
+		});
+		if(searchSuggestionIndex < 0) input?.removeAttribute('aria-activedescendant');
+	}
+
+	function renderSearchSuggestions(){
+		const input = document.getElementById('slwSearchInput');
+		const box = document.getElementById('slwSearchSuggestions');
+		const keyword = String(input?.value || '').trim().toLowerCase();
+		if(!input || !box || !keyword){ closeSearchSuggestions(); return; }
+		const matches = getAll()
+			.filter(student=>studentMatchesSearch(student, keyword))
+			.sort((left,right)=>searchMatchRank(left, keyword)-searchMatchRank(right, keyword)
+				|| String(left.name).localeCompare(String(right.name),'zh-Hans-CN'));
+		searchSuggestionRows = matches.slice(0, 12);
+		searchSuggestionIndex = -1;
+		if(!searchSuggestionRows.length){ closeSearchSuggestions(); return; }
+		box.innerHTML = searchSuggestionRows.map((student,index)=>{
+			const meta = `${student.grade || '年级未填写'} · ${student.major || '专业未填写'}`;
+			return `<button type="button" id="slwSearchSuggestion${index}" class="slw-search-suggestion" role="option" aria-selected="false" data-slw-suggestion-index="${index}"><span class="slw-search-suggestion-main"><span class="slw-search-suggestion-name">${escapeHtml(student.name)}</span><span class="slw-search-suggestion-meta">${escapeHtml(meta)}</span></span><span class="slw-search-suggestion-status${student.archived ? ' is-archived' : ''}">${student.archived ? '已归档' : '在读'}</span></button>`;
+		}).join('') + (matches.length > searchSuggestionRows.length ? `<div class="slw-search-more">另有 ${matches.length-searchSuggestionRows.length} 名匹配学生，请继续输入缩小范围</div>` : '');
+		box.hidden = false;
+		input.setAttribute('aria-expanded','true');
+	}
+
+	function selectSearchSuggestion(index){
+		const student = searchSuggestionRows[index];
+		const input = document.getElementById('slwSearchInput');
+		if(!student || !input) return;
+		input.value = student.name;
+		uiState.search = student.name;
+		closeSearchSuggestions();
+		renderPanel();
+		requestAnimationFrame(()=>{
+			const row = [...document.querySelectorAll('#slwTbody tr[data-name]')].find(item=>item.dataset.name === student.name);
+			if(!row) return;
+			row.classList.add('slw-search-focus');
+			row.scrollIntoView({block:'center',behavior:'smooth'});
+			setTimeout(()=>row.classList.remove('slw-search-focus'), 1500);
+		});
+	}
 
 	function reconcileFiltersAfterDataChange(){
 		const gradeValues = new Set();
@@ -19895,7 +20106,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 	function filteredRows(){
 		const kw = uiState.search.trim().toLowerCase();
 		let rows = getAll().filter(s=>{
-			if(kw && !s.name.toLowerCase().includes(kw) && !(window.matchPinyin && matchPinyin(s.name, kw))) return false;
+			if(kw && !studentMatchesSearch(s, kw)) return false;
 			if(uiState.grades.size && !uiState.grades.has(s.grade||'(未填写)')) return false;
 			if(uiState.majors.size && !majorParts(s.major).some(p=>uiState.majors.has(p))) return false;
 			if(uiState.statuses.size){ const st = s.archived ? 'archived':'active'; if(!uiState.statuses.has(st)) return false; }
@@ -20165,8 +20376,52 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 		const searchInput = document.getElementById('slwSearchInput');
 		if(searchInput && !searchInput.dataset.bound){
 			searchInput.dataset.bound='1';
-			const debounce = (fn, wait=150) => { let t=null; return (...args)=>{ if(t) clearTimeout(t); t=setTimeout(()=>fn(...args), wait); }; };
-			searchInput.oninput = debounce(()=>{ uiState.search = searchInput.value; renderPanel(); }, 150);
+			let searchRenderTimer = null;
+			searchInput.addEventListener('input', ()=>{
+				uiState.search = searchInput.value;
+				renderSearchSuggestions();
+				if(searchRenderTimer) clearTimeout(searchRenderTimer);
+				searchRenderTimer = setTimeout(renderPanel, 120);
+			});
+			searchInput.addEventListener('focus', renderSearchSuggestions);
+			searchInput.addEventListener('keydown', event=>{
+				const box = document.getElementById('slwSearchSuggestions');
+				if(event.key === 'ArrowDown' || event.key === 'ArrowUp'){
+					event.preventDefault();
+					if(!box || box.hidden) renderSearchSuggestions();
+					if(!searchSuggestionRows.length) return;
+					const direction = event.key === 'ArrowDown' ? 1 : -1;
+					searchSuggestionIndex = searchSuggestionIndex < 0
+						? (direction > 0 ? 0 : searchSuggestionRows.length - 1)
+						: (searchSuggestionIndex + direction + searchSuggestionRows.length) % searchSuggestionRows.length;
+					updateSearchSuggestionFocus();
+				}else if(event.key === 'Enter' && searchSuggestionIndex >= 0){
+					event.preventDefault();
+					selectSearchSuggestion(searchSuggestionIndex);
+				}else if(event.key === 'Escape'){
+					closeSearchSuggestions();
+				}
+			});
+		}
+		const searchSuggestions = document.getElementById('slwSearchSuggestions');
+		if(searchSuggestions && !searchSuggestions.dataset.bound){
+			searchSuggestions.dataset.bound='1';
+			searchSuggestions.addEventListener('pointermove', event=>{
+				const button = event.target instanceof Element ? event.target.closest('[data-slw-suggestion-index]') : null;
+				if(!button) return;
+				searchSuggestionIndex = Number(button.dataset.slwSuggestionIndex);
+				updateSearchSuggestionFocus();
+			});
+			searchSuggestions.addEventListener('click', event=>{
+				const button = event.target instanceof Element ? event.target.closest('[data-slw-suggestion-index]') : null;
+				if(button) selectSearchSuggestion(Number(button.dataset.slwSuggestionIndex));
+			});
+		}
+		if(!document.body.dataset.slwSearchOutsideBound){
+			document.body.dataset.slwSearchOutsideBound='1';
+			document.addEventListener('click', event=>{
+				if(!(event.target instanceof Element) || !event.target.closest('#studentLibraryPanel .slw-search-box')) closeSearchSuggestions();
+			});
 		}
 
 		// 年级/专业/状态下拉
@@ -20201,6 +20456,7 @@ window.seedStudentLibraryFromRoomStore = function(opts){
 			clearFiltersBtn.onclick=()=>{
 				uiState.search=''; uiState.grades.clear(); uiState.majors.clear(); uiState.statuses.clear();
 				const si=document.getElementById('slwSearchInput'); if(si) si.value='';
+				closeSearchSuggestions();
 				renderPanel();
 			};
 		}
