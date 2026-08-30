@@ -898,8 +898,19 @@
     letter-spacing: .02em;
   }
 
+  .status-hero-source-note {
+    max-width: 360px;
+    margin-top: 8px;
+    color: rgba(255,255,255,.64);
+    font-size: 11px;
+    line-height: 1.45;
+    text-align: center;
+  }
+  .status-hero-source-note:empty { display: none; }
+
   .status-hero.is-idle .status-hero-title,
   .status-hero.is-idle .status-hero-caption,
+  .status-hero.is-idle .status-hero-source-note,
   .status-hero.is-idle .status-hero-meta,
   .status-hero.is-idle .status-hero-duration-num {
     color: rgba(255,255,255,.95);
@@ -1068,20 +1079,37 @@
     font-weight: 700;
   }
 
-  .status-progress-note {
-    margin-top: 7px;
-    color: var(--text-3);
+  .status-source-note {
+    margin-top: 14px;
+    padding: 11px 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    border: 1px solid color-mix(in oklab, var(--success) 24%, var(--border));
+    border-radius: 12px;
+    background: color-mix(in oklab, var(--success) 7%, var(--surface-1));
+    color: var(--text-2);
     font-size: 12px;
     line-height: 1.55;
   }
 
-  .status-source-note {
-    margin-top: 14px;
-    padding-top: 12px;
-    border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
-    color: var(--text-3);
-    font-size: 12px;
-    line-height: 1.55;
+  .status-source-note-icon {
+    flex: 0 0 auto;
+    width: 19px;
+    height: 19px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: color-mix(in oklab, var(--success) 16%, var(--surface-1));
+    color: var(--success);
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .status-source-note strong {
+    color: var(--text-1);
+    font-weight: 700;
   }
 
   .status-progress-rate {
@@ -1163,13 +1191,14 @@
     }
 
   /* 时间轴标题行：左标题 + 右侧操作按钮 */
-  .timeline-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .timeline-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
   .timeline-actions { display: inline-flex; align-items: center; gap: 8px; }
-  .timeline-title-wrap, .history-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .timeline-title-wrap, .history-head { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-height: 24px; }
   .source-chip {
     display: inline-flex;
     align-items: center;
-    min-height: 22px;
+    justify-content: center;
+    height: 22px;
     padding: 2px 8px;
     border-radius: 999px;
     background: var(--surface-1);
@@ -1177,15 +1206,17 @@
     color: var(--text-3);
     font-size: 11px;
     font-weight: 700;
-    line-height: 1.2;
+    line-height: 1;
+    white-space: nowrap;
+    flex: 0 0 auto;
   }
-  .timeline-head h3 { margin: 0; }
 
     .timeline-card h3 {
       font-size: 18px;
       font-weight: 600;
       color: #24292f;
-      margin: 0 0 16px 0;
+      margin: 0;
+      line-height: 24px;
       letter-spacing: -0.01em;
     }
 
@@ -1397,6 +1428,7 @@
       font-weight: 600;
       color: #24292f;
       margin: 0;
+      line-height: 24px;
       letter-spacing: -0.01em;
     }
 
@@ -4201,9 +4233,9 @@
                 <span class="status-hero-caption" id="statusHeroCaption"></span>
                 <div class="status-hero-duration" id="currentDuration">--</div>
                 <div class="status-hero-meta">
-                  <span>🕒</span>
                   <span>开始于 <span id="currentStartTime">--</span></span>
                 </div>
+                <div class="status-hero-source-note" id="statusHeroSourceNote"></div>
               </div>
             </div>
             <div class="status-body">
@@ -4214,7 +4246,7 @@
                       <circle cx="12" cy="12" r="9"></circle>
                       <path d="M12 7v5l3 3"></path>
                     </svg>
-                    <span>今日计分进度</span>
+                    <span>今日有效练琴进度</span>
                   </div>
                   <span class="status-badge" id="dailyProgressLabel">计算中</span>
                 </div>
@@ -4222,10 +4254,9 @@
                   <div class="status-progress-fill daily" id="dailyProgressBar"></div>
                 </div>
                 <div class="status-progress-meta">
-                  <div>当前 <strong id="todayTotal">0小时0分钟</strong></div>
+                  <div>有效计分 <strong id="todayTotal">0小时0分钟</strong></div>
                   <div>目标 <strong id="dailyTarget">--</strong></div>
                 </div>
-                <div class="status-progress-note" id="todayProgressNote">等待后端结算数据</div>
               </div>
 
               <div class="status-section">
@@ -4237,7 +4268,7 @@
                       <rect x="3" y="4" width="18" height="18" rx="2"></rect>
                       <path d="M3 10h18"></path>
                     </svg>
-                    <span>本周计分进度</span>
+                    <span>本周有效练琴进度</span>
                   </div>
                   <span class="status-progress-rate" id="weeklyProgressPercent">--</span>
                 </div>
@@ -4245,11 +4276,14 @@
                   <div class="status-progress-fill weekly" id="weeklyProgressBar"></div>
                 </div>
                 <div class="status-progress-meta">
-                  <div>当前 <strong id="weeklyTargetAchieved">--</strong></div>
+                  <div>有效计分 <strong id="weeklyTargetAchieved">--</strong></div>
                   <div>目标 <strong id="weeklyTarget">--</strong></div>
                 </div>
               </div>
-              <div class="status-source-note">正式进度按后端已结算计分时长统计；当前未还卡仅作预计，单次最多计入 120 分钟。</div>
+              <div class="status-source-note">
+                <span class="status-source-note-icon" aria-hidden="true">✓</span>
+                <span><strong>更接近实际练琴：</strong>这里不是登记占用时长，而是按后端计分规则处理后的有效时长。未还卡部分仅作预计，单次最多暂计 120 分钟。</span>
+              </div>
             </div>
           </div>
 
@@ -8098,7 +8132,6 @@
       const weeklyProgressPercentEl = document.getElementById('weeklyProgressPercent');
       const dailyProgressBarEl = document.getElementById('dailyProgressBar');
       const weeklyProgressBarEl = document.getElementById('weeklyProgressBar');
-      const todayProgressNoteEl = document.getElementById('todayProgressNote');
       if (_isNewStudent) {
         if (rankValEl) rankValEl.textContent = '--';
         if (rankMetaEl) rankMetaEl.textContent = '加载中...';
@@ -8112,7 +8145,6 @@
         if (weeklyProgressPercentEl) weeklyProgressPercentEl.textContent = '--';
         if (dailyProgressBarEl) dailyProgressBarEl.style.width = '0%';
         if (weeklyProgressBarEl) weeklyProgressBarEl.style.width = '0%';
-        if (todayProgressNoteEl) todayProgressNoteEl.textContent = '等待后端结算数据';
       }
       
       document.getElementById('studentGrade').textContent = meta.grade || '未知年级';
@@ -8504,7 +8536,7 @@
             <div class="lb-card lb-card--gradient" style="background:linear-gradient(135deg,#0ea5e9,#2563eb);border:none;">
               <div class="lb-kv"><strong>${safeStudentName}</strong><span>排行榜进度统一口径</span></div>
               <div style="margin-top:8px;font-size:13px;opacity:.92;line-height:1.7;">
-                本卡片的“当前 / 目标”与排行榜使用同一套后端数据和计算方法。
+                本卡片的“有效计分 / 目标”与排行榜使用同一套后端数据和计算方法。
               </div>
             </div>
           </div>
@@ -8513,7 +8545,7 @@
             <div class="lb-card">
               <h4>📘 当前口径</h4>
               <div style="font-size:13px;line-height:1.8;color:var(--text-2);">
-                <p>• 当前时长：统计后端已结算的有效练琴时长</p>
+                <p>• 有效计分时长：由后端按计分规则结算，比登记占用时长更接近实际练琴</p>
                 <p>• 周目标：系统根据个人近期记录和同专业情况计算</p>
                 <p>• 截至今日应练：周目标 × 已过工作日 ÷ 5</p>
                 <p>• 今日目标：截至今日应练 − 今天之前已结算分钟</p>
@@ -8526,9 +8558,9 @@
             <div class="lb-card">
               <h4>📊 当前值</h4>
               <div style="font-size:13px;line-height:1.85;color:var(--text-2);">
-                <p>• 今日已练：<strong>${todayDone}</strong></p>
+                <p>• 今日有效计分：<strong>${todayDone}</strong></p>
                 <p>• 今日目标：<strong>${dayTarget}</strong></p>
-                <p>• 本周已练：<strong>${weekDone}</strong></p>
+                <p>• 本周有效计分：<strong>${weekDone}</strong></p>
                 <p>• 本周目标：<strong>${weekTarget}</strong></p>
                 <p>• 截至今日应练：<strong>${expectedToDate}</strong></p>
                 <p>• 正式节奏完成度：<strong>${officialPace}</strong></p>
@@ -8700,7 +8732,6 @@
       const weeklyTargetEl = document.getElementById('weeklyTarget');
       const weeklyTargetAchievedEl = document.getElementById('weeklyTargetAchieved');
       const todayTotalEl = document.getElementById('todayTotal');
-      const todayProgressNoteEl = document.getElementById('todayProgressNote');
       if (!cache || !dailyTargetEl || !weeklyTargetEl || !weeklyTargetAchievedEl || !todayTotalEl) return;
       if (renderStudentDetail._lastStudent !== studentName) return;
 
@@ -8712,12 +8743,6 @@
 
       todayTotalEl.textContent = utils.formatDurationHoursMinutes(todayAchievedMinutes);
       weeklyTargetAchievedEl.textContent = utils.formatDurationHoursMinutes(weeklyAchievedMinutes);
-      if (todayProgressNoteEl) {
-        const settledTodayText = utils.formatDurationHoursMinutes(cache.todayBaseMinutes || 0);
-        todayProgressNoteEl.textContent = overlay.todayOverlayMinutes > 0
-          ? `已结算 ${settledTodayText} · 本次预计 +${utils.formatDurationHoursMinutes(overlay.todayOverlayMinutes)}`
-          : `已结算 ${settledTodayText}`;
-      }
       dailyTargetEl.textContent = Number.isFinite(cache.dailyTargetMinutes)
         ? utils.formatDurationHoursMinutes(cache.dailyTargetMinutes)
         : '--';
@@ -8747,6 +8772,7 @@
       const practiceStateDot = document.getElementById('practiceStateDot');
       const statusHero = document.getElementById('statusHero');
       const statusHeroCaption = document.getElementById('statusHeroCaption');
+      const statusHeroSourceNote = document.getElementById('statusHeroSourceNote');
       const session = getCurrentSessionMetrics(student);
       const isPracticing = session.isPracticing;
 
@@ -8757,7 +8783,7 @@
         currentStartTime.textContent = '--:--';
       }
 
-      // 当前时长（这次练琴的时长）
+      // 当前登记时长：反映琴房卡登记占用，不等同于真实练琴时长。
       if (isPracticing) {
         currentDuration.innerHTML = renderDurationHero(session.elapsedMinutes);
       } else {
@@ -8775,7 +8801,12 @@
         statusHero.classList.toggle('is-idle', !isPracticing);
         statusHero.classList.toggle('is-overdue', session.isOverdue);
       }
-      if (statusHeroCaption) statusHeroCaption.textContent = isPracticing ? '本次已练时长' : '';
+      if (statusHeroCaption) statusHeroCaption.textContent = isPracticing ? '本次登记时长' : '';
+      if (statusHeroSourceNote) {
+        statusHeroSourceNote.textContent = isPracticing
+          ? '学生登记的琴房占用时长，不等同于实际练琴时长'
+          : '';
+      }
 
       // 当前琴房
       if (currentRoomText) {
@@ -8790,7 +8821,6 @@
       const weeklyTargetEl = document.getElementById('weeklyTarget');
       const weeklyTargetAchievedEl = document.getElementById('weeklyTargetAchieved');
       const todayTotalEl = document.getElementById('todayTotal');
-      const todayProgressNoteEl = document.getElementById('todayProgressNote');
       if (!dailyTargetEl || !weeklyTargetEl || !weeklyTargetAchievedEl || !todayTotalEl) return;
 
       const activeStudent = renderStudentDetail._lastStudent;
@@ -8810,7 +8840,6 @@
           weeklyTargetEl.textContent = '--';
           delete weeklyTargetEl.dataset.targetMinutes;
           weeklyTargetAchievedEl.textContent = '--';
-          if (todayProgressNoteEl) todayProgressNoteEl.textContent = '后端结算数据暂不可用';
           updateDailyProgressUI(0, Number.NaN);
           updateWeeklyProgressUI(0, Number.NaN);
           return;
@@ -8857,7 +8886,6 @@
         weeklyTargetEl.textContent = '--';
         delete weeklyTargetEl.dataset.targetMinutes;
         weeklyTargetAchievedEl.textContent = '--';
-        if (todayProgressNoteEl) todayProgressNoteEl.textContent = '后端结算数据暂不可用';
         updateDailyProgressUI(0, Number.NaN);
         updateWeeklyProgressUI(0, Number.NaN);
       }
