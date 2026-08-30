@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>高级特权兑换券 · 64张横纹竖排版 (文字防挤压修复)</title>
+    <title>高级特权兑换券 · 20260830-A 批次 · 64张横纹竖排版</title>
     <style>
         /* 全局与高级色彩变量 */
         :root {
@@ -245,10 +245,10 @@
             text-orientation: mixed;   /* 英文和数字顺时针旋转90度 */
             white-space: nowrap;       /* 绝对禁止换行/换列 */
             flex-shrink: 0;            /* 防止被 Flexbox 压缩高度 */
-            font-size: 9px;            /* 稍微缩小一点字号 */
+            font-size: 8px;            /* 为新批次编号预留完整显示空间 */
             font-family: 'Courier New', Courier, monospace;
             color: rgba(255,255,255,0.9);
-            letter-spacing: 0.5px;     /* 缩小字间距 */
+            letter-spacing: 0;         /* 编号保持紧凑，避免垂直溢出 */
             margin-bottom: 2px;        /* 底部留出安全边距 */
         }
 
@@ -465,6 +465,9 @@
 <body>
 
 <script>
+    // 每次重新印刷只需更新批次码；同一批次内的券号和条形码保持稳定且唯一。
+    const BATCH_CODE = '260830-A';
+
     const ticketData = [
         { tier: "BRONZE / 青铜", coins: "100 音符币", title: "专属琴房特权", desc: "凭此券可获得三天专属琴房使用权，彰显专属排面（每个月仅限一次）！", theme: "theme-bronze", mark: "𝄞", prefix: "B-100A", stubText: "凭券核销" },
         { tier: "BRONZE / 青铜", coins: "120 音符币", title: "施坦威体验日", desc: "凭此券可在周六、周日独享一天施坦威教室练习特权（每周仅限一次，不可叠加兑换）。", theme: "theme-bronze", mark: "𝄞", prefix: "B-120A", stubText: "凭券核销" },
@@ -477,15 +480,21 @@
         { fullPage: true, coins: "本学期排行榜累计音符币最多", title: "「梅纽因之星」荣耀专题", prefix: "LEGEND-400" }
     ];
 
-    // 核心算法：生成横向条纹，从上往下堆叠
-    function generateUniqueBarcode(globalIndex) {
-        let html = '';
-        let seed = globalIndex * 104729; 
-        let rand = () => {
-            seed = (seed * 279470273) % 4294967291;
-            return seed / 4294967291;
+    // 根据券号生成稳定的条形码纹理。它用于视觉核对，不替代系统实际兑换码。
+    function generateUniqueBarcode(serial) {
+        let seed = 2166136261;
+        for (const char of String(serial)) {
+            seed ^= char.charCodeAt(0);
+            seed = Math.imul(seed, 16777619) >>> 0;
+        }
+        const rand = () => {
+            seed ^= seed << 13;
+            seed ^= seed >>> 17;
+            seed ^= seed << 5;
+            seed >>>= 0;
+            return seed / 4294967296;
         };
-
+        let html = '';
         let totalStripes = 60; 
         for(let j = 0; j < totalStripes; j++) {
             let randomVal = rand();
@@ -501,11 +510,13 @@
     }
 
     let globalCounter = 1;
+    const formatTicketSerial = () => `${BATCH_CODE}-${String(globalCounter++).padStart(3, '0')}`;
 
     // 循环生成每张 A4 纸
     ticketData.forEach(t => {
         if (t.fullPage) {
             // 传奇券：全页证书，仅生成 1 张
+            const certificateSerial = `${BATCH_CODE}-CERT-01`;
             document.write(`
                 <div class="cert-page">
                     <div class="cert-border-outer"></div>
@@ -546,7 +557,7 @@
                             <div class="cert-sign-label">持有人签字</div>
                         </div>
                     </div>
-                    <div class="cert-no">No. ${t.prefix} &nbsp;|&nbsp; 核销后作废</div>
+                    <div class="cert-no">No. ${certificateSerial} &nbsp;|&nbsp; 核销后作废</div>
                     <div class="cert-stars bot">✦ &nbsp; ✦ &nbsp; ✦ &nbsp; ✦ &nbsp; ✦</div>
                 </div>
             `);
@@ -554,6 +565,7 @@
             // 普通券：8张网格
             document.write('<div class="a4-page"><div class="ticket-grid">');
             for(let i = 1; i <= 8; i++) {
+                const serial = formatTicketSerial();
                 document.write(`
                     <div class="ticket ${t.theme}">
                         <div class="watermark">${t.mark}</div>
@@ -566,19 +578,18 @@
                             <p class="t-desc">${t.desc}</p>
                             <div class="official-seal">VALID<br>YMSQ</div>
                             <div class="t-footer">
-                                <span>授权人: 青岛耶胡迪梅纽因学校教务部</span>
+                                <span>授权人: 青岛耶胡迪梅纽因学校</span>
                                 <span>核销签字: <span class="t-sign"></span></span>
                             </div>
                             <div class="micro-text">YMSQ-AUTHORIZED-TICKET-YMSQ-AUTHORIZED-TICKET-YMSQ-AUTHORIZED-TICKET-YMSQ-AUTHORIZED</div>
                         </div>
                         <div class="ticket-stub">
-                            <div class="barcode">${generateUniqueBarcode(globalCounter)}</div>
+                            <div class="barcode">${generateUniqueBarcode(serial)}</div>
                             <div class="stub-text">${t.stubText}</div>
-                            <div class="stub-no">No. ${t.prefix}-0${i}</div>
+                            <div class="stub-no">No. ${serial}</div>
                         </div>
                     </div>
                 `);
-                globalCounter++;
             }
             document.write('</div></div>');
         }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>高级特权兑换券 · 八券同页（不含梅纽因之星）</title>
+  <title>高级特权兑换券 · 20260830-A 批次 · 八券同页（不含梅纽因之星）</title>
   <style>
     /* 复用：兑换券.html 的主样式（精简到八券同页所需部分） */
     :root {
@@ -194,7 +194,7 @@
       display: flex;
       justify-content: space-between;
       align-items: flex-end;
-      font-size: 9px;
+      font-size: 8px;
       color: #888;
     }
     .t-sign {
@@ -236,7 +236,7 @@
       font-size: 9px;
       font-family: 'Courier New', Courier, monospace;
       color: rgba(255,255,255,0.9);
-      letter-spacing: 0.5px;
+      letter-spacing: 0;
       margin-bottom: 2px;
     }
 
@@ -287,7 +287,10 @@
   </div>
 
   <script>
-    // 只取前 8 张券（排除最后一个全页证书券）
+    // 只取前 8 张券（排除最后一个全页证书券）。
+    // 该页是独立的八券展示/打印版，使用 P 子批次，避免与 64 张主打印版重复。
+    const BATCH_CODE = '260830-A-P';
+
     const ticketData = [
       { tier: "BRONZE / 青铜", coins: "100 音符币", title: "专属琴房特权", desc: "凭此券可获得三天专属琴房使用权，彰显专属排面（每个月仅限一次）！", theme: "theme-bronze", mark: "𝄞", prefix: "B-100A", stubText: "凭券核销" },
       { tier: "BRONZE / 青铜", coins: "120 音符币", title: "施坦威体验日", desc: "凭此券可在周六、周日独享一天施坦威教室练习特权（每周仅限一次，不可叠加兑换）。", theme: "theme-bronze", mark: "𝄞", prefix: "B-120A", stubText: "凭券核销" },
@@ -299,13 +302,20 @@
       { tier: "DIAMOND / 钻石", coins: "350 音符币", title: "额外专业课", desc: "超级大奖！凭此券和自己的专业老师多上一节专业课，名师一对一加餐指导（每个月仅限一次，每学期最多两次）。", theme: "theme-diamond", mark: "𝅗𝅥", prefix: "D-350A", stubText: "终极特权" }
     ];
 
-    function generateUniqueBarcode(globalIndex) {
-      let html = '';
-      let seed = globalIndex * 104729;
+    function generateUniqueBarcode(serial) {
+      let seed = 2166136261;
+      for (const char of String(serial)) {
+        seed ^= char.charCodeAt(0);
+        seed = Math.imul(seed, 16777619) >>> 0;
+      }
       const rand = () => {
-        seed = (seed * 279470273) % 4294967291;
-        return seed / 4294967291;
+        seed ^= seed << 13;
+        seed ^= seed >>> 17;
+        seed ^= seed << 5;
+        seed >>>= 0;
+        return seed / 4294967296;
       };
+      let html = '';
       const totalStripes = 60;
       for (let j = 0; j < totalStripes; j++) {
         const randomVal = rand();
@@ -323,7 +333,7 @@
     let globalCounter = 1;
     for (let i = 0; i < ticketData.length; i++) {
       const t = ticketData[i];
-      const no = `${t.prefix}-01`;
+      const serial = `${BATCH_CODE}-${String(globalCounter).padStart(2, '0')}`;
       const el = document.createElement('div');
       el.className = `ticket ${t.theme}`;
       el.innerHTML = `
@@ -337,15 +347,15 @@
           <p class="t-desc">${t.desc}</p>
           <div class="official-seal">VALID<br>YMSQ</div>
           <div class="t-footer">
-            <span>授权人: 青岛耶胡迪梅纽因学校教务部</span>
+            <span>授权人: 青岛耶胡迪梅纽因学校</span>
             <span>核销签字: <span class="t-sign"></span></span>
           </div>
           <div class="micro-text">YMSQ-AUTHORIZED-TICKET-YMSQ-AUTHORIZED-TICKET-YMSQ-AUTHORIZED-TICKET-YMSQ-AUTHORIZED</div>
         </div>
         <div class="ticket-stub">
-          <div class="barcode">${generateUniqueBarcode(globalCounter)}</div>
+          <div class="barcode">${generateUniqueBarcode(serial)}</div>
           <div class="stub-text">${t.stubText}</div>
-          <div class="stub-no">No. ${no}</div>
+          <div class="stub-no">No. ${serial}</div>
         </div>
       `;
       grid.appendChild(el);
@@ -354,4 +364,3 @@
   </script>
 </body>
 </html>
-
