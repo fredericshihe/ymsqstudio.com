@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f5f7fa" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <title>学生练琴跟踪系统</title>
+  <title>练琴成长中心｜青岛耶胡迪梅纽因学校</title>
   <!-- 已移除 Google Fonts，使用系统字体以避免外部 400 报错 -->
   
   <!--
@@ -792,6 +792,18 @@
     color: var(--text-on-accent);
   }
 
+  .status-hero.is-overdue {
+    background:
+      radial-gradient(circle at top right, rgba(255,255,255,.16), transparent 34%),
+      linear-gradient(135deg, #b45309, #9a3412);
+  }
+
+  .status-hero.is-overdue .status-live-dot {
+    animation: none;
+    background: rgba(255,255,255,.22);
+    border-color: rgba(255,255,255,.32);
+  }
+
   .status-hero::after {
     content: "";
     position: absolute;
@@ -1054,6 +1066,13 @@
   .status-progress-meta strong {
     color: var(--text-1);
     font-weight: 700;
+  }
+
+  .status-progress-note {
+    margin-top: 7px;
+    color: var(--text-3);
+    font-size: 12px;
+    line-height: 1.55;
   }
 
   .status-source-note {
@@ -3051,116 +3070,852 @@
       /* 滚动条美化 */
     </style>
 
+    <!-- ===== Parent & Teacher Growth Center Redesign ===== -->
+    <style>
+      #homeView {
+        --home-bg: #fbf7f1;
+        --home-panel: #fffdfa;
+        --home-panel-soft: #f5efe8;
+        --home-line: #e4dacf;
+        --home-ink: #18213a;
+        --home-muted: #6f788b;
+        --home-coral: #ef6a5b;
+        --home-purple: #705bd2;
+        --home-mint: #2a9f89;
+        position: relative;
+        min-height: 100vh;
+        min-height: 100dvh;
+        padding: calc(28px + var(--safe-top)) clamp(22px, 3vw, 36px) calc(48px + var(--safe-bottom));
+        border-radius: 28px;
+        background:
+          radial-gradient(circle at 96% 2%, color-mix(in oklab, var(--home-purple) 13%, transparent), transparent 25%),
+          radial-gradient(circle at 4% 42%, color-mix(in oklab, var(--home-coral) 8%, transparent), transparent 22%),
+          var(--home-bg);
+      }
+
+      .page-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 24px;
+        margin: 0 0 24px;
+        text-align: left;
+      }
+
+      .brand-kicker {
+        margin: 0 0 7px;
+        color: var(--home-purple);
+        font-size: 13px;
+        font-weight: 750;
+        letter-spacing: .04em;
+      }
+
+      .page-title {
+        margin: 0;
+        color: var(--home-ink) !important;
+        font-size: clamp(28px, 4vw, 38px);
+        font-weight: 800;
+        letter-spacing: -.035em;
+      }
+
+      .page-title-accent { color: var(--home-coral); }
+
+      .page-subtitle {
+        max-width: 680px;
+        margin: 10px 0 0;
+        color: var(--home-muted) !important;
+        font-size: 15px;
+        font-weight: 500;
+        line-height: 1.65;
+      }
+
+      .connection-status {
+        display: inline-flex;
+        align-items: center;
+        flex: 0 0 auto;
+        gap: 8px;
+        min-height: 34px;
+        padding: 6px 11px;
+        border: 1px solid var(--home-line);
+        border-radius: 999px;
+        background: color-mix(in oklab, var(--home-panel) 88%, transparent);
+        color: var(--home-muted);
+        font-size: 12px;
+        font-weight: 650;
+        box-shadow: none;
+      }
+
+      .connection-status::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #f59e0b;
+      }
+
+      .connection-status.online::before { background: #16a34a; }
+      .connection-status.offline::before { background: #dc2626; }
+      .connection-status.connecting::before,
+      .connection-status.syncing::before { background: #f59e0b; }
+
+      .search-section {
+        display: block;
+        margin: 0 0 24px;
+        padding: 22px;
+        border: 1px solid var(--home-line);
+        border-radius: 18px;
+        background: color-mix(in oklab, var(--home-panel) 92%, transparent);
+      }
+
+      .search-heading {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 14px;
+      }
+
+      .search-heading h2 {
+        margin: 0;
+        font-size: 19px;
+        font-weight: 760;
+      }
+
+      .search-heading p {
+        margin: 4px 0 0;
+        color: var(--home-muted);
+        font-size: 13px;
+      }
+
+      .search-container {
+        width: 100%;
+        max-width: none;
+      }
+
+      .search-input {
+        height: 52px;
+        padding: 0 18px 0 48px;
+        border: 1px solid var(--home-line) !important;
+        border-radius: 13px;
+        background: var(--home-panel) !important;
+        font-size: 16px;
+        font-weight: 550;
+        box-shadow: none !important;
+      }
+
+      .search-input:focus {
+        border-color: var(--home-purple) !important;
+        background: var(--home-panel) !important;
+        box-shadow: 0 0 0 3px color-mix(in oklab, var(--home-purple) 14%, transparent) !important;
+      }
+
+      .search-results {
+        top: calc(100% + 7px);
+        max-height: 320px;
+        border: 1px solid var(--border) !important;
+        border-radius: 13px;
+        box-shadow: 0 14px 30px rgba(15, 23, 42, .12);
+        overflow: hidden auto;
+      }
+
+      .search-result-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 13px 15px;
+      }
+
+      .search-result-main { min-width: 0; }
+      .search-result-name {
+        color: var(--text-1);
+        font-size: 15px;
+        font-weight: 720;
+      }
+      .search-result-meta {
+        margin-top: 3px;
+        color: var(--text-3);
+        font-size: 12px;
+      }
+      .search-result-action {
+        flex: 0 0 auto;
+        color: var(--brand-600);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .home-main-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.45fr) minmax(300px, .75fr);
+        align-items: start;
+        gap: 20px;
+      }
+
+      .home-panel {
+        border: 1px solid var(--home-line);
+        border-radius: 18px;
+        background: var(--home-panel);
+        box-shadow: none;
+      }
+
+      .school-overview-panel { padding: 20px; }
+
+      .panel-eyebrow {
+        color: var(--home-purple);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+      }
+
+      .panel-title-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        margin-top: 5px;
+      }
+
+      .panel-title-row h2 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 780;
+      }
+
+      .panel-date {
+        flex: 0 0 auto;
+        padding-top: 3px;
+        color: var(--text-3);
+        font-size: 12px;
+      }
+
+      .school-metrics {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      .school-metric:first-child { grid-column: 1 / -1; }
+
+      .school-metric {
+        min-width: 0;
+        padding: 14px;
+        border: 1px solid var(--home-line);
+        border-radius: 13px;
+        background: var(--home-panel-soft);
+      }
+
+      .school-metric-label {
+        color: var(--home-muted);
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      .school-metric-value {
+        margin-top: 6px;
+        color: var(--home-ink);
+        font-size: clamp(22px, 2.8vw, 28px);
+        font-weight: 800;
+        line-height: 1.12;
+        letter-spacing: -.035em;
+      }
+
+      .school-metric-foot {
+        min-height: 18px;
+        margin-top: 5px;
+        color: var(--home-muted);
+        font-size: 11px;
+        line-height: 1.45;
+      }
+
+      .school-metric.is-live .school-metric-value { color: var(--home-mint); }
+
+      .live-campus {
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid var(--home-line);
+      }
+
+      .live-campus-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .live-campus-title {
+        color: var(--home-ink);
+        font-size: 14px;
+        font-weight: 730;
+      }
+
+      .live-campus-note {
+        color: var(--home-muted);
+        font-size: 11px;
+      }
+
+      .live-campus-head-actions {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+      }
+
+      .live-student-list {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        flex-wrap: nowrap;
+        gap: 4px;
+        margin-top: 11px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+      }
+      .live-student-list::-webkit-scrollbar { display: none; }
+
+      .live-student-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        min-width: 0;
+        gap: 6px;
+        min-height: 28px;
+        padding: 4px 7px;
+        border: 1px solid color-mix(in oklab, #16a34a 25%, var(--border));
+        border-radius: 999px;
+        background: color-mix(in oklab, #16a34a 7%, var(--surface-1));
+        color: var(--text-2);
+        font-size: 11.5px;
+        font-weight: 650;
+        box-shadow: none;
+      }
+
+      .live-student-chip::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #16a34a;
+      }
+
+      .live-student-chip:hover {
+        border-color: #16a34a;
+        color: var(--text-1);
+      }
+
+      .live-student-empty {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        min-width: 0;
+        padding: 4px 3px;
+        border: 1px solid transparent;
+        color: var(--text-3);
+        font-size: 12px;
+        line-height: 1.6;
+        text-align: center;
+      }
+      .live-student-list > .live-student-empty:only-child { width: 100%; }
+
+      .live-campus-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 14px;
+      }
+
+      .live-campus-disclaimer {
+        color: var(--home-muted);
+        font-size: 11px;
+        line-height: 1.5;
+      }
+
+      #viewDetailsBtn {
+        flex: 0 0 auto;
+        width: auto;
+        height: 36px;
+        padding: 0 13px;
+        border-radius: 10px;
+        font-size: 12px;
+        box-shadow: none !important;
+      }
+
+      .wlb-section {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        border-radius: 18px;
+        border-color: var(--home-line);
+        background: var(--home-panel);
+        box-shadow: none;
+      }
+
+      .wlb-header { padding: 20px 20px 0; }
+      .wlb-title-wrap { min-width: 0; }
+      .wlb-title {
+        display: block;
+        margin-top: 5px;
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: -.025em;
+      }
+      .wlb-updated {
+        display: block;
+        margin-top: 3px;
+        color: var(--home-muted);
+        font-size: 12px;
+      }
+      .ranking-update-btn,
+      .ranking-info-btn {
+        display: inline-grid;
+        place-items: center;
+        width: 32px;
+        min-width: 32px;
+        height: 32px;
+        padding: 0;
+        border: 1px solid var(--home-line);
+        border-radius: 9px;
+        background: var(--home-panel-soft);
+        color: var(--home-ink);
+        font-size: 12px;
+        font-weight: 700;
+        box-shadow: none !important;
+      }
+      .ranking-update-btn svg,
+      .ranking-info-btn svg {
+        width: 16px;
+        height: 16px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.9;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .ranking-update-btn:hover,
+      .ranking-info-btn:hover {
+        border-color: var(--brand-600);
+        color: var(--brand-600);
+      }
+      .wlb-tabs {
+        gap: 7px;
+        padding: 16px 20px 0;
+      }
+      .wlb-tab {
+        padding: 7px 13px;
+        border-radius: 10px;
+        background: var(--home-panel-soft);
+        color: var(--home-muted);
+        font-family: inherit;
+        font-size: 13px;
+        box-shadow: none;
+      }
+      .wlb-tab.active {
+        border-color: var(--home-ink);
+        background: var(--home-ink);
+        color: #fff;
+        box-shadow: none;
+      }
+      .wlb-subtitle {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: baseline;
+        gap: 8px;
+        min-height: 28px;
+        padding: 9px 20px 3px;
+        color: var(--home-muted);
+        font-size: 12px;
+      }
+      .wlb-subtitle-label {
+        flex: 0 0 auto;
+        padding-left: 7px;
+        border-left: 2px solid var(--home-purple);
+        color: var(--home-purple);
+        font-size: 11px;
+        font-weight: 750;
+        line-height: 1.45;
+      }
+      #wlbSubtitle { line-height: 1.45; }
+      .wlb-row {
+        min-height: 55px;
+        padding: 11px 20px;
+        gap: 12px;
+      }
+      .wlb-person {
+        flex: 1;
+        min-width: 0;
+      }
+      .wlb-person .wlb-name { display: block; }
+      .wlb-meta {
+        display: none;
+        margin-top: 3px;
+        overflow: hidden;
+        color: var(--home-muted);
+        font-size: 11px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .wlb-medal { width: 26px; font-size: 16px; }
+      .wlb-name { font-size: 15px; }
+      .wlb-tag { padding: 2px 7px; font-size: 11px; }
+      .wlb-val { font-size: 16px; }
+      .wlb-val-sub { font-size: 11px; }
+      .wlb-divider { margin: 0 20px; }
+
+      @media (prefers-color-scheme: dark) {
+        #homeView {
+          --home-bg: #0d1422;
+          --home-panel: #121c2d;
+          --home-panel-soft: #172235;
+          --home-line: #27364d;
+          --home-ink: #edf2f8;
+          --home-muted: #a5b0c1;
+          --home-coral: #ff8176;
+          --home-purple: #a996ff;
+          --home-mint: #58cdb5;
+        }
+      }
+
+      @media (max-width: 880px) {
+        .home-main-grid { grid-template-columns: 1fr; }
+      }
+
+      @media (max-width: 640px) {
+        .container { padding: 0 !important; }
+        #homeView {
+          padding: calc(18px + var(--safe-top)) 12px calc(28px + var(--safe-bottom));
+          border-radius: 0;
+          overflow: hidden;
+        }
+        .page-header {
+          position: relative;
+          display: block;
+          margin: 0 4px 17px;
+          padding-top: 2px;
+        }
+        .brand-kicker {
+          max-width: calc(100% - 92px);
+          margin-bottom: 10px;
+          font-size: 11.5px;
+        }
+        .page-title { font-size: 30px; line-height: 1.08; }
+        .page-subtitle {
+          max-width: 320px;
+          margin-top: 8px;
+          padding-right: 12px;
+          font-size: 12.5px;
+          line-height: 1.55;
+        }
+        .connection-status {
+          position: absolute;
+          top: 0;
+          right: 0;
+          min-height: 28px;
+          margin: 0;
+          padding: 4px 8px;
+          font-size: 10.5px;
+        }
+        .connection-status::before { width: 7px; height: 7px; }
+        .search-section {
+          margin-bottom: 14px;
+          padding: 0 4px;
+          border: 0;
+          background: transparent;
+        }
+        .search-heading { display: none; }
+        .search-input { height: 50px; }
+        .home-main-grid {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+        .school-overview-panel {
+          order: -1;
+          width: 100%;
+          padding: 15px;
+          border-radius: 20px;
+          background:
+            radial-gradient(circle at 100% 0, color-mix(in oklab, var(--home-mint) 13%, transparent), transparent 43%),
+            var(--home-panel);
+        }
+        .school-overview-panel > .panel-eyebrow { display: none; }
+        .panel-title-row { align-items: center; margin-top: 0; }
+        .panel-title-row h2 { font-size: 18px; }
+        .panel-date { padding-top: 0; font-size: 11px; }
+        .school-metrics {
+          grid-template-columns: 1.15fr 1fr 1fr;
+          gap: 0;
+          margin-top: 13px;
+          overflow: hidden;
+          border: 1px solid var(--home-line);
+          border-radius: 15px;
+          background: var(--home-panel-soft);
+        }
+        .school-metric:first-child { grid-column: auto; }
+        .school-metric {
+          min-height: 76px;
+          padding: 12px 9px;
+          border: 0;
+          border-radius: 0;
+          background: transparent;
+        }
+        .school-metric:nth-child(2),
+        .school-metric:nth-child(3) { border-left: 1px solid var(--home-line); }
+        .school-metric:nth-child(-n+3) .school-metric-foot { display: none; }
+        .school-metric-label { font-size: 10.5px; line-height: 1.35; }
+        .school-metric-value { margin-top: 7px; font-size: 19px; }
+        .school-metric:first-child .school-metric-value { font-size: 23px; }
+        .school-metric-foot { min-height: 0; font-size: 10.5px; }
+        .live-campus {
+          margin-top: 12px;
+          padding-top: 12px;
+        }
+        .live-campus-head-actions { gap: 8px; }
+        .live-campus-title { font-size: 14px; }
+        .live-student-list {
+          flex-wrap: nowrap;
+          gap: 4px;
+          margin-top: 10px;
+          overflow-x: auto;
+          overflow-y: hidden;
+        }
+        .live-student-chip {
+          flex: 0 0 auto;
+          min-width: 0;
+          max-width: none;
+          min-height: 28px;
+          overflow: hidden;
+          font-size: 11px;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .live-student-empty { flex: 0 0 auto; font-size: 11px; }
+        .live-campus-actions { margin-top: 8px; }
+        .live-campus-disclaimer { font-size: 10.5px; }
+        #viewDetailsBtn {
+          width: auto;
+          height: 38px;
+          padding-inline: 11px;
+        }
+        .wlb-section {
+          border-radius: 20px;
+          overflow: hidden;
+        }
+        .wlb-header {
+          display: flex;
+          align-items: flex-end;
+          padding: 17px 16px 0;
+        }
+        .wlb-title-wrap > .panel-eyebrow { font-size: 9px; }
+        .wlb-title { margin-top: 3px; font-size: 19px; }
+        .wlb-updated { margin-top: 3px; font-size: 10.5px; }
+        .wlb-actions { gap: 6px; margin: 0; }
+        .ranking-update-btn,
+        .ranking-info-btn {
+          width: 36px;
+          min-width: 36px;
+          height: 36px;
+          padding: 0;
+          border-radius: 10px;
+        }
+        .wlb-tabs {
+          display: grid;
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          gap: 4px;
+          overflow: visible;
+          padding: 13px 12px 0;
+        }
+        .wlb-tab {
+          min-width: 0;
+          min-height: 42px;
+          padding: 0 2px;
+          border-radius: 11px;
+          font-size: 11.5px;
+          text-align: center;
+        }
+        .wlb-subtitle {
+          align-items: baseline;
+          padding: 10px 14px 9px;
+          font-size: 11.5px;
+          line-height: 1.45;
+        }
+        .wlb-list {
+          min-height: 60px;
+          margin: 0 11px 13px;
+          padding: 0;
+          overflow: hidden;
+          border: 1px solid var(--home-line);
+          border-radius: 16px;
+          background: var(--home-panel);
+        }
+        .wlb-row {
+          display: grid;
+          grid-template-columns: 32px minmax(0, 1fr) auto;
+          min-height: 67px;
+          padding: 9px 12px;
+          gap: 9px;
+        }
+        .wlb-medal {
+          display: grid;
+          place-items: center;
+          width: 30px;
+          height: 30px;
+          border-radius: 50%;
+          background: var(--home-panel-soft);
+          font-size: 12px;
+        }
+        .wlb-name { font-size: 15px; }
+        .wlb-meta { display: block; }
+        .wlb-tag { display: none; }
+        .wlb-right { min-width: 62px; }
+        .wlb-val { font-size: 17px; }
+        .wlb-val-sub { font-size: 10px; }
+        .wlb-divider { margin: 0 12px; }
+        .wlb-expand-btn { min-height: 44px; margin-top: 0; }
+      }
+
+      @media (max-width: 410px) {
+        .school-overview-panel { padding: 13px; }
+        .search-result-action { display: none; }
+        .school-metric {
+          min-height: 72px;
+          padding: 10px 7px;
+        }
+        .school-metric-value { font-size: 17px; }
+        .school-metric:first-child .school-metric-value { font-size: 21px; }
+        .wlb-header { padding-inline: 13px; }
+        .wlb-title { font-size: 18px; }
+        .wlb-row { padding-inline: 10px; }
+        .wlb-tabs { padding-inline: 9px; }
+        .wlb-tab { font-size: 11px; }
+        .ranking-update-btn,
+        .ranking-info-btn { width: 34px; min-width: 34px; height: 34px; }
+      }
+    </style>
+
 </head>
 <body>
   <main class="container">
-    <!-- 首页：今日纵览 -->
+    <!-- 首页：练琴成长中心 -->
     <section id="homeView" class="home-view">
-      <!-- 页面标题 -->
       <div class="page-header">
-        <h1 class="page-title">青岛耶胡迪梅纽因学校</h1>
-        <p class="page-subtitle">练琴跟踪系统</p>
+        <div>
+          <p class="brand-kicker">青岛耶胡迪梅纽因学校</p>
+          <h1 class="page-title">练琴<span class="page-title-accent">成长中心</span></h1>
+          <p class="page-subtitle">看见学校整体练琴节奏，也看见每一位学生的坚持、进步与本周目标。</p>
+        </div>
+        <div class="connection-status syncing" id="connectionStatus" aria-live="polite">
+          <span>正在连接</span>
+        </div>
       </div>
 
-      <!-- 搜索功能 -->
       <div class="search-section">
+        <div class="search-heading">
+          <div>
+            <h2>查找学生成长档案</h2>
+            <p>输入姓名，查看本周进度、全校排名与近七天练琴记录</p>
+          </div>
+        </div>
         <div class="search-container">
           <span class="search-icon">🔍</span>
           <input 
             type="text" 
             class="search-input" 
-            placeholder="搜索学生姓名..." 
+            placeholder="输入学生姓名"
             id="studentSearchInput"
+            autocomplete="off"
+            aria-label="搜索学生姓名"
           />
           <div class="search-results" id="searchResults"></div>
         </div>
       </div>
 
-      <!-- 概览区域 -->
-      <div class="overview-container">
-        <div class="overview-card">
-          <!-- 头部 -->
-          <div class="card-header">
-            <h1 class="card-title">实时总览</h1>
-            <div class="card-date" id="currentDate">9月16日</div>
-          </div>
-
-        <!-- 分类标签 -->
-        <div class="category-tabs">
-          <button class="category-tab" data-category="practicing">在练</button>
-          <button class="category-tab" data-category="not-practicing">未练</button>
-        </div>
-
-        <!-- 圆形进度图 -->
-        <div class="progress-circle">
-          <svg viewBox="0 0 160 160">
-            <circle 
-              class="progress-bg" 
-              cx="80" 
-              cy="80" 
-              r="70"
-            />
-            <circle 
-              id="progressPath"
-              class="progress-fill" 
-              cx="80" 
-              cy="80" 
-              r="70"
-            />
-          </svg>
-          <div class="progress-center">
-            <div style="white-space: nowrap;">
-              <span class="progress-percentage" id="progressPercentage">0</span>
-              <span class="progress-percentage-symbol">%</span>
+      <div class="home-main-grid">
+        <!-- ── 本周五类排行榜（核心区域） ── -->
+        <div id="wlbSection" class="wlb-section">
+          <div class="wlb-header">
+            <div class="wlb-title-wrap">
+              <span class="panel-eyebrow">Weekly leaderboard</span>
+              <span class="wlb-title">本周成长舞台</span>
+              <span class="wlb-updated" id="wlbUpdated"></span>
+            </div>
+            <div class="wlb-actions">
+              <button type="button" class="ranking-update-btn" title="查看最近一次榜单规则更新" aria-label="查看最近一次榜单规则更新">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66"/><path d="M20 4v7h-7"/></svg>
+              </button>
+              <button type="button" class="ranking-info-btn" title="榜单规则说明" aria-label="查看排行榜说明">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg>
+              </button>
             </div>
           </div>
-        </div>
-
-        <!-- 进度条下方信息 -->
-        <div class="progress-info">
-          <div class="progress-count">
-            <span id="progressCount">0</span>
-            <span class="progress-count-unit">人</span>
+          <div class="wlb-tabs" aria-label="排行榜类别">
+            <button type="button" class="wlb-tab active" data-board="综合榜">综合</button>
+            <button type="button" class="wlb-tab" data-board="稳定榜">稳定</button>
+            <button type="button" class="wlb-tab" data-board="守则榜">守则</button>
+            <button type="button" class="wlb-tab" data-board="进步榜">进步</button>
+            <button type="button" class="wlb-tab" data-board="缩水榜">缩水</button>
           </div>
-          <div class="progress-description" id="progressDescription">
-            在规定时间段练琴的人数占总人数的比例
+          <div class="wlb-subtitle">
+            <span class="wlb-subtitle-label">榜单说明</span>
+            <span id="wlbSubtitle"></span>
           </div>
-        </div>
-
-        <!-- 查看详情按钮 -->
-        <button class="view-details-btn btn--primary btn--lg" id="viewDetailsBtn">
-          <span>查看详情</span>
-        </button>
-        </div>
-      </div>
-
-      <!-- ── 本周五类排行榜（后端实时） ── -->
-      <div id="wlbSection" class="wlb-section" style="display:none;">
-        <div class="wlb-header">
-          <span class="wlb-title">🏅 本周排行榜</span>
-          <div class="wlb-actions">
-            <span class="wlb-updated" id="wlbUpdated"></span>
-            <button type="button" class="ranking-update-btn" title="查看最近一次榜单规则更新">更新</button>
-            <button type="button" class="ranking-info-btn" title="榜单规则说明">?</button>
+          <div class="wlb-shrink-summary" id="wlbShrinkSummary" style="display:none"></div>
+          <div id="wlbCoinRewardNotice" class="wlb-coin-reward-notice" style="display:none;">
+            自动结算已关闭，奖励与扣币暂停
+          </div>
+          <div class="wlb-notice" id="wlbNotice" style="display:none"></div>
+          <div class="wlb-list" id="wlbList">
+            <div class="wlb-loading"><span class="spin-sm"></span> 加载中…</div>
           </div>
         </div>
-        <!-- Tab 切换 -->
-        <div class="wlb-tabs">
-          <div class="wlb-tab active" data-board="综合榜" role="button" tabindex="0">综合榜</div>
-          <div class="wlb-tab" data-board="稳定榜" role="button" tabindex="0">稳定榜</div>
-          <div class="wlb-tab" data-board="守则榜" role="button" tabindex="0">守则榜</div>
-          <div class="wlb-tab" data-board="进步榜" role="button" tabindex="0">进步榜</div>
-          <div class="wlb-tab" data-board="缩水榜" role="button" tabindex="0">缩水榜</div>
-        </div>
-        <div class="wlb-subtitle" id="wlbSubtitle"></div>
-        <div class="wlb-shrink-summary" id="wlbShrinkSummary" style="display:none"></div>
-        <div id="wlbCoinRewardNotice" class="wlb-coin-reward-notice" style="display:none;">
-          自动结算已关闭，奖励与扣币暂停
-        </div>
-        <div class="wlb-notice" id="wlbNotice" style="display:none"></div>
-        <div class="wlb-list" id="wlbList">
-          <div class="wlb-loading"><span class="spin-sm"></span> 加载中…</div>
-        </div>
+
+        <!-- 学校整体练琴摘要 -->
+        <aside class="home-panel school-overview-panel" aria-labelledby="schoolOverviewTitle">
+          <span class="panel-eyebrow">School overview</span>
+          <div class="panel-title-row">
+            <h2 id="schoolOverviewTitle">此刻校园</h2>
+            <span class="panel-date" id="homeDateLabel">--</span>
+          </div>
+          <div class="school-metrics">
+            <div class="school-metric is-live">
+              <div class="school-metric-label">此刻正在练琴</div>
+              <div class="school-metric-value" id="currentPracticeCount">0 人</div>
+              <div class="school-metric-foot" id="currentPracticeRooms">琴房实时状态</div>
+            </div>
+            <div class="school-metric">
+              <div class="school-metric-label">今日已有记录</div>
+              <div class="school-metric-value" id="todayPracticeCount">0 人</div>
+              <div class="school-metric-foot" id="todayStudentRatio">全校学生参与情况</div>
+            </div>
+            <div class="school-metric">
+              <div class="school-metric-label">本周已开始</div>
+              <div class="school-metric-value" id="schoolWeeklyStarted">--</div>
+              <div class="school-metric-foot" id="weeklyStartedSummary">等待周榜同步</div>
+            </div>
+          </div>
+
+          <div class="live-campus">
+            <div class="live-campus-head">
+              <span class="live-campus-title">正在练琴</span>
+              <div class="live-campus-head-actions">
+                <span class="live-campus-note">实时更新</span>
+                <button class="view-details-btn btn--primary" id="viewDetailsBtn">
+                  <span>查看全部</span>
+                </button>
+              </div>
+            </div>
+            <div class="live-student-list" id="livePracticeStudents">
+              <span class="live-student-empty">当前暂无学生正在练琴</span>
+            </div>
+            <div class="live-campus-actions">
+              <span class="live-campus-disclaimer">实时状态仅反映当前练琴，不代表缺勤或本周表现。</span>
+            </div>
+          </div>
+        </aside>
       </div>
 
       <!-- 排行榜规则说明弹窗 -->
@@ -3243,7 +3998,7 @@
               </div>
               <div class="ri-tip-item">
                 <span class="ri-tip-icon">📈</span>
-                <div><strong>坚持每周工作日练习</strong> — 周末不计分；守则榜要求本周 ≥ 3 次，坚持出勤才能保住名次。</div>
+                <div><strong>坚持每周工作日练习</strong> — 周末练琴不纳入排行榜统计；守则榜要求本周 ≥ 3 次，坚持出勤才能保住名次。</div>
               </div>
             </div>
           </div>
@@ -3455,9 +4210,10 @@
                   <div class="status-progress-fill daily" id="dailyProgressBar"></div>
                 </div>
                 <div class="status-progress-meta">
-                  <div>已练 <strong id="todayTotal">0小时0分钟</strong></div>
+                  <div>当前 <strong id="todayTotal">0小时0分钟</strong></div>
                   <div>目标 <strong id="dailyTarget">--</strong></div>
                 </div>
+                <div class="status-progress-note" id="todayProgressNote">等待后端结算数据</div>
               </div>
 
               <div class="status-section">
@@ -3477,11 +4233,11 @@
                   <div class="status-progress-fill weekly" id="weeklyProgressBar"></div>
                 </div>
                 <div class="status-progress-meta">
-                  <div>已练 <strong id="weeklyTargetAchieved">--</strong></div>
+                  <div>当前 <strong id="weeklyTargetAchieved">--</strong></div>
                   <div>目标 <strong id="weeklyTarget">--</strong></div>
                 </div>
               </div>
-              <div class="status-source-note">进度和近七天总结按清洗后的计分时长统计；时间线保留琴房占用时段。</div>
+              <div class="status-source-note">正式进度按后端已结算计分时长统计；当前未还卡仅作预计，单次最多计入 120 分钟。</div>
             </div>
           </div>
 
@@ -4266,14 +5022,10 @@
       return Math.max(0, 6 - day);
     }
 
-    function computeDynamicDailyTargetMinutes(weeklyTargetMinutes, weeklyAchievedMinutes, baseDate = new Date()) {
-      const weeklyTarget = Number(weeklyTargetMinutes);
-      const weeklyAchieved = Math.max(0, Math.round(Number(weeklyAchievedMinutes) || 0));
-      if (!Number.isFinite(weeklyTarget)) return null;
-      const remainingWorkdays = isWorkday(baseDate) ? getRemainingWorkdaysInclusive(baseDate) : 0;
-      const remainingWeekTargetMinutes = Math.max(0, weeklyTarget - weeklyAchieved);
-      if (remainingWorkdays <= 0) return 0;
-      return remainingWeekTargetMinutes / remainingWorkdays;
+    function getElapsedWorkdays(baseDate = new Date()) {
+      const day = new Date(baseDate).getDay();
+      if (day === 0 || day === 6) return 5;
+      return Math.max(0, Math.min(5, day));
     }
 
     function getBjtDateKey(dateLike) {
@@ -4314,9 +5066,53 @@
       }
     }
 
+    async function fetchUnifiedWeekProgressMetrics(studentName, baseDate = new Date()) {
+      if (!supabaseClient) return null;
+      const weekMonday = utils.toIsoDate(getCurrentWeekMondayDate(baseDate));
+      const asOfDate = utils.toIsoDate(baseDate);
+      const candidates = getStudentNameCandidates(studentName);
+
+      for (const candidate of candidates) {
+        const { data, error } = await supabaseClient.rpc('get_student_week_progress_context', {
+          p_student_name: candidate,
+          p_week_monday: weekMonday,
+          p_as_of_date: asOfDate
+        });
+        if (error) {
+          console.warn('fetchUnifiedWeekProgressMetrics error:', error);
+          continue;
+        }
+
+        const row = Array.isArray(data) ? (data[0] || null) : (data || null);
+        if (!row) continue;
+
+        return {
+          source: 'unified-week-progress-rpc',
+          isTodayWorkday: row.is_workday === true,
+          elapsedWorkdays: Number(row.elapsed_workdays || 0),
+          remainingWorkdays: Number(row.remaining_workdays || 0),
+          todayAchievedMinutes: Number(row.settled_today_minutes || 0),
+          dailyTargetMinutes: Number(row.today_target_minutes || 0),
+          weeklyAchievedMinutes: Number(row.settled_week_minutes || 0),
+          weeklyTargetMinutes: Number(row.week_target_minutes),
+          expectedToDateMinutes: Number(row.expected_to_date_minutes || 0),
+          remainingWeekTargetMinutes: Number(row.remaining_week_minutes || 0),
+          shortfallToPaceMinutes: Number(row.shortfall_to_pace_minutes || 0),
+          weekCompletionRatio: Number(row.week_completion_ratio || 0),
+          paceCompletionRatio: Number(row.pace_completion_ratio || 0),
+          settledSessionCount: Number(row.settled_session_count || 0)
+        };
+      }
+
+      return null;
+    }
+
     async function fetchBackendWProgressMetrics(studentName, baseDate = new Date()) {
       try {
         if (!supabaseClient) return null;
+        const unifiedMetrics = await fetchUnifiedWeekProgressMetrics(studentName, baseDate);
+        if (unifiedMetrics) return unifiedMetrics;
+
         const nameCandidates = getStudentNameCandidates(studentName);
         const weekMonday = getCurrentWeekMondayDate(baseDate);
         const todayStart = new Date(baseDate);
@@ -4359,20 +5155,39 @@
         });
 
         const weeklyTargetMinutes = Number(targetContext?.final_target_week);
+        const elapsedWorkdays = getElapsedWorkdays(baseDate);
         const remainingWorkdays = isTodayWorkday ? getRemainingWorkdaysInclusive(baseDate) : 0;
         const remainingWeekTargetMinutes = Number.isFinite(weeklyTargetMinutes)
           ? Math.max(0, weeklyTargetMinutes - weeklyAchievedMinutes)
           : null;
         const weeklyAchievedBeforeToday = Math.max(0, weeklyAchievedMinutes - todayAchievedMinutes);
-        const dailyTargetMinutes = computeDynamicDailyTargetMinutes(weeklyTargetMinutes, weeklyAchievedBeforeToday, baseDate);
+        const expectedToDateMinutes = Number.isFinite(weeklyTargetMinutes)
+          ? weeklyTargetMinutes * elapsedWorkdays / 5
+          : null;
+        const dailyTargetMinutes = isTodayWorkday && Number.isFinite(expectedToDateMinutes)
+          ? Math.max(0, expectedToDateMinutes - weeklyAchievedBeforeToday)
+          : 0;
+        const paceCompletionRatio = Number.isFinite(expectedToDateMinutes) && expectedToDateMinutes > 0
+          ? weeklyAchievedMinutes / expectedToDateMinutes
+          : 0;
 
         return {
+          source: 'frontend-fallback',
           isTodayWorkday,
           todayAchievedMinutes: isTodayWorkday ? todayAchievedMinutes : 0,
           dailyTargetMinutes: isTodayWorkday ? dailyTargetMinutes : 0,
           weeklyAchievedMinutes,
           weeklyTargetMinutes,
+          expectedToDateMinutes,
           remainingWeekTargetMinutes,
+          shortfallToPaceMinutes: Number.isFinite(expectedToDateMinutes)
+            ? Math.max(0, expectedToDateMinutes - weeklyAchievedMinutes)
+            : 0,
+          weekCompletionRatio: Number.isFinite(weeklyTargetMinutes) && weeklyTargetMinutes > 0
+            ? weeklyAchievedMinutes / weeklyTargetMinutes
+            : 0,
+          paceCompletionRatio,
+          elapsedWorkdays,
           remainingWorkdays,
           targetContext
         };
@@ -6131,140 +6946,119 @@
       }
     }
 
+    function setHomeText(id, value) {
+      const element = document.getElementById(id);
+      if (element) element.textContent = value;
+    }
+
+    function getStudentTodayMinutes(student) {
+      const inMinutes = Number(student?.todayMinutes?.in || 0);
+      const outMinutes = Number(student?.todayMinutes?.out || 0);
+      return Math.max(0, inMinutes + outMinutes);
+    }
+
+    function renderLivePracticeStudents(practicing) {
+      const container = document.getElementById('livePracticeStudents');
+      if (!container) return;
+
+      container.replaceChildren();
+      if (!practicing.length) {
+        const empty = document.createElement('span');
+        empty.className = 'live-student-empty';
+        empty.textContent = '当前暂无学生正在练琴';
+        container.appendChild(empty);
+        return;
+      }
+
+      const sorted = [...practicing].sort((left, right) => {
+        const leftStart = left?.currentStartTime ? new Date(left.currentStartTime).getTime() : Date.now();
+        const rightStart = right?.currentStartTime ? new Date(right.currentStartTime).getTime() : Date.now();
+        return leftStart - rightStart;
+      });
+
+      const maxVisible = 10;
+      sorted.slice(0, maxVisible).forEach(student => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'live-student-chip';
+        chip.textContent = student.name;
+        chip.title = `查看 ${student.name} 的练琴档案`;
+        chip.addEventListener('click', () => openStudentDetailFromSearch(student.name));
+        container.appendChild(chip);
+      });
+
+      if (sorted.length > maxVisible) {
+        const more = document.createElement('span');
+        more.className = 'live-student-empty';
+        more.textContent = `+${sorted.length - maxVisible} 人`;
+        container.appendChild(more);
+      }
+    }
+
+    function renderSchoolOverview(groups = getGroups()) {
+      const allStudents = Array.from(appState.students.values());
+      const practicing = groups.practicing || [];
+      const totalStudents = Number(groups.totalCount || allStudents.length || 0);
+      const practicedToday = allStudents.filter(student => (
+        getStudentTodayMinutes(student) > 0 || student.currentStatus !== 'offline'
+      ));
+      const occupiedRooms = new Set(
+        practicing.map(student => student.currentRoom).filter(Boolean)
+      ).size;
+      const dateLabel = new Intl.DateTimeFormat('zh-CN', {
+        month: 'long',
+        day: 'numeric',
+        weekday: 'short'
+      }).format(new Date());
+
+      setHomeText('homeDateLabel', dateLabel);
+      setHomeText('currentPracticeCount', `${practicing.length} 人`);
+      setHomeText('currentPracticeRooms', occupiedRooms > 0 ? `${occupiedRooms} 间琴房正在使用` : '当前琴房空闲');
+      setHomeText('todayPracticeCount', `${practicedToday.length} 人`);
+      setHomeText(
+        'todayStudentRatio',
+        totalStudents > 0 ? `占在读学生 ${Math.round(practicedToday.length / totalStudents * 100)}%` : '等待学生数据'
+      );
+
+      const summary = Array.isArray(_wlbShrinkSummary)
+        ? (_wlbShrinkSummary[0] || null)
+        : _wlbShrinkSummary;
+      if (summary) {
+        const summaryTotal = Number(summary.total_students || totalStudents || 0);
+        const started = Number(summary.started_students || 0);
+        setHomeText('schoolWeeklyStarted', summaryTotal > 0 ? `${started} / ${summaryTotal} 人` : `${started} 人`);
+        setHomeText(
+          'weeklyStartedSummary',
+          summaryTotal > 0 ? `本周参与率 ${Math.round(started / summaryTotal * 100)}%` : '本周参与情况'
+        );
+      } else {
+        setHomeText('schoolWeeklyStarted', '--');
+        setHomeText('weeklyStartedSummary', '周榜同步后显示');
+      }
+
+      renderLivePracticeStudents(practicing);
+
+      const detailsBtn = document.getElementById('viewDetailsBtn');
+      if (detailsBtn) {
+        uiState.category = 'practicing';
+        if (practicing.length === 0) {
+          detailsBtn.title = '当前暂无学生正在练琴';
+          detailsBtn.setAttribute('aria-disabled', 'true');
+        } else {
+          detailsBtn.title = '查看正在练琴的学生';
+          detailsBtn.removeAttribute('aria-disabled');
+        }
+      }
+    }
+
     function renderHomeBins() {
       const groups = getGroups();
-      // 使用简化的分组
-      const practicing = groups.practicing;
-      const notPracticing = groups.notPracticing;
-      const totalCount = groups.totalCount;
-      
-      // 向后兼容
-      const attendance = practicing;
-      const absent = [];
-      const selfPractice = [];
-      const notPractice = notPracticing;
-      const shouldPracticeNow = groups.shouldPracticeNow;
-      
-      // 智能分类选择：仅在数据准备好且用户未交互时执行一次
-      const totalStudents = practicing.length + notPracticing.length;
-      
-      dbg(`📋 智能选择状态检查:`);
-      dbg(`  - smartSelectionApplied: ${smartSelectionApplied}`);
-      dbg(`  - userHasInteracted: ${userHasInteracted}`);
-      dbg(`  - totalStudents: ${totalStudents}`);
-      dbg(`  - 当前分类: ${uiState.category}`);
-      
-      if (!smartSelectionApplied && !userHasInteracted && totalStudents > 0) {
-        dbg('✅ 条件满足，执行智能分类选择...');
-        dbg(`📊 当前数据统计: 在练${practicing.length}人, 未练${notPracticing.length}人`);
-        
-        // 简化后只有两个分类，默认选择第一个"在练"
-        const priorityCategory = practicing.length > 0 ? 'practicing' : 'not-practicing';
-        const oldCategory = uiState.category;
-        
-        uiState.category = priorityCategory;
-        updateCategoryTabs(priorityCategory);
+      if (groups.totalCount > 0) {
         smartSelectionApplied = true;
-        
-        dbg(`🎯 智能选择完成: ${oldCategory} → ${priorityCategory}`);
-      } else if (!smartSelectionApplied && userHasInteracted) {
-        dbg('❌ 用户已交互，跳过智能选择');
-        smartSelectionApplied = true;
-      } else if (!smartSelectionApplied && totalStudents === 0) {
-        dbg('⏳ 数据尚未准备好，延迟智能选择...');
-      } else if (smartSelectionApplied) {
-        dbg('✨ 智能选择已应用过，跳过');
-      }
-      
-      // 标记初始加载完成（用于其他逻辑）
-      if (isInitialLoad) {
-        isInitialLoad = false;
-      }
-      
-      // 更新日期显示
-      const today = new Date();
-      const dateStr = `${today.getMonth() + 1}月${today.getDate()}日`;
-      const elDate = document.getElementById('currentDate');
-      if (elDate) elDate.textContent = dateStr;
-      
-      // 根据当前选中的分类更新显示（简化为两个分类）
-      const categoryData = {
-        'practicing': { 
-          data: practicing, 
-          label: '正在练琴人数占总人数的比例', 
-          color: '#22c55e',
-          denominator: totalCount
-        },
-        'not-practicing': { 
-          data: notPracticing, 
-          label: '未在练琴人数占总人数的比例', 
-          color: '#3b82f6',
-          denominator: totalCount
-        }
-      };
-      
-      // 防御性检查：确保 uiState.category 有效
-      if (!categoryData[uiState.category]) {
-        console.warn(`⚠️ 无效的分类: ${uiState.category}，重置为 practicing`);
         uiState.category = 'practicing';
-        updateCategoryTabs('practicing');
       }
-
-      const currentCategory = categoryData[uiState.category];
-      const currentCount = currentCategory.data.length;
-      const denominatorCount = currentCategory.denominator;
-      // 确保 percentage 是数字，避免 NaN
-      let percentage = 0;
-      if (denominatorCount > 0) {
-        percentage = Math.round((currentCount / denominatorCount) * 100);
-      }
-      if (isNaN(percentage)) percentage = 0;
-      
-      requestAnimationFrame(() => {
-        // 更新百分比和人数
-        const elPercentage = document.getElementById('progressPercentage');
-        if(elPercentage) {
-            elPercentage.textContent = percentage;
-            // 确保元素可见
-            elPercentage.style.display = ''; 
-        } else {
-            console.error('❌ 找不到元素: progressPercentage');
-        }
-        
-        const elCount = document.getElementById('progressCount');
-        if(elCount) {
-            elCount.textContent = currentCount;
-        } else {
-            console.error('❌ 找不到元素: progressCount');
-        }
-        
-        const elDesc = document.getElementById('progressDescription');
-        if(elDesc) elDesc.textContent = currentCategory.label;
-        
-        // 更新圆形进度条
-        const progressPath = document.getElementById('progressPath');
-        if(progressPath) {
-          const circumference = 2 * Math.PI * 70; // 圆周长，半径为70
-          const offset = circumference - (percentage / 100) * circumference;
-          
-          // 设置圆形进度条样式
-          progressPath.style.strokeDasharray = circumference;
-          progressPath.style.strokeDashoffset = offset;
-          progressPath.style.stroke = currentCategory.color;
-        }
-
-        // 按钮状态提示：当该分类没人时，给出提示文案（仍允许点击，点击时将弹出提示，不跳页）
-        const detailsBtn = document.getElementById('viewDetailsBtn');
-        if (detailsBtn) {
-          if (currentCount === 0) {
-            detailsBtn.title = '当前分类暂无学生';
-            detailsBtn.setAttribute('aria-disabled', 'true');
-          } else {
-            detailsBtn.title = '查看详情';
-            detailsBtn.removeAttribute('aria-disabled');
-          }
-        }
-      });
+      if (isInitialLoad) isInitialLoad = false;
+      renderSchoolOverview(groups);
     }
     
     function renderUserAvatars(users) {
@@ -7000,7 +7794,28 @@
       item.setAttribute('data-name', studentName);
       item.setAttribute('role', 'button');
       item.setAttribute('tabindex', '0');
-      item.textContent = studentName;
+
+      const meta = appState.studentsMeta.get(studentName) || {};
+      const student = appState.students.get(studentName);
+      const main = document.createElement('div');
+      main.className = 'search-result-main';
+
+      const name = document.createElement('div');
+      name.className = 'search-result-name';
+      name.textContent = meta.name || studentName;
+
+      const details = [meta.grade, meta.major].filter(Boolean);
+      if (student && student.currentStatus !== 'offline') details.push('正在练琴');
+      const metaLine = document.createElement('div');
+      metaLine.className = 'search-result-meta';
+      metaLine.textContent = details.length ? details.join(' · ') : '学生成长档案';
+
+      const action = document.createElement('span');
+      action.className = 'search-result-action';
+      action.textContent = '查看档案 →';
+
+      main.append(name, metaLine);
+      item.append(main, action);
       return item;
     }
 
@@ -7218,6 +8033,7 @@
       const weeklyProgressPercentEl = document.getElementById('weeklyProgressPercent');
       const dailyProgressBarEl = document.getElementById('dailyProgressBar');
       const weeklyProgressBarEl = document.getElementById('weeklyProgressBar');
+      const todayProgressNoteEl = document.getElementById('todayProgressNote');
       if (_isNewStudent) {
         if (rankValEl) rankValEl.textContent = '--';
         if (rankMetaEl) rankMetaEl.textContent = '加载中...';
@@ -7231,6 +8047,7 @@
         if (weeklyProgressPercentEl) weeklyProgressPercentEl.textContent = '--';
         if (dailyProgressBarEl) dailyProgressBarEl.style.width = '0%';
         if (weeklyProgressBarEl) weeklyProgressBarEl.style.width = '0%';
+        if (todayProgressNoteEl) todayProgressNoteEl.textContent = '等待后端结算数据';
       }
       
       document.getElementById('studentGrade').textContent = meta.grade || '未知年级';
@@ -7588,11 +8405,11 @@
           createScoreDetailModal(`
             <div class="lb-section">
               <div class="lb-card">
-                <h4>❌ W 进度说明加载失败</h4>
-                <p>暂时无法读取后端 W 分进度数据，请稍后再试。</p>
+                <h4>❌ 练琴进度说明加载失败</h4>
+                <p>暂时无法读取练琴进度数据，请稍后再试。</p>
               </div>
             </div>
-          `, 'W 进度说明');
+          `, '练琴进度说明');
           return;
         }
 
@@ -7607,16 +8424,22 @@
         const remainingTarget = Number.isFinite(Number(metrics.remainingWeekTargetMinutes))
           ? utils.formatDurationHoursMinutes(metrics.remainingWeekTargetMinutes)
           : '--';
+        const expectedToDate = Number.isFinite(Number(metrics.expectedToDateMinutes))
+          ? utils.formatDurationHoursMinutes(metrics.expectedToDateMinutes)
+          : '--';
+        const officialPace = Number.isFinite(Number(metrics.paceCompletionRatio))
+          ? `${Math.round(Number(metrics.paceCompletionRatio) * 100)}%`
+          : '--';
         const weekendNote = metrics.isTodayWorkday
-          ? '今天是工作日，今日进度计入 W 分。'
-          : '今天是周末，今日进度按 W 分规则不计入，周进度也只统计工作日 cleaned_duration。';
+          ? '今天是工作日，练琴会计入排行榜进度。'
+          : '今天是周末，练琴不会计入排行榜进度；本周累计只统计周一至周五的有效时长。';
 
         const content = `
           <div class="lb-section">
             <div class="lb-card lb-card--gradient" style="background:linear-gradient(135deg,#0ea5e9,#2563eb);border:none;">
-              <div class="lb-kv"><strong>${safeStudentName}</strong><span>W 进度统一口径</span></div>
+              <div class="lb-kv"><strong>${safeStudentName}</strong><span>排行榜进度统一口径</span></div>
               <div style="margin-top:8px;font-size:13px;opacity:.92;line-height:1.7;">
-                本卡片的“已练 / 目标”现在与后端 W 分使用同一套数据源和计算方法。
+                本卡片的“当前 / 目标”与排行榜使用同一套后端数据和计算方法。
               </div>
             </div>
           </div>
@@ -7625,10 +8448,11 @@
             <div class="lb-card">
               <h4>📘 当前口径</h4>
               <div style="font-size:13px;line-height:1.8;color:var(--text-2);">
-                <p>• 已练：读取后端 <code>practice_sessions.cleaned_duration</code></p>
-                <p>• 周目标：读取后端 <code>get_rule_v2_week_target_context</code></p>
-                <p>• 日目标：按剩余周目标 ÷ 剩余工作日动态计算</p>
-                <p>• 周末：不计入 W 分进度</p>
+                <p>• 当前时长：统计后端已结算的有效练琴时长</p>
+                <p>• 周目标：系统根据个人近期记录和同专业情况计算</p>
+                <p>• 截至今日应练：周目标 × 已过工作日 ÷ 5</p>
+                <p>• 今日目标：截至今日应练 − 今天之前已结算分钟</p>
+                <p>• 周末：练琴不计入排行榜进度</p>
               </div>
             </div>
           </div>
@@ -7641,6 +8465,8 @@
                 <p>• 今日目标：<strong>${dayTarget}</strong></p>
                 <p>• 本周已练：<strong>${weekDone}</strong></p>
                 <p>• 本周目标：<strong>${weekTarget}</strong></p>
+                <p>• 截至今日应练：<strong>${expectedToDate}</strong></p>
+                <p>• 正式节奏完成度：<strong>${officialPace}</strong></p>
                 <p>• 本周剩余目标：<strong>${remainingTarget}</strong></p>
                 <p>• ${weekendNote}</p>
               </div>
@@ -7648,21 +8474,41 @@
           </div>
         `;
 
-        createScoreDetailModal(content, 'W 进度说明');
+        createScoreDetailModal(content, '练琴进度说明');
       } catch (e) {
-        console.error('显示 W 进度说明失败:', e);
+        console.error('显示练琴进度说明失败:', e);
         createScoreDetailModal(`
           <div class="lb-section">
             <div class="lb-card">
-              <h4>❌ W 进度说明加载失败</h4>
-              <p>暂时无法读取后端 W 分进度数据，请稍后再试。</p>
+              <h4>❌ 练琴进度说明加载失败</h4>
+              <p>暂时无法读取练琴进度数据，请稍后再试。</p>
             </div>
           </div>
-        `, 'W 进度说明');
+        `, '练琴进度说明');
       }
     }
 
     const liveProgressCache = new Map();
+    const LIVE_SESSION_SCORING_PREVIEW_CAP_MINUTES = 120;
+    const LIVE_SESSION_OVERDUE_MINUTES = 180;
+
+    function getCurrentSessionMetrics(student, now = new Date()) {
+      if (!student || student.currentStatus === 'offline' || !student.currentStartTime) {
+        return { isPracticing: false, elapsedMinutes: 0, isOverdue: false };
+      }
+
+      const start = new Date(student.currentStartTime);
+      if (Number.isNaN(start.getTime()) || start > now) {
+        return { isPracticing: false, elapsedMinutes: 0, isOverdue: false };
+      }
+
+      const elapsedMs = Math.max(0, now.getTime() - start.getTime());
+      return {
+        isPracticing: true,
+        elapsedMinutes: Math.round(elapsedMs / 60000),
+        isOverdue: elapsedMs > LIVE_SESSION_OVERDUE_MINUTES * 60000
+      };
+    }
 
     function setStatusBadge(el, text, tone = '') {
       if (!el) return;
@@ -7727,18 +8573,18 @@
         return;
       }
       if (ratio >= 1.15) {
-        setStatusBadge(badgeEl, '超额完成', 'success');
+        setStatusBadge(badgeEl, isPracticing ? '预计超额完成' : '超额完成', 'success');
         return;
       }
       if (ratio >= 1) {
-        setStatusBadge(badgeEl, '已达成', 'success');
+        setStatusBadge(badgeEl, isPracticing ? '预计达标' : '已达成', 'success');
         return;
       }
       if (ratio >= 0.6) {
-        setStatusBadge(badgeEl, `已完成 ${Math.round(ratio * 100)}%`, 'progress');
+        setStatusBadge(badgeEl, `${isPracticing ? '预计 ' : '已完成 '}${Math.round(ratio * 100)}%`, 'progress');
         return;
       }
-      setStatusBadge(badgeEl, `已完成 ${Math.round(ratio * 100)}%`, 'warn');
+      setStatusBadge(badgeEl, `${isPracticing ? '预计 ' : '已完成 '}${Math.round(ratio * 100)}%`, 'warn');
     }
 
     function updateWeeklyProgressUI(achievedMinutes, targetMinutes) {
@@ -7760,16 +8606,13 @@
     }
 
     function getLiveSessionOverlayMinutes(student, now = new Date()) {
-      if (!student || student.currentStatus === 'offline' || !student.currentStartTime) {
+      const session = getCurrentSessionMetrics(student, now);
+      if (!session.isPracticing) {
         return { todayOverlayMinutes: 0, weeklyOverlayMinutes: 0 };
       }
 
       const start = new Date(student.currentStartTime);
-      if (!(start instanceof Date) || Number.isNaN(start.getTime()) || start > now) {
-        return { todayOverlayMinutes: 0, weeklyOverlayMinutes: 0 };
-      }
-
-      const liveMinutes = Math.max(0, Math.round((now - start) / 60000));
+      const liveMinutes = Math.min(session.elapsedMinutes, LIVE_SESSION_SCORING_PREVIEW_CAP_MINUTES);
       if (liveMinutes <= 0) {
         return { todayOverlayMinutes: 0, weeklyOverlayMinutes: 0 };
       }
@@ -7792,17 +8635,24 @@
       const weeklyTargetEl = document.getElementById('weeklyTarget');
       const weeklyTargetAchievedEl = document.getElementById('weeklyTargetAchieved');
       const todayTotalEl = document.getElementById('todayTotal');
+      const todayProgressNoteEl = document.getElementById('todayProgressNote');
       if (!cache || !dailyTargetEl || !weeklyTargetEl || !weeklyTargetAchievedEl || !todayTotalEl) return;
       if (renderStudentDetail._lastStudent !== studentName) return;
 
       const student = appState.students.get(studentName);
-      const isPracticing = !!(student && student.currentStatus !== 'offline' && student.currentStartTime);
       const overlay = getLiveSessionOverlayMinutes(student, new Date());
+      const hasLiveScoringPreview = overlay.todayOverlayMinutes > 0;
       const todayAchievedMinutes = Math.max(0, Math.round((cache.todayBaseMinutes || 0) + overlay.todayOverlayMinutes));
       const weeklyAchievedMinutes = Math.max(0, Math.round((cache.weeklyBaseMinutes || 0) + overlay.weeklyOverlayMinutes));
 
       todayTotalEl.textContent = utils.formatDurationHoursMinutes(todayAchievedMinutes);
       weeklyTargetAchievedEl.textContent = utils.formatDurationHoursMinutes(weeklyAchievedMinutes);
+      if (todayProgressNoteEl) {
+        const settledTodayText = utils.formatDurationHoursMinutes(cache.todayBaseMinutes || 0);
+        todayProgressNoteEl.textContent = overlay.todayOverlayMinutes > 0
+          ? `已结算 ${settledTodayText} · 本次预计 +${utils.formatDurationHoursMinutes(overlay.todayOverlayMinutes)}`
+          : `已结算 ${settledTodayText}`;
+      }
       dailyTargetEl.textContent = Number.isFinite(cache.dailyTargetMinutes)
         ? utils.formatDurationHoursMinutes(cache.dailyTargetMinutes)
         : '--';
@@ -7813,10 +8663,10 @@
       }
 
       if (!cache.isTodayWorkday) {
-        setStatusBadge(document.getElementById('dailyProgressLabel'), '周末不计 W 分', 'progress');
+        setStatusBadge(document.getElementById('dailyProgressLabel'), '周末无计分目标', 'progress');
         setProgressWidth(document.getElementById('dailyProgressBar'), 0);
       } else {
-        updateDailyProgressUI(todayAchievedMinutes, cache.dailyTargetMinutes, isPracticing, weeklyAchievedMinutes, cache.weeklyTargetMinutes);
+        updateDailyProgressUI(todayAchievedMinutes, cache.dailyTargetMinutes, hasLiveScoringPreview, weeklyAchievedMinutes, cache.weeklyTargetMinutes);
       }
 
       updateWeeklyProgressUI(weeklyAchievedMinutes, cache.weeklyTargetMinutes);
@@ -7832,7 +8682,8 @@
       const practiceStateDot = document.getElementById('practiceStateDot');
       const statusHero = document.getElementById('statusHero');
       const statusHeroCaption = document.getElementById('statusHeroCaption');
-      const isPracticing = student.currentStatus !== 'offline' && !!student.currentStartTime;
+      const session = getCurrentSessionMetrics(student);
+      const isPracticing = session.isPracticing;
 
       // 当前练琴开始时间
       if (isPracticing) {
@@ -7843,19 +8694,22 @@
 
       // 当前时长（这次练琴的时长）
       if (isPracticing) {
-        const now = new Date();
-        const currentSessionMinutes = Math.round((now - student.currentStartTime) / (1000 * 60));
-        currentDuration.innerHTML = renderDurationHero(currentSessionMinutes);
+        currentDuration.innerHTML = renderDurationHero(session.elapsedMinutes);
       } else {
         currentDuration.innerHTML = renderDurationHeroPlaceholder();
       }
 
-      if (practiceStateText) practiceStateText.textContent = isPracticing ? '正在练琴' : '当前空闲';
+      if (practiceStateText) {
+        practiceStateText.textContent = session.isOverdue ? '异常未还卡' : (isPracticing ? '正在练琴' : '当前空闲');
+      }
       if (practiceStateDot) {
         practiceStateDot.classList.toggle('offline', !isPracticing);
-        practiceStateDot.textContent = isPracticing ? '▶' : '☕';
+        practiceStateDot.textContent = session.isOverdue ? '!' : (isPracticing ? '▶' : '☕');
       }
-      if (statusHero) statusHero.classList.toggle('is-idle', !isPracticing);
+      if (statusHero) {
+        statusHero.classList.toggle('is-idle', !isPracticing);
+        statusHero.classList.toggle('is-overdue', session.isOverdue);
+      }
       if (statusHeroCaption) statusHeroCaption.textContent = isPracticing ? '本次已练时长' : '';
 
       // 当前琴房
@@ -7871,6 +8725,7 @@
       const weeklyTargetEl = document.getElementById('weeklyTarget');
       const weeklyTargetAchievedEl = document.getElementById('weeklyTargetAchieved');
       const todayTotalEl = document.getElementById('todayTotal');
+      const todayProgressNoteEl = document.getElementById('todayProgressNote');
       if (!dailyTargetEl || !weeklyTargetEl || !weeklyTargetAchievedEl || !todayTotalEl) return;
 
       const activeStudent = renderStudentDetail._lastStudent;
@@ -7890,6 +8745,7 @@
           weeklyTargetEl.textContent = '--';
           delete weeklyTargetEl.dataset.targetMinutes;
           weeklyTargetAchievedEl.textContent = '--';
+          if (todayProgressNoteEl) todayProgressNoteEl.textContent = '后端结算数据暂不可用';
           updateDailyProgressUI(0, Number.NaN);
           updateWeeklyProgressUI(0, Number.NaN);
           return;
@@ -7922,7 +8778,8 @@
           todayBaseMinutes: todayAchievedMinutes,
           weeklyBaseMinutes: currentWeekAchievedMinutes,
           dailyTargetMinutes,
-          weeklyTargetMinutes
+          weeklyTargetMinutes,
+          source: metrics.source || 'unknown'
         });
         applyLiveProgressMetrics(studentName);
       } catch (e) {
@@ -7935,6 +8792,7 @@
         weeklyTargetEl.textContent = '--';
         delete weeklyTargetEl.dataset.targetMinutes;
         weeklyTargetAchievedEl.textContent = '--';
+        if (todayProgressNoteEl) todayProgressNoteEl.textContent = '后端结算数据暂不可用';
         updateDailyProgressUI(0, Number.NaN);
         updateWeeklyProgressUI(0, Number.NaN);
       }
@@ -10249,19 +11107,8 @@
       currentDurationTimer = setInterval(() => {
         if (uiState.view === 'detail' && uiState.selectedStudent) {
           const student = appState.students.get(resolveStudentName(uiState.selectedStudent));
-          if (student && student.currentStatus !== 'offline' && student.currentStartTime) {
-            const now = new Date();
-            const sameDay = student.currentStartTime.getFullYear()===now.getFullYear() && student.currentStartTime.getMonth()===now.getMonth() && student.currentStartTime.getDate()===now.getDate();
-            const currentDurationEl = document.getElementById('currentDuration');
-            if(sameDay){
-              // ✅ 实时计算并显示当前练琴会话时长
-              const currentSessionMinutes = Math.round((now - student.currentStartTime) / (1000 * 60));
-              currentDurationEl.innerHTML = renderDurationHero(currentSessionMinutes);
-            }
-            applyLiveProgressMetrics(uiState.selectedStudent);
-          } else if(student && student.currentStatus === 'offline') {
-            const currentDurationEl = document.getElementById('currentDuration');
-            if(currentDurationEl) currentDurationEl.innerHTML = renderDurationHeroPlaceholder();
+          if (student) {
+            updateCurrentStatus(student);
             applyLiveProgressMetrics(uiState.selectedStudent);
           }
         }
@@ -12372,6 +13219,11 @@
     };
     const WLB_ESC = escapeHtml;
 
+    function getWlbDefaultCount(board) {
+      const configured = WLB_DEFAULT_N[board] || 6;
+      return window.matchMedia('(max-width: 640px)').matches ? Math.min(configured, 4) : configured;
+    }
+
     function weeklyCoinChange(board, rankNo) {
       const rank = Number(rankNo);
       if (board !== '缩水榜' || !Number.isFinite(rank)) return 0;
@@ -12555,7 +13407,7 @@
         return;
       }
       if (noticeEl) noticeEl.style.display = 'none';
-      const defN = WLB_DEFAULT_N[board] || 6;
+      const defN = getWlbDefaultCount(board);
       const total = rows.length;
       const expanded = !!_wlbExpanded[board];
       const visible = expanded ? rows : rows.slice(0, defN);
@@ -12573,7 +13425,10 @@
         const { label, cls } = wlbRankBadge(r.rank_no || (i + 1));
         return `<div class="wlb-row" data-student="${WLB_ESC(r.student_name)}" role="button" tabindex="0">
           <div class="wlb-medal ${cls}">${label}</div>
-          <div class="wlb-name">${WLB_ESC(r.student_name)}</div>
+          <div class="wlb-person">
+            <div class="wlb-name">${WLB_ESC(r.student_name)}</div>
+            <div class="wlb-meta">${WLB_ESC(r.student_major || '教研室暂无')}</div>
+          </div>
           <span class="wlb-tag" style="background:${mc.bg};color:${mc.c};border-color:${mc.bd}">${WLB_ESC(WLB_MAJ_SHORT(r.student_major))}</span>
           ${wlbValHtml(r, board)}
         </div>${i < visible.length - 1 ? '<div class="wlb-divider"></div>' : ''}`;
@@ -12652,6 +13507,7 @@
             console.warn('[wlb] 缩水榜汇总 RPC 暂不可用:', shrinkSummaryError);
           } else {
             _wlbShrinkSummary = shrinkSummaryData;
+            renderSchoolOverview();
           }
 
           const nextData = groupWeeklyLeaderboards([...(data || []), ...(declineData || [])]);
