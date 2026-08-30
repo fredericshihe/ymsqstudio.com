@@ -3837,10 +3837,10 @@
           <input 
             type="text" 
             class="search-input" 
-            placeholder="输入学生姓名"
+            placeholder="输入姓名或拼音首字母，如 zzm"
             id="studentSearchInput"
             autocomplete="off"
-            aria-label="搜索学生姓名"
+            aria-label="按姓名或拼音首字母搜索学生"
           />
           <div class="search-results" id="searchResults"></div>
         </div>
@@ -7831,6 +7831,57 @@
       return item;
     }
 
+    const STUDENT_PINYIN_INITIAL_BOUNDARIES = [...'阿八嚓哒妸发旮哈击喀垃妈拿哦啪期然撒塌挖昔压匝'];
+    const STUDENT_PINYIN_INITIAL_LETTERS = [...'abcdefghjklmnopqrstwxyz'];
+    const studentPinyinCollator = new Intl.Collator('zh-CN-u-co-pinyin');
+    const studentSearchIndexCache = new Map();
+
+    function normalizeStudentSearchText(value) {
+      return String(value || '')
+        .normalize('NFKC')
+        .toLowerCase()
+        .replace(/[\s._·•-]+/g, '');
+    }
+
+    function getStudentNamePinyinInitials(name) {
+      const normalizedName = normalizeStudentSearchText(name);
+      if (!normalizedName) return '';
+      const cached = studentSearchIndexCache.get(normalizedName);
+      if (cached) return cached.initials;
+
+      const initials = [...normalizedName].map(char => {
+        if (/^[a-z0-9]$/.test(char)) return char;
+        let initial = '';
+        for (let index = 0; index < STUDENT_PINYIN_INITIAL_BOUNDARIES.length; index += 1) {
+          if (studentPinyinCollator.compare(char, STUDENT_PINYIN_INITIAL_BOUNDARIES[index]) >= 0) {
+            initial = STUDENT_PINYIN_INITIAL_LETTERS[index];
+          } else {
+            break;
+          }
+        }
+        return initial || char;
+      }).join('');
+
+      studentSearchIndexCache.set(normalizedName, { initials });
+      return initials;
+    }
+
+    function getStudentSearchRank(studentName, query) {
+      const normalizedName = normalizeStudentSearchText(studentName);
+      const normalizedQuery = normalizeStudentSearchText(query);
+      if (!normalizedName || !normalizedQuery) return -1;
+      if (normalizedName === normalizedQuery) return 0;
+      if (normalizedName.startsWith(normalizedQuery)) return 1;
+      if (normalizedName.includes(normalizedQuery)) return 2;
+      if (!/^[a-z0-9]+$/.test(normalizedQuery)) return -1;
+
+      const initials = getStudentNamePinyinInitials(normalizedName);
+      if (initials === normalizedQuery) return 3;
+      if (initials.startsWith(normalizedQuery)) return 4;
+      if (normalizedQuery.length >= 2 && initials.includes(normalizedQuery)) return 5;
+      return -1;
+    }
+
     // 执行搜索
     function performSearch(query) {
       const searchResults = document.getElementById('searchResults');
@@ -7854,10 +7905,12 @@
         ];
       }
       
-      // 搜索匹配的学生
-      const matchedStudents = allStudents.filter(student => 
-        student && student.name && student.name.toLowerCase().includes(query.toLowerCase())
-      );
+      // 中文姓名与拼音首字母共用同一份本地索引，不产生额外后端请求。
+      const matchedStudents = allStudents
+        .map(student => ({ student, rank: getStudentSearchRank(student?.name, query) }))
+        .filter(item => item.student?.name && item.rank >= 0)
+        .sort((left, right) => left.rank - right.rank || left.student.name.localeCompare(right.student.name, 'zh-CN'))
+        .map(item => item.student);
 
       searchResults.replaceChildren();
 
@@ -7869,7 +7922,7 @@
         searchResults.appendChild(emptyState);
       } else {
         const fragment = document.createDocumentFragment();
-        matchedStudents.slice(0, 5).forEach(student => {
+        matchedStudents.slice(0, 8).forEach(student => {
           fragment.appendChild(createSearchResultItemElement(student.name));
         });
         searchResults.appendChild(fragment);
