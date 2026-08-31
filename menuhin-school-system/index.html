@@ -3325,25 +3325,124 @@
 
       .school-metrics {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 10px;
         margin-top: 18px;
       }
 
-      .school-metric:first-child { grid-column: 1 / -1; }
-
       .school-metric {
+        display: flex;
         min-width: 0;
+        flex-direction: column;
+        align-items: stretch;
         padding: 14px;
         border: 1px solid var(--home-line);
         border-radius: 13px;
         background: var(--home-panel-soft);
       }
 
+      .school-metric-action {
+        appearance: none;
+        width: 100%;
+        min-height: 0;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .school-metric-action:hover {
+        border-color: color-mix(in oklab, var(--home-coral) 44%, var(--home-line));
+        background: color-mix(in oklab, var(--home-coral) 7%, var(--home-panel-soft));
+        transform: translateY(-1px);
+        box-shadow: 0 8px 18px rgba(107, 61, 56, .08);
+      }
+
+      .school-metric-action:focus-visible {
+        outline: 3px solid color-mix(in oklab, var(--home-coral) 32%, transparent);
+        outline-offset: 2px;
+      }
+
+      .school-metric-action .school-metric-value { color: var(--home-coral); }
+
+      .school-metric-action.has-anomalies .school-metric-value { color: var(--home-coral); }
+
+      .school-metric-action.no-anomalies .school-metric-value { color: var(--home-mint); }
+
+      .current-anomaly-intro {
+        margin: 0 0 12px;
+        color: var(--text-3);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      .current-anomaly-list { display: grid; gap: 8px; }
+
+      .current-anomaly-row {
+        display: grid;
+        width: 100%;
+        min-height: 0;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 12px;
+        padding: 11px 12px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface-0);
+        color: var(--text-1);
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .current-anomaly-row:hover {
+        border-color: color-mix(in oklab, var(--home-coral) 42%, var(--border));
+        background: color-mix(in oklab, var(--home-coral) 6%, var(--surface-0));
+        transform: translateY(-1px);
+      }
+
+      .current-anomaly-row-main { min-width: 0; }
+
+      .current-anomaly-row-name {
+        overflow: hidden;
+        color: var(--text-1);
+        font-size: 14px;
+        font-weight: 750;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .current-anomaly-row-meta {
+        margin-top: 3px;
+        overflow: hidden;
+        color: var(--text-3);
+        font-size: 11px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .current-anomaly-row-duration {
+        color: var(--home-coral);
+        font-size: 13px;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .current-anomaly-empty {
+        padding: 28px 16px;
+        border: 1px dashed var(--border);
+        border-radius: 12px;
+        background: var(--surface-0);
+        color: var(--text-3);
+        font-size: 13px;
+        text-align: center;
+      }
+
       .school-metric-label {
         color: var(--home-muted);
         font-size: 12px;
         font-weight: 650;
+        white-space: nowrap;
       }
 
       .school-metric-value {
@@ -3351,8 +3450,10 @@
         color: var(--home-ink);
         font-size: clamp(22px, 2.8vw, 28px);
         font-weight: 800;
+        font-variant-numeric: tabular-nums;
         line-height: 1.12;
         letter-spacing: -.035em;
+        white-space: nowrap;
       }
 
       .school-metric-foot {
@@ -3691,7 +3792,7 @@
         .panel-title-row h2 { font-size: 18px; }
         .panel-date { padding-top: 0; font-size: 11px; }
         .school-metrics {
-          grid-template-columns: 1.15fr 1fr 1fr;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 0;
           margin-top: 13px;
           overflow: hidden;
@@ -3711,8 +3812,7 @@
         .school-metric:nth-child(3) { border-left: 1px solid var(--home-line); }
         .school-metric:nth-child(-n+3) .school-metric-foot { display: none; }
         .school-metric-label { font-size: 10.5px; line-height: 1.35; }
-        .school-metric-value { margin-top: 7px; font-size: 19px; }
-        .school-metric:first-child .school-metric-value { font-size: 23px; }
+        .school-metric-value { margin-top: 7px; font-size: 21px; }
         .school-metric-foot { min-height: 0; font-size: 10.5px; }
         .live-campus {
           margin-top: 12px;
@@ -3829,8 +3929,7 @@
           min-height: 72px;
           padding: 10px 7px;
         }
-        .school-metric-value { font-size: 17px; }
-        .school-metric:first-child .school-metric-value { font-size: 21px; }
+        .school-metric-value { font-size: 19px; }
         .wlb-header { padding-inline: 13px; }
         .wlb-title { font-size: 18px; }
         .wlb-row { padding-inline: 10px; }
@@ -3933,13 +4032,13 @@
             <div class="school-metric">
               <div class="school-metric-label">今日已有记录</div>
               <div class="school-metric-value" id="todayPracticeCount">0 人</div>
-              <div class="school-metric-foot" id="todayStudentRatio">全校学生参与情况</div>
+              <div class="school-metric-foot" id="todayStudentRatio">等待今日数据同步</div>
             </div>
-            <div class="school-metric">
-              <div class="school-metric-label">本周已开始</div>
-              <div class="school-metric-value" id="schoolWeeklyStarted">--</div>
-              <div class="school-metric-foot" id="weeklyStartedSummary">等待周榜同步</div>
-            </div>
+            <button type="button" class="school-metric school-metric-action no-anomalies" id="currentAnomalyMetric" aria-label="查看当前异常练琴学生">
+              <div class="school-metric-label">当前异常练琴</div>
+              <div class="school-metric-value" id="currentAnomalyCount">0 人</div>
+              <div class="school-metric-foot" id="currentAnomalySummary">点击查看异常学生</div>
+            </button>
           </div>
 
           <div class="live-campus">
@@ -7044,6 +7143,45 @@
       };
     }
 
+    function getCurrentAnomalyStudents(students = getGroups().practicing, now = new Date()) {
+      return (students || [])
+        .map(student => ({ student, session: getCurrentSessionMetrics(student, now) }))
+        .filter(item => item.session.isOverdue)
+        .sort((left, right) => right.session.elapsedMinutes - left.session.elapsedMinutes
+          || String(left.student.name || '').localeCompare(String(right.student.name || ''), 'zh-CN'));
+    }
+
+    function showCurrentAnomalyStudents() {
+      const anomalies = getCurrentAnomalyStudents();
+      const content = anomalies.length
+        ? `<p class="current-anomaly-intro">当前会话超过 ${LIVE_SESSION_OVERDUE_MINUTES} 分钟仍未还卡。点击学生可直接查看练琴档案。</p>
+          <div class="current-anomaly-list">
+            ${anomalies.map(({ student, session }) => {
+              const meta = appState.studentsMeta.get(student.name) || {};
+              const detail = [meta.grade, meta.major, student.currentRoom].filter(Boolean).join(' · ') || '资料未填写';
+              return `<button type="button" class="current-anomaly-row" data-current-anomaly-student="${escapeHtml(student.name)}">
+                <span class="current-anomaly-row-main">
+                  <span class="current-anomaly-row-name">${escapeHtml(student.name)}</span>
+                  <span class="current-anomaly-row-meta">${escapeHtml(detail)}</span>
+                </span>
+                <span class="current-anomaly-row-duration">${escapeHtml(utils.formatDurationHoursMinutes(session.elapsedMinutes))}</span>
+              </button>`;
+            }).join('')}
+          </div>`
+        : `<div class="current-anomaly-empty">当前没有超过 ${LIVE_SESSION_OVERDUE_MINUTES} 分钟未还卡的学生</div>`;
+
+      createScoreDetailModal(content, `当前异常练琴 · ${anomalies.length} 人`);
+      const modal = document.querySelector('.lb-modal');
+      modal?.querySelectorAll('[data-current-anomaly-student]').forEach(button => {
+        button.addEventListener('click', () => {
+          const studentName = button.dataset.currentAnomalyStudent;
+          if (!studentName) return;
+          closeScoreDetailModal();
+          setTimeout(() => openStudentDetailFromSearch(studentName), 210);
+        });
+      });
+    }
+
     function renderLivePracticeStudents(practicing) {
       const container = document.getElementById('livePracticeStudents');
       if (!container) return;
@@ -7101,32 +7239,20 @@
       setHomeText('currentPracticeCount', `${practicing.length} 人`);
       setHomeText('currentPracticeRooms', occupiedRooms > 0 ? `${occupiedRooms} 间琴房正在使用` : '当前琴房空闲');
       setHomeText('todayPracticeCount', `${participation.todayCount} 人`);
-      setHomeText(
-        'todayStudentRatio',
-        participationTotal > 0
-          ? `占在读学生 ${Math.round(participation.todayCount / participationTotal * 100)}% · 开始记录即计入`
-          : '等待学生数据'
-      );
-
-      const summary = Array.isArray(_wlbShrinkSummary)
-        ? (_wlbShrinkSummary[0] || null)
-        : _wlbShrinkSummary;
-      if (participationTotal > 0 || summary) {
-        // 周榜汇总仍用于缩水榜，但首页人数与“今日已有记录”统一使用原始日志口径。
-        const summaryTotal = participationTotal || Number(summary?.total_students || 0);
-        const started = participationTotal > 0
-          ? participation.weekStartedCount
-          : Number(summary?.started_students || 0);
-        setHomeText('schoolWeeklyStarted', summaryTotal > 0 ? `${started} / ${summaryTotal} 人` : `${started} 人`);
-        setHomeText(
-          'weeklyStartedSummary',
-          summaryTotal > 0
-            ? `本周参与率 ${Math.round(started / summaryTotal * 100)}% · 开始记录即计入`
-            : '本周参与情况'
-        );
+      if (participationTotal > 0) {
+        setHomeText('todayStudentRatio', `占在读学生 ${Math.round(participation.todayCount / participationTotal * 100)}%`);
       } else {
-        setHomeText('schoolWeeklyStarted', '--');
-        setHomeText('weeklyStartedSummary', '周榜同步后显示');
+        setHomeText('todayStudentRatio', '等待学生与练琴记录同步');
+      }
+
+      const anomalyStudents = getCurrentAnomalyStudents(practicing);
+      const anomalyMetric = document.getElementById('currentAnomalyMetric');
+      setHomeText('currentAnomalyCount', `${anomalyStudents.length} 人`);
+      setHomeText('currentAnomalySummary', anomalyStudents.length ? '超时未还卡 · 点击查看' : '暂无超时未还卡');
+      if (anomalyMetric) {
+        anomalyMetric.classList.toggle('has-anomalies', anomalyStudents.length > 0);
+        anomalyMetric.classList.toggle('no-anomalies', anomalyStudents.length === 0);
+        anomalyMetric.setAttribute('aria-label', `当前异常练琴 ${anomalyStudents.length} 人，点击查看名单`);
       }
 
       renderLivePracticeStudents(practicing);
@@ -7142,6 +7268,15 @@
           detailsBtn.removeAttribute('aria-disabled');
         }
       }
+    }
+
+    let homeAnomalyRefreshTimer = null;
+
+    function startHomeAnomalyRefresh() {
+      if (homeAnomalyRefreshTimer) return;
+      homeAnomalyRefreshTimer = setInterval(() => {
+        if (!document.hidden && uiState.view === 'home') renderSchoolOverview();
+      }, 30000);
     }
 
     function renderHomeBins() {
@@ -7449,6 +7584,12 @@
   const backBtn = document.getElementById('backBtn');
   const detailBackBtn = document.getElementById('detailBackBtn');
   const studentGrid = document.getElementById('studentGrid');
+  const currentAnomalyMetric = document.getElementById('currentAnomalyMetric');
+
+      if (currentAnomalyMetric && !currentAnomalyMetric.__anomalyListBound) {
+        currentAnomalyMetric.addEventListener('click', showCurrentAnomalyStudents);
+        currentAnomalyMetric.__anomalyListBound = true;
+      }
 
       if (studentGrid && !studentGrid.__detailDelegationBound) {
         const openStudentFromCard = (target) => {
@@ -13193,6 +13334,7 @@
 
       updateViews();
       setupHomeInteractions();
+      startHomeAnomalyRefresh();
       setupSwipeGestures();
 
       try {
