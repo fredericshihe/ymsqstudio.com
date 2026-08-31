@@ -845,9 +845,14 @@ async function rpc(fnName,params={}){
 const fetchHealth=()=>api('v_baseline_health?select=*').then(r=>r[0]||null);
 const fetchStudents=()=>api('student_baseline?select=*&order=composite_score.desc.nullslast');
 const fetchStudentDirectory=()=>api('student_database?select=id,name,major,grade,archived,updated_at&archived=eq.false&order=name.asc&limit=10000');
-const fetchHistory=n=>api(`student_score_history?student_name=eq.${encodeURIComponent(n)}&select=snapshot_date,composite_score,raw_score,baseline_score,trend_score,momentum_score,accum_score,outlier_rate,short_session_rate,mean_duration,record_count&order=snapshot_date.asc&limit=52`);
+const fetchHistory=n=>api(`student_score_history?student_name=eq.${encodeURIComponent(n)}&select=snapshot_date,composite_score,raw_score,baseline_score,trend_score,momentum_score,accum_score,outlier_rate,short_session_rate,mean_duration,record_count&order=snapshot_date.desc&limit=52`).then(rows=>rows.reverse());
 const fetchSessions=n=>api(`practice_sessions?student_name=eq.${encodeURIComponent(n)}&select=session_start,session_end,raw_duration,cleaned_duration,room_name,is_outlier,outlier_reason&order=session_start.desc&limit=20`);
 const fetchWeekSessions=n=>api(`practice_sessions?student_name=eq.${encodeURIComponent(n)}&select=session_start,cleaned_duration&session_start=gte.${encodeURIComponent(getWeekMondayLocalISO())}&order=session_start.asc&limit=500`);
+const fetchHistorySessions=n=>{
+  const since=new Date();
+  since.setDate(since.getDate()-371);
+  return api(`practice_sessions?student_name=eq.${encodeURIComponent(n)}&cleaned_duration=gt.0&session_start=gte.${encodeURIComponent(since.toISOString())}&select=session_start,cleaned_duration&order=session_start.asc&limit=5000`);
+};
 const fetchPersonalizedWRef=n=>rpc('get_personalized_w_daily_ref',{p_student_name:n}).then(r=>Array.isArray(r)?(r[0]||null):(r||null));
 const fetchRuleV2WeekTargetContext=n=>rpc('get_rule_v2_week_target_context',{p_student_name:n,p_week_monday:getWeekMonday()}).then(r=>Array.isArray(r)?(r[0]||null):(r||null));
 
@@ -878,6 +883,50 @@ function isWorkdayDate(v){
   const d=v instanceof Date?v:new Date(v);
   const day=d.getDay();
   return day!==0&&day!==6;
+}
+
+function getBeijingWeekMonday(v){
+  const timestamp=v instanceof Date?v.getTime():new Date(v).getTime();
+  if(!Number.isFinite(timestamp))return null;
+  const beijing=new Date(timestamp+8*3600000);
+  const day=beijing.getUTCDay();
+  if(day===0||day===6)return null;
+  beijing.setUTCDate(beijing.getUTCDate()+(1-day));
+  return `${beijing.getUTCFullYear()}-${String(beijing.getUTCMonth()+1).padStart(2,'0')}-${String(beijing.getUTCDate()).padStart(2,'0')}`;
+}
+
+function normalizeHistoryBySessions(history=[],sessionRows=[]){
+  const activeWeeks=new Set();
+  (Array.isArray(sessionRows)?sessionRows:[]).forEach(session=>{
+    if(Number(session?.cleaned_duration||0)<=0)return;
+    const monday=getBeijingWeekMonday(session.session_start);
+    if(monday)activeWeeks.add(monday);
+  });
+  return (Array.isArray(history)?history:[]).map(row=>{
+    const hasPractice=activeWeeks.has(row.snapshot_date);
+    if(hasPractice)return {...row,has_practice:true};
+    return {
+      ...row,
+      composite_score:0,
+      raw_score:0,
+      baseline_score:null,
+      trend_score:null,
+      momentum_score:null,
+      accum_score:null,
+      mean_duration:0,
+      outlier_rate:0,
+      has_practice:false
+    };
+  });
+}
+
+function compareLeaderboardRows(a,b){
+  const rankA=a?.rank_no==null?NaN:Number(a.rank_no);
+  const rankB=b?.rank_no==null?NaN:Number(b.rank_no);
+  const safeRankA=Number.isFinite(rankA)?rankA:Number.MAX_SAFE_INTEGER;
+  const safeRankB=Number.isFinite(rankB)?rankB:Number.MAX_SAFE_INTEGER;
+  if(safeRankA!==safeRankB)return safeRankA-safeRankB;
+  return String(a?.student_name||'').localeCompare(String(b?.student_name||''),'zh-CN');
 }
 
 function buildLeaderboardSnapshot(lbRows=[]){
@@ -912,15 +961,15 @@ function syncStudentsWithLeaderboard(students=[],weekScores=[],activeThisWeek=nu
       : (name in weekMap && ((weekMap[name].composite_score||0)>0 || (weekMap[name].raw_score||0)>0));
 
     if(practicedThisWeek){
-      // 与综合榜 RPC 完全对齐；如果 RPC 暂时未返回该生，则回退到本周快照/当前 baseline
-      s.display_score = lbCompMap[name]?.display_score ?? (name in weekMap ? weekMap[name].composite_score : s.composite_score);
-      s.display_raw_score = name in weekMap ? weekMap[name].raw_score : s.raw_score;
+      // 只显示本周榜单或本周快照；计算尚未完成时不回退旧周期 baseline
+      s.display_score = lbCompMap[name]?.display_score ?? (name in weekMap ? weekMap[name].composite_score : null);
+      s.display_raw_score = name in weekMap ? weekMap[name].raw_score : null;
       s.display_rank = lbCompMap[name]?.rank_no ?? null;
       s.display_rank_total = activeRankedTotal || null;
       s.has_week_snapshot = false;
     }else{
-      s.display_score = s.composite_score ?? null;
-      s.display_raw_score = s.raw_score ?? null;
+      s.display_score = null;
+      s.display_raw_score = null;
       s.display_rank = null;
       s.display_rank_total = activeRankedTotal || null;
       s.has_week_snapshot = true;
@@ -935,13 +984,15 @@ async function refreshSelectedStudentDetail(){
   const s=S.students.find(x=>x.student_name===S.selected);
   if(!s)return;
   try{
-    const [hist,sessions,weekSessions,wRefServer,wTargetCtx]=await Promise.all([
+    const [historyRows,historySessions,sessions,weekSessions,wRefServer,wTargetCtx]=await Promise.all([
       fetchHistory(S.selected),
+      fetchHistorySessions(S.selected),
       fetchSessions(S.selected),
       fetchWeekSessions(S.selected),
       fetchPersonalizedWRef(S.selected).catch(()=>null),
       fetchRuleV2WeekTargetContext(S.selected).catch(()=>null)
     ]);
+    const hist=normalizeHistoryBySessions(historyRows,historySessions);
     renderDP(s,hist,sessions,weekSessions,wRefServer,wTargetCtx);
   }catch(e){
     console.warn('[detail] 刷新当前学生详情失败:',e.message);
@@ -1117,6 +1168,7 @@ async function loadAll(){
     // 将后端返回的榜单数据按 board 分组，传给渲染函数
     const lbMap={};
     (lbRows||[]).forEach(r=>{(lbMap[r.board]||(lbMap[r.board]=[])).push(r);});
+    Object.values(lbMap).forEach(rows=>rows.sort(compareLeaderboardRows));
     renderCatBoards(lbMap);
     renderShrinkSummary(shrinkSummary);
     // 缓存用于 PDF 导出（避免直接依赖弹窗状态）
@@ -1301,10 +1353,10 @@ function exportLeaderboardsPdf(){
     const meta3 = '';
 
     const leftBoard = '综合榜';
-    const leftRows = (map[leftBoard]||[]).slice(0, limits[leftBoard]).sort((a,b)=>(a.rank_no??9999)-(b.rank_no??9999));
+    const leftRows = [...(map[leftBoard]||[])].sort(compareLeaderboardRows).slice(0, limits[leftBoard]);
 
     const rightCards = ['进步榜','稳定榜','守则榜','缩水榜'].map(b=>{
-      const rows=(map[b]||[]).slice(0, limits[b]).sort((a,b2)=>(a.rank_no??9999)-(b2.rank_no??9999));
+      const rows=[...(map[b]||[])].sort(compareLeaderboardRows).slice(0, limits[b]);
       const valueHeader = b === '缩水榜' ? '进度 / 币' : '币';
       return `<div class="card">
         <div class="ct">
@@ -1477,7 +1529,7 @@ function renderCatBoards(lbMap){
     if(!el)return;
     if(!rows||!rows.length){el.innerHTML='<div class="cat-board-empty">暂无足够数据</div>';return;}
     const defN=DEFAULT_N[board]||6;
-    const visible=rows.slice(0,defN);
+    const visible=[...rows].sort(compareLeaderboardRows).slice(0,defN);
 
     el.innerHTML=visible.map((r,i)=>{
       const row=buildRow(r,valFn(r));
@@ -1488,7 +1540,7 @@ function renderCatBoards(lbMap){
   // 弹窗显示某榜全部学生
   const LB_TITLES={'进步榜':'📈 进步榜','稳定榜':'🎯 稳定榜','守则榜':'🏅 守则榜','缩水榜':'📉 缩水榜'};
   window.openLbModal=function(board){
-    const rows=(window._lbMap||{})[board]||[];
+    const rows=[...((window._lbMap||{})[board]||[])].sort(compareLeaderboardRows);
     const valFns=window._lbValFns||{};
     const valFn=valFns[board];
     if(!valFn)return;
@@ -1565,6 +1617,7 @@ async function refreshLeaderboards(){
     syncStudentsWithLeaderboard(S.students,weekScores,activeThisWeek,lbRows);
     const lbMap={};
     (lbRows||[]).forEach(r=>{(lbMap[r.board]||(lbMap[r.board]=[])).push(r);});
+    Object.values(lbMap).forEach(rows=>rows.sort(compareLeaderboardRows));
     window._lbRows=lbRows||[];
     window._lbMap=lbMap; // 同步缓存
     const pdfBtn=$('lbPdfBtn'); if(pdfBtn) pdfBtn.disabled = !(lbRows && lbRows.length);
@@ -1609,6 +1662,18 @@ function applyF(){
   });
   const col=S.sortCol,dir=S.sortDir==='asc'?1:-1;
   S.filtered.sort((a,b)=>{
+    if(col==='composite_score'){
+      const rankA=a.display_rank==null?NaN:Number(a.display_rank);
+      const rankB=b.display_rank==null?NaN:Number(b.display_rank);
+      const hasRankA=Number.isFinite(rankA);
+      const hasRankB=Number.isFinite(rankB);
+      if(hasRankA||hasRankB){
+        if(!hasRankA)return 1;
+        if(!hasRankB)return-1;
+        if(rankA!==rankB)return S.sortDir==='desc'?rankA-rankB:rankB-rankA;
+        return String(a.student_name||'').localeCompare(String(b.student_name||''),'zh-CN');
+      }
+    }
     const getVal=s=>{
       if(col==='composite_score'){
         // 本周未练的学生排在末尾（null → Infinity 处理）
@@ -1724,13 +1789,15 @@ async function pickStudent(name){
   dp.innerHTML=`<div style="padding:40px;text-align:center;color:var(--t3)"><div class="spin"></div><br><br>加载 ${name} 的数据…</div>`;
   try{
     const s=S.students.find(x=>x.student_name===name);
-    const [hist,sessions,weekSessions,wRefServer,wTargetCtx]=await Promise.all([
+    const [historyRows,historySessions,sessions,weekSessions,wRefServer,wTargetCtx]=await Promise.all([
       fetchHistory(name),
+      fetchHistorySessions(name),
       fetchSessions(name),
       fetchWeekSessions(name),
       fetchPersonalizedWRef(name).catch(()=>null),
       fetchRuleV2WeekTargetContext(name).catch(()=>null)
     ]);
+    const hist=normalizeHistoryBySessions(historyRows,historySessions);
     S.currentStudent=s;
     renderDP(s,hist,sessions,weekSessions,wRefServer,wTargetCtx);
   }catch(e){dp.innerHTML=`<div style="padding:28px;color:var(--red)">加载失败：${e.message}</div>`;toast(`加载失败：${e.message}`,'err')}
@@ -2018,7 +2085,7 @@ function renderDP(s,hist,sessions=[],weekSessions=[],wRefServer=null,wTargetCtx=
               <thead>
                 <tr style="border-bottom:1px solid var(--bdr)">
                   <th style="padding:7px 10px;text-align:left;color:var(--t3);font-weight:700;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">日期</th>
-                  <th style="padding:7px 10px;text-align:center;color:var(--t3);font-weight:700;font-size:.7rem;text-transform:uppercase">全校排名</th>
+                  <th style="padding:7px 10px;text-align:center;color:var(--t3);font-weight:700;font-size:.7rem;text-transform:uppercase">全校排名分</th>
                   <th style="padding:7px 10px;text-align:center;color:var(--t3);font-weight:700;font-size:.7rem;text-transform:uppercase">个人变化值</th>
                   <th style="padding:7px 10px;text-align:center;color:var(--t3);font-weight:700;font-size:.7rem;text-transform:uppercase">B 基线</th>
                   <th style="padding:7px 10px;text-align:center;color:var(--t3);font-weight:700;font-size:.7rem;text-transform:uppercase">T 趋势</th>
@@ -2188,7 +2255,7 @@ function renderSnapTable(hist){
   tb.innerHTML=rows.map((h,i)=>{
     const sc=h.composite_score??null;
     const raw=h.raw_score??null;
-    const noPractice=sc===0;  // 本周无练琴记录
+    const noPractice=h.has_practice===false||sc===0;
     const b=h.baseline_score,t=h.trend_score,m=h.momentum_score,a=h.accum_score;
     const dur=h.mean_duration,or=h.outlier_rate;
     const rowBg=noPractice?'background:rgba(100,116,139,.06)':i%2===0?'':'background:rgba(255,255,255,.015)';
