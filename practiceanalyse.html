@@ -637,7 +637,7 @@ tbody td.b{color:var(--t1);font-weight:700}
           <div class="cat-board-icon" style="background:linear-gradient(135deg,rgba(16,185,129,.25),rgba(16,185,129,.1));border:1px solid rgba(16,185,129,.3)">📈</div>
           <div>
             <div class="cat-board-title" style="color:#34d399">进步榜</div>
-            <div class="cat-board-sub">本周绝对涨分最大 · 涨分 ≥1.0 · 本周工作日 ≥2次 · 近10条记录 ≥4 · 异常率 ≤45%</div>
+            <div class="cat-board-sub">本周绝对涨分最大 · 涨分 ≥1.0 · 本周工作日 ≥2次 · 最近20条记录 ≥4 · 异常率 ≤20%</div>
           </div>
           <button class="cbl-view-all-btn" onclick="openLbModal('进步榜')">查看全部</button>
         </div>
@@ -649,7 +649,7 @@ tbody td.b{color:var(--t1);font-weight:700}
           <div class="cat-board-icon" style="background:linear-gradient(135deg,rgba(79,142,247,.25),rgba(79,142,247,.1));border:1px solid rgba(79,142,247,.3)">🎯</div>
           <div>
             <div class="cat-board-title" style="color:#93c5fd">稳定榜</div>
-            <div class="cat-board-sub">α 最高 · α ≥0.60 · 近10条工作日记录 ≥8 · 近10条均时 ≥30min · 异常率 ≤35%</div>
+            <div class="cat-board-sub">α 优先 · 同α时波动更小 · α ≥0.60 · 最近20条工作日记录 ≥8 · 均时 ≥30min · 异常率 ≤20%</div>
           </div>
           <button class="cbl-view-all-btn" onclick="openLbModal('稳定榜')">查看全部</button>
         </div>
@@ -661,7 +661,7 @@ tbody td.b{color:var(--t1);font-weight:700}
           <div class="cat-board-icon" style="background:linear-gradient(135deg,rgba(168,85,247,.25),rgba(168,85,247,.1));border:1px solid rgba(168,85,247,.3)">🏅</div>
           <div>
             <div class="cat-board-title" style="color:#c4b5fd">守则榜</div>
-            <div class="cat-board-sub">近10条异常率最低 · α ≥0.60 · 近10条记录 ≥5 · 均时 ≥30min · 异常率 ≤40% · 本周工作日 ≥3次</div>
+            <div class="cat-board-sub">最近20条异常率最低 · α ≥0.60 · 最近20条记录 ≥5 · 均时 ≥30min · 异常率 ≤20% · 本周至少3个不同工作日</div>
           </div>
           <button class="cbl-view-all-btn" onclick="openLbModal('守则榜')">查看全部</button>
         </div>
@@ -1212,8 +1212,8 @@ function addDaysDateOnly(dateStr, days){
 function boardShortNote(board){
   if(board==='综合榜') return '综合分绝对分（0-100）';
   if(board==='进步榜') return '涨分（本周 vs 上周）';
-  if(board==='稳定榜') return '近10条均时 + α';
-  if(board==='守则榜') return '近10条异常率（越低越好）';
+  if(board==='稳定榜') return 'α优先 · 时长波动率次之';
+  if(board==='守则榜') return '最近20条异常率（越低越好）';
   if(board==='缩水榜') return '当前应完成进度低于70%（越低越前，前6名扣币）';
   return '';
 }
@@ -1575,10 +1575,10 @@ function renderCatBoards(lbMap){
     return`<div class="cbl-right"><div class="cbl-val" style="color:${c}">${sign}${gain.toFixed(1)}<span style="font-size:.7em;opacity:.8"> 分</span></div><div class="cbl-val-sub">${label}</div></div>`;
   };
   valFns['稳定榜']=r=>{
-    const dur=Number(r.recent10_mean_dur??r.mean_duration??0).toFixed(1);
     const al=Number(r.alpha??0);
-    const durC=Number(dur)>=60?'#34d399':Number(dur)>=45?'#86efac':'#93c5fd';
-    return`<div class="cbl-right"><div class="cbl-val" style="color:${durC}">${dur}min</div><div class="cbl-val-sub">α ${al.toFixed(3)}</div></div>`;
+    const dur=Number(r.recent10_mean_dur??r.mean_duration??0).toFixed(1);
+    const alC=al>=.85?'#34d399':al>=.7?'#86efac':'#93c5fd';
+    return`<div class="cbl-right"><div class="cbl-val" style="color:${alC}">α ${al.toFixed(3)}</div><div class="cbl-val-sub">均时 ${dur}min · 波动小优先</div></div>`;
   };
   valFns['守则榜']=r=>{
     const or=Number(r.recent10_outlier_rate??0);
