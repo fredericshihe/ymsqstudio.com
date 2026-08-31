@@ -3,10 +3,11 @@
 -- 文件：verify_coin_reward_accuracy.sql
 --
 -- 目标：
--- 1) 按当前 get_weekly_leaderboards() 规则重算“应发”金额
+-- 1) 按 21:30 锁榜快照重算“应发/应扣”金额
 -- 2) 对比 weekly_coin_reward_detail / weekly_coin_reward_log 实际落库结果
--- 3) 校验 weekly_coin_reward_detail 与 coin_transactions(auto_reward) 一致性
--- 当前奖励（2026-08-27 起）：综合榜 80/64/48/32；稳定榜 12/9/5；守则榜 11/8/5；进步榜 10/6/4
+-- 3) 校验 weekly_coin_reward_detail 与 coin_transactions(auto_reward/auto_penalty) 一致性
+-- 当前规则：综合榜 80/64/48/32；稳定榜 12/9/5；守则榜 11/8/5；
+-- 进步榜 10/6/4；缩水榜 -10/-6/-4。
 -- ============================================================
 
 -- A) 当前周“应发”预览（尚未结算时用于预检查）
@@ -33,13 +34,16 @@ expected AS (
       WHEN r.board = '进步榜' AND r.rank_no = 1 THEN 10
       WHEN r.board = '进步榜' AND r.rank_no BETWEEN 2 AND 3 THEN 6
       WHEN r.board = '进步榜' AND r.rank_no BETWEEN 4 AND 6 THEN 4
+      WHEN r.board = '缩水榜' AND r.rank_no = 1 THEN -10
+      WHEN r.board = '缩水榜' AND r.rank_no BETWEEN 2 AND 3 THEN -6
+      WHEN r.board = '缩水榜' AND r.rank_no BETWEEN 4 AND 6 THEN -4
       ELSE 0
     END AS expected_amount
   FROM week_monday wm
-  CROSS JOIN public.get_weekly_leaderboards() r
+  JOIN public.weekly_leaderboard_history r ON r.week_monday = wm.monday
 ),
 expected_filtered AS (
-  SELECT * FROM expected WHERE expected_amount > 0
+  SELECT * FROM expected WHERE expected_amount <> 0
 )
 SELECT
   week_monday,
@@ -70,14 +74,17 @@ expected AS (
       WHEN r.board = '进步榜' AND r.rank_no = 1 THEN 10
       WHEN r.board = '进步榜' AND r.rank_no BETWEEN 2 AND 3 THEN 6
       WHEN r.board = '进步榜' AND r.rank_no BETWEEN 4 AND 6 THEN 4
+      WHEN r.board = '缩水榜' AND r.rank_no = 1 THEN -10
+      WHEN r.board = '缩水榜' AND r.rank_no BETWEEN 2 AND 3 THEN -6
+      WHEN r.board = '缩水榜' AND r.rank_no BETWEEN 4 AND 6 THEN -4
       ELSE 0
     END AS expected_amount
   FROM week_monday wm
-  CROSS JOIN public.get_weekly_leaderboards() r
+  JOIN public.weekly_leaderboard_history r ON r.week_monday = wm.monday
 )
 SELECT
-  COUNT(*) FILTER (WHERE expected_amount > 0) AS expected_events,
-  COALESCE(SUM(expected_amount) FILTER (WHERE expected_amount > 0), 0) AS expected_coins
+  COUNT(*) FILTER (WHERE expected_amount <> 0) AS expected_events,
+  COALESCE(SUM(expected_amount) FILTER (WHERE expected_amount <> 0), 0) AS expected_coins
 FROM expected;
 
 -- C) 若本周已结算：应发 vs 实发（明细表）
@@ -104,13 +111,16 @@ expected AS (
       WHEN r.board = '进步榜' AND r.rank_no = 1 THEN 10
       WHEN r.board = '进步榜' AND r.rank_no BETWEEN 2 AND 3 THEN 6
       WHEN r.board = '进步榜' AND r.rank_no BETWEEN 4 AND 6 THEN 4
+      WHEN r.board = '缩水榜' AND r.rank_no = 1 THEN -10
+      WHEN r.board = '缩水榜' AND r.rank_no BETWEEN 2 AND 3 THEN -6
+      WHEN r.board = '缩水榜' AND r.rank_no BETWEEN 4 AND 6 THEN -4
       ELSE 0
     END AS expected_amount
   FROM week_monday wm
-  CROSS JOIN public.get_weekly_leaderboards() r
+  JOIN public.weekly_leaderboard_history r ON r.week_monday = wm.monday
 ),
 expected_filtered AS (
-  SELECT * FROM expected WHERE expected_amount > 0
+  SELECT * FROM expected WHERE expected_amount <> 0
 ),
 actual AS (
   SELECT
@@ -176,7 +186,7 @@ FROM log_sum ls
 FULL OUTER JOIN detail_sum ds
   ON ls.week_monday = ds.week_monday;
 
--- E) 本周明细表 vs 流水表（auto_reward）一致性
+-- E) 本周明细表 vs 流水表（auto_reward / auto_penalty）一致性
 WITH week_monday AS (
   SELECT DATE_TRUNC('week', NOW() AT TIME ZONE 'Asia/Shanghai')::DATE AS monday
 ),
@@ -195,7 +205,7 @@ tx_rows AS (
     t.amount,
     t.reason
   FROM public.coin_transactions t
-  WHERE t.transaction_type = 'auto_reward'
+  WHERE t.transaction_type IN ('auto_reward', 'auto_penalty')
     AND t.created_at >= ((DATE_TRUNC('week', NOW() AT TIME ZONE 'Asia/Shanghai')::DATE)::TIMESTAMP AT TIME ZONE 'Asia/Shanghai')
 )
 SELECT
