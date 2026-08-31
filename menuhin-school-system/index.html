@@ -6997,10 +6997,51 @@
       if (element) element.textContent = value;
     }
 
-    function getStudentTodayMinutes(student) {
-      const inMinutes = Number(student?.todayMinutes?.in || 0);
-      const outMinutes = Number(student?.todayMinutes?.out || 0);
-      return Math.max(0, inMinutes + outMinutes);
+    // 首页参与人数统一口径：以 practice_logs 中的“开始练琴”事件为准。
+    // 今日和本周都从同一份原始日志、同一批在读学生中计算；未归还琴房的进行中记录也会计入。
+    function getBjtWeekMondayKey(dateLike = new Date()) {
+      const todayKey = getBjtDateKey(dateLike);
+      const [year, month, day] = todayKey.split('-').map(Number);
+      const date = new Date(Date.UTC(year, month - 1, day));
+      const weekday = date.getUTCDay(); // 0=周日，1=周一...
+      date.setUTCDate(date.getUTCDate() - (weekday === 0 ? 6 : weekday - 1));
+      return date.toISOString().slice(0, 10);
+    }
+
+    function getSchoolParticipationSummary(baseDate = new Date()) {
+      const todayKey = getBjtDateKey(baseDate);
+      const mondayKey = getBjtWeekMondayKey(baseDate);
+      const activeStudentNames = new Set(
+        Array.from(appState.students.keys())
+          .map(name => utils.normalizeStudentName(name))
+          .filter(Boolean)
+      );
+      const todayStudents = new Set();
+      const weekStudents = new Set();
+      const logs = appState.practiceLogsNormalized || appState.practiceLogs || [];
+
+      logs.forEach(log => {
+        const action = String(log?.action || '').toLowerCase();
+        // 兼容历史 enter 事件；clear/exit 不作为“开始”事件，避免跨周归还被误算。
+        if (action !== 'assign' && action !== 'enter') return;
+
+        const studentName = utils.normalizeStudentName(
+          log?.student_name || log?.student || log?.studentName || ''
+        );
+        if (!studentName || !activeStudentNames.has(studentName)) return;
+
+        const timestamp = new Date(log?.timestamp);
+        if (!Number.isFinite(timestamp.getTime())) return;
+        const dateKey = getBjtDateKey(timestamp);
+        if (dateKey === todayKey) todayStudents.add(studentName);
+        if (dateKey >= mondayKey && dateKey <= todayKey) weekStudents.add(studentName);
+      });
+
+      return {
+        todayCount: todayStudents.size,
+        weekStartedCount: weekStudents.size,
+        totalStudents: activeStudentNames.size
+      };
     }
 
     function renderLivePracticeStudents(practicing) {
@@ -7045,9 +7086,8 @@
       const allStudents = Array.from(appState.students.values());
       const practicing = groups.practicing || [];
       const totalStudents = Number(groups.totalCount || allStudents.length || 0);
-      const practicedToday = allStudents.filter(student => (
-        getStudentTodayMinutes(student) > 0 || student.currentStatus !== 'offline'
-      ));
+      const participation = getSchoolParticipationSummary();
+      const participationTotal = participation.totalStudents || totalStudents;
       const occupiedRooms = new Set(
         practicing.map(student => student.currentRoom).filter(Boolean)
       ).size;
@@ -7060,22 +7100,29 @@
       setHomeText('homeDateLabel', dateLabel);
       setHomeText('currentPracticeCount', `${practicing.length} 人`);
       setHomeText('currentPracticeRooms', occupiedRooms > 0 ? `${occupiedRooms} 间琴房正在使用` : '当前琴房空闲');
-      setHomeText('todayPracticeCount', `${practicedToday.length} 人`);
+      setHomeText('todayPracticeCount', `${participation.todayCount} 人`);
       setHomeText(
         'todayStudentRatio',
-        totalStudents > 0 ? `占在读学生 ${Math.round(practicedToday.length / totalStudents * 100)}%` : '等待学生数据'
+        participationTotal > 0
+          ? `占在读学生 ${Math.round(participation.todayCount / participationTotal * 100)}% · 开始记录即计入`
+          : '等待学生数据'
       );
 
       const summary = Array.isArray(_wlbShrinkSummary)
         ? (_wlbShrinkSummary[0] || null)
         : _wlbShrinkSummary;
-      if (summary) {
-        const summaryTotal = Number(summary.total_students || totalStudents || 0);
-        const started = Number(summary.started_students || 0);
+      if (participationTotal > 0 || summary) {
+        // 周榜汇总仍用于缩水榜，但首页人数与“今日已有记录”统一使用原始日志口径。
+        const summaryTotal = participationTotal || Number(summary?.total_students || 0);
+        const started = participationTotal > 0
+          ? participation.weekStartedCount
+          : Number(summary?.started_students || 0);
         setHomeText('schoolWeeklyStarted', summaryTotal > 0 ? `${started} / ${summaryTotal} 人` : `${started} 人`);
         setHomeText(
           'weeklyStartedSummary',
-          summaryTotal > 0 ? `本周参与率 ${Math.round(started / summaryTotal * 100)}%` : '本周参与情况'
+          summaryTotal > 0
+            ? `本周参与率 ${Math.round(started / summaryTotal * 100)}% · 开始记录即计入`
+            : '本周参与情况'
         );
       } else {
         setHomeText('schoolWeeklyStarted', '--');
