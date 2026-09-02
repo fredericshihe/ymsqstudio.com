@@ -626,7 +626,7 @@ tbody td.b{color:var(--t1);font-weight:700}
     <div class="cat-boards-hd">
       <h2>分类排行榜</h2>
       <div class="sep"></div>
-      <span style="font-size:.72rem;color:var(--t3)">实时按本周数据更新 · 默认显示前6名</span>
+      <span style="font-size:.72rem;color:var(--t3)">实时按本周数据更新 · 默认显示前6个名额（并列按人数计）</span>
       <span class="shrink-summary" id="shrinkSummary">本周未开始人数加载中…</span>
     </div>
     <div class="cat-boards-note" id="catBoardsNotice" style="display:none"></div>
@@ -673,7 +673,7 @@ tbody td.b{color:var(--t1);font-weight:700}
           <div class="cat-board-icon" style="background:linear-gradient(135deg,rgba(244,63,94,.25),rgba(244,63,94,.1));border:1px solid rgba(244,63,94,.3)">📉</div>
           <div>
             <div class="cat-board-title" style="color:#fb7185">缩水榜</div>
-            <div class="cat-board-sub">已开始练琴但当前进度低于应完成进度70% · 前6名按 -10 / -6 / -4 扣币 · 余额可为负</div>
+            <div class="cat-board-sub">已开始练琴但当前进度低于应完成进度70% · 前6个名额按 -10 / -6 / -4 扣币 · 并列按人数计 · 余额可为负</div>
           </div>
           <button class="cbl-view-all-btn" onclick="openLbModal('缩水榜')">查看全部</button>
         </div>
@@ -1210,17 +1210,19 @@ function addDaysDateOnly(dateStr, days){
 }
 
 function boardShortNote(board){
-  if(board==='综合榜') return '综合分绝对分（0-100）';
-  if(board==='进步榜') return '涨分（本周 vs 上周）';
-  if(board==='稳定榜') return 'α优先 · 时长波动率次之';
-  if(board==='守则榜') return '最近20条异常率（越低越好）';
-  if(board==='缩水榜') return '当前应完成进度低于70%（越低越前，前6名扣币）';
+  if(board==='综合榜') return '综合分绝对分（0-100）· 前10个名额';
+  if(board==='进步榜') return '涨分（本周 vs 上周）· 前6个名额';
+  if(board==='稳定榜') return 'α优先 · 时长波动率次之 · 前6个名额';
+  if(board==='守则榜') return '最近20条异常率（越低越好）· 前6个名额';
+  if(board==='缩水榜') return '当前应完成进度低于70%（越低越前，前6个名额扣币）';
   return '';
 }
 
-function coinReward(board, rankNo){
+function coinReward(board, rankNo, slotNo=rankNo){
+  const limit = board==='综合榜' ? 10 : 6;
+  const slot = Number(slotNo);
   const r = Number(rankNo);
-  if(!Number.isFinite(r) || r<=0) return 0;
+  if(!Number.isFinite(r) || r<=0 || !Number.isFinite(slot) || slot<=0 || slot>limit) return 0;
   if(board==='综合榜'){
     if(r===1) return 80;
     if(r>=2 && r<=3) return 64;
@@ -1263,9 +1265,9 @@ function toMajorShort(m){
 function buildPrintTableRows(board, rows){
   const safeRows = Array.isArray(rows) ? rows : [];
   if(board==='综合榜'){
-    return safeRows.map(r=>{
-      const score = r.display_score!=null ? Number(r.display_score).toFixed(1) : (r.composite_score!=null?Number(r.composite_score).toFixed(1):'—');
-      const coins = coinReward(board, r.rank_no);
+    return safeRows.map((r, i)=>{
+      const score = r.display_score!=null ? Number(r.display_score).toFixed(2) : (r.composite_score!=null?Number(r.composite_score).toFixed(2):'—');
+      const coins = coinReward(board, r.rank_no, i + 1);
       return `<tr>
         <td class="c">#${esc(r.rank_no ?? '—')}</td>
         <td>${esc(r.student_name ?? '—')} <span class="tag">${esc(toMajorShort(r.student_major||''))}</span></td>
@@ -1275,8 +1277,8 @@ function buildPrintTableRows(board, rows){
     }).join('');
   }
   if(board==='进步榜'){
-    return safeRows.map(r=>{
-      const coins = coinReward(board, r.rank_no);
+    return safeRows.map((r, i)=>{
+      const coins = coinReward(board, r.rank_no, i + 1);
       return `<tr>
         <td class="c">#${esc(r.rank_no ?? '—')}</td>
         <td>${esc(r.student_name ?? '—')} <span class="tag">${esc(toMajorShort(r.student_major||''))}</span></td>
@@ -1285,8 +1287,8 @@ function buildPrintTableRows(board, rows){
     }).join('');
   }
   if(board==='稳定榜'){
-    return safeRows.map(r=>{
-      const coins = coinReward(board, r.rank_no);
+    return safeRows.map((r, i)=>{
+      const coins = coinReward(board, r.rank_no, i + 1);
       return `<tr>
         <td class="c">#${esc(r.rank_no ?? '—')}</td>
         <td>${esc(r.student_name ?? '—')} <span class="tag">${esc(toMajorShort(r.student_major||''))}</span></td>
@@ -1295,8 +1297,8 @@ function buildPrintTableRows(board, rows){
     }).join('');
   }
   if(board==='守则榜'){
-    return safeRows.map(r=>{
-      const coins = coinReward(board, r.rank_no);
+    return safeRows.map((r, i)=>{
+      const coins = coinReward(board, r.rank_no, i + 1);
       return `<tr>
         <td class="c">#${esc(r.rank_no ?? '—')}</td>
         <td>${esc(r.student_name ?? '—')} <span class="tag">${esc(toMajorShort(r.student_major||''))}</span></td>
@@ -1305,12 +1307,12 @@ function buildPrintTableRows(board, rows){
     }).join('');
   }
   if(board==='缩水榜'){
-    return safeRows.map(r=>{
+    return safeRows.map((r, i)=>{
       const ratio = Number(r.completion_ratio ?? Number(r.display_score || 0) / 100);
       const completion = Number.isFinite(ratio) ? `${(ratio * 100).toFixed(1)}%` : '—';
       const shortfall = Number(r.shortfall_minutes);
       const shortfallText = Number.isFinite(shortfall) ? `还差${shortfall.toFixed(0)}min` : '—';
-      const coins = coinReward(board, r.rank_no);
+      const coins = coinReward(board, r.rank_no, i + 1);
       return `<tr>
         <td class="c">#${esc(r.rank_no ?? '—')}</td>
         <td>${esc(r.student_name ?? '—')} <span class="tag">${esc(toMajorShort(r.student_major||''))}</span></td>
@@ -1532,7 +1534,7 @@ function renderCatBoards(lbMap){
     const visible=[...rows].sort(compareLeaderboardRows).slice(0,defN);
 
     el.innerHTML=visible.map((r,i)=>{
-      const row=buildRow(r,valFn(r));
+      const row=buildRow(r,valFn(r, i + 1));
       return i<visible.length-1?row+`<div class="cbl-divider"></div>`:row;
     }).join('');
   }
@@ -1548,7 +1550,7 @@ function renderCatBoards(lbMap){
     $('lbModalCount').textContent=` · 共 ${rows.length} 人`;
     $('lbModalBody').innerHTML=rows.length
       ?rows.map((r,i)=>{
-          const row=buildRow(r,valFn(r));
+          const row=buildRow(r,valFn(r, i + 1));
           return i<rows.length-1?row+`<div class="cbl-divider"></div>`:row;
         }).join('')
       :'<div class="cat-board-empty">暂无数据</div>';
@@ -1587,11 +1589,11 @@ function renderCatBoards(lbMap){
     const label=or<0.1?'极佳':or<0.2?'优秀':or<0.35?'良好':'一般';
     return`<div class="cbl-right"><div class="cbl-val" style="color:${orC}">${orPct}%</div><div class="cbl-val-sub">${label}</div></div>`;
   };
-  valFns['缩水榜']=r=>{
+  valFns['缩水榜']=(r, slotNo)=>{
     const ratio=Number(r.completion_ratio ?? (Number(r.display_score||0)/100));
     const pctText=Number.isFinite(ratio)?`${(ratio*100).toFixed(1)}%`:'—';
     const shortfall=Number(r.shortfall_minutes);
-    const penalty=coinReward('缩水榜',r.rank_no);
+    const penalty=coinReward('缩水榜',r.rank_no,slotNo);
     const gap=Number.isFinite(shortfall)?`还差 ${shortfall.toFixed(0)}min`:'进度不足70%';
     const sub=penalty<0?`${penalty} 币 · ${gap}`:gap;
     return`<div class="cbl-right"><div class="cbl-val" style="color:#fb7185">${pctText}</div><div class="cbl-val-sub">${sub}</div></div>`;
@@ -1725,7 +1727,7 @@ function renderTable(){
     const stale=s.last_updated?Math.floor((Date.now()-new Date(s.last_updated).getTime())/86400000):null;
     const sel=S.selected===s.student_name;
     // 成长分徽章：本周未练→历史分灰色显示，null=无数据（破折号），其他按分段配色
-    const scFmt=sc!=null?Number(sc).toFixed(1):null;
+    const scFmt=sc!=null?Number(sc).toFixed(2):null;
     const scoreBadge=noPracticeThisWeek
       ?(scFmt!=null?`<span class="badge b0" title="历史分（本周尚未练琴）" style="opacity:.75">${scFmt}</span>`:'<span style="color:var(--t3)">—</span>')
       :scFmt!=null?`<span class="badge ${bdgCls(sc)}">${scFmt}</span>`:'—';
@@ -1816,7 +1818,7 @@ function renderDP(s,hist,sessions=[],weekSessions=[],wRefServer=null,wTargetCtx=
   const stale=s.last_updated?Math.floor((Date.now()-new Date(s.last_updated).getTime())/86400000):null;
   const staleTxt=stale===null?'—':stale===0?'今天':stale===1?'昨天':stale+'天前';
 
-  const scFmtDp=sc!=null?Number(sc).toFixed(1):null;
+  const scFmtDp=sc!=null?Number(sc).toFixed(2):null;
   const rankHtml=noPracticeWeek
     ?(scFmtDp!=null
       ?`<div class="dp-score-line"><div class="dp-score" style="color:var(--t3);opacity:.75">${scFmtDp}</div><span class="dp-mini-tag flat" style="font-size:.85rem;opacity:.8">本周未练</span></div>`
@@ -2160,7 +2162,7 @@ function calcPersonalBestFromHistory(hist=[], student=null){
   const cur = Number(student?.composite_score);
   const fallback = Number.isFinite(cur) ? cur : null;
   const best = maxHist!==null ? maxHist : fallback;
-  return Number.isFinite(best) ? Number(best.toFixed(1)) : null;
+  return Number.isFinite(best) ? Number(best.toFixed(2)) : null;
 }
 
 // 与后端 W 口径对齐（前端估算）：
