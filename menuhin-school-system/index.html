@@ -1119,29 +1119,170 @@
     line-height: 1;
   }
 
-  .status-help-btn {
-    margin-left: 8px;
-    width: 20px;
-    height: 20px;
-    border: none;
-    background: color-mix(in oklab, var(--brand-600) 12%, var(--surface-1));
+  .status-target-meta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .status-target-explain-btn {
+    min-height: 26px;
+    padding: 4px 9px;
+    border: 1px solid color-mix(in oklab, var(--brand-600) 22%, var(--border));
+    background: color-mix(in oklab, var(--brand-600) 7%, var(--surface-1));
     color: var(--brand-600);
-    border-radius: 50%;
+    border-radius: 999px;
+    font-family: inherit;
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 750;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 4px;
     transition: all 0.2s ease;
-    flex-shrink: 0;
   }
   
-  .status-help-btn:hover {
-    transform: scale(1.08);
+  .status-target-explain-btn:hover {
+    transform: translateY(-1px);
     background: var(--brand-600);
     color: var(--text-on-accent);
     box-shadow: 0 2px 8px color-mix(in oklab, var(--brand-600) 30%, transparent);
+  }
+
+  .status-target-explain-btn:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--brand-600) 58%, transparent);
+    outline-offset: 2px;
+  }
+
+  .target-explain-hero {
+    padding: 18px;
+    border-radius: 14px;
+    color: #ffffff;
+    background: linear-gradient(135deg, #2563eb, #4f46e5);
+    box-shadow: 0 12px 28px rgba(37, 99, 235, .2);
+  }
+
+  .target-explain-hero-name {
+    font-size: 13px;
+    font-weight: 700;
+    opacity: .9;
+  }
+
+  .target-explain-hero-value {
+    margin-top: 5px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 8px;
+    font-size: 30px;
+    font-weight: 850;
+    letter-spacing: -.04em;
+  }
+
+  .target-explain-hero-period {
+    margin-top: 5px;
+    font-size: 12px;
+    opacity: .86;
+  }
+
+  .target-explain-quick {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .target-explain-quick-item {
+    min-width: 0;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-1);
+  }
+
+  .target-explain-quick-item span,
+  .target-explain-quick-item strong {
+    display: block;
+  }
+
+  .target-explain-quick-item span {
+    color: var(--text-3);
+    font-size: 11px;
+  }
+
+  .target-explain-quick-item strong {
+    margin-top: 4px;
+    color: var(--text-1);
+    font-size: 14px;
+  }
+
+  .target-explain-copy {
+    color: var(--text-2);
+    font-size: 13px;
+    line-height: 1.75;
+  }
+
+  .target-explain-copy strong {
+    color: var(--text-1);
+  }
+
+  .target-explain-copy + .target-explain-copy {
+    margin-top: 8px;
+  }
+
+  .target-explain-note {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: color-mix(in oklab, var(--brand-600) 7%, var(--surface-1));
+    border: 1px solid color-mix(in oklab, var(--brand-600) 20%, var(--border));
+    color: var(--text-2);
+    font-size: 12px;
+    line-height: 1.65;
+  }
+
+  .target-explain-steps {
+    display: grid;
+    gap: 12px;
+  }
+
+  .target-explain-step {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+    color: var(--text-2);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .target-explain-step-number {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: color-mix(in oklab, var(--brand-600) 12%, var(--surface-1));
+    color: var(--brand-600);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .target-explain-step strong {
+    color: var(--text-1);
+  }
+
+  .target-explain-step p {
+    margin: 2px 0 0;
+  }
+
+  @media (max-width: 420px) {
+    .target-explain-quick {
+      grid-template-columns: 1fr;
+    }
   }
 
   @keyframes statusPulse {
@@ -1175,6 +1316,11 @@
 
     .status-progress-rate {
       font-size: 18px;
+    }
+
+    .status-target-meta {
+      width: 100%;
+      justify-content: space-between;
     }
 
     .status-hero-duration {
@@ -3940,6 +4086,428 @@
       }
     </style>
 
+  <style>
+    /* 详情页移动端布局：单列、紧凑、保持信息层级 */
+    @media (max-width: 640px) {
+      body { overflow-x: hidden; }
+
+      .detail-view {
+        width: 100%;
+        min-width: 0;
+        overflow-x: hidden;
+      }
+
+      .detail-container {
+        width: 100%;
+        max-width: none;
+      }
+
+      .detail-header {
+        min-height: 64px;
+        padding: calc(10px + var(--safe-top)) 14px 10px;
+        gap: 10px;
+      }
+
+      .detail-header .back-btn {
+        flex: 0 0 auto;
+        height: 40px;
+        padding: 0 13px;
+        border-radius: 12px;
+        font-size: 16px;
+      }
+
+      .detail-title {
+        min-width: 0;
+        overflow: hidden;
+        font-size: 20px;
+        line-height: 28px;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+
+      .detail-content {
+        width: 100%;
+        margin-left: 0 !important;
+        padding: 14px 12px calc(24px + var(--safe-bottom));
+        gap: 14px;
+      }
+
+      .info-card,
+      .timeline-card,
+      .history-card {
+        width: 100%;
+        padding: 16px !important;
+        border-radius: 18px !important;
+      }
+
+      .history-card { overflow: hidden; }
+
+      .info-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: start;
+        gap: 12px;
+      }
+
+      .student-info {
+        min-width: 0;
+      }
+
+      .student-info > div:first-child {
+        gap: 8px !important;
+        margin-bottom: 6px !important;
+        flex-wrap: wrap;
+      }
+
+      .student-info h2 {
+        max-width: 100%;
+        font-size: 26px;
+        line-height: 1.15;
+      }
+
+      .student-meta {
+        flex-wrap: wrap;
+        gap: 6px;
+        font-size: 14px;
+        line-height: 20px;
+      }
+
+      .coin-badge-detail {
+        padding: 4px 9px;
+        font-size: 13px;
+      }
+
+      .score-cards-container {
+        min-width: 104px;
+        margin: 0;
+        justify-content: flex-end;
+        gap: 0;
+      }
+
+      .score-card {
+        width: 104px;
+        min-width: 104px;
+        padding: 8px;
+        border-radius: 12px;
+      }
+
+      .score-title,
+      .score-meta {
+        white-space: nowrap;
+      }
+
+      .score-title { font-size: 11px; }
+      .score-value { font-size: 21px; }
+      .score-meta { font-size: 10px; }
+
+      .status-card {
+        border-radius: 20px !important;
+      }
+
+      .status-hero {
+        padding: 18px 16px 17px;
+        border-radius: 20px 20px 0 0;
+        overflow: hidden;
+      }
+
+      .status-hero-top {
+        align-items: center;
+        margin-bottom: 14px;
+      }
+
+      .status-hero-title { font-size: 16px; }
+      .status-room-pill { max-width: 55%; }
+
+      .status-hero-main { width: 100%; }
+      .status-hero-caption { font-size: 15px; }
+
+      .status-hero-duration {
+        gap: 10px;
+        font-size: clamp(36px, 12vw, 48px);
+      }
+
+      .status-hero-meta {
+        margin-top: 8px;
+        font-size: 12px;
+      }
+
+      .status-hero-source-note {
+        max-width: 100%;
+        margin-top: 8px;
+        font-size: 11px;
+        line-height: 1.45;
+      }
+
+      .status-body {
+        padding: 18px 16px 18px;
+      }
+
+      .status-section + .status-section {
+        margin-top: 18px;
+        padding-top: 18px;
+      }
+
+      .status-section-head {
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      .status-section-title {
+        min-width: 0;
+        gap: 7px;
+        font-size: 15px;
+        white-space: nowrap;
+      }
+
+      .status-icon {
+        width: 17px;
+        height: 17px;
+      }
+
+      .status-badge {
+        flex: 0 0 auto;
+        min-height: 26px;
+        padding: 4px 8px;
+        font-size: 11px;
+        white-space: nowrap;
+      }
+
+      .status-progress-rate {
+        flex: 0 0 auto;
+        font-size: 18px;
+      }
+
+      .status-progress-track { height: 10px; }
+
+      .status-progress-meta {
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+        margin-top: 9px;
+        font-size: 13px;
+      }
+
+      .status-progress-meta > div,
+      .status-target-meta,
+      .status-target-meta > span {
+        min-width: 0;
+        white-space: nowrap;
+      }
+
+      .status-target-meta {
+        width: auto;
+        flex: 0 0 auto;
+        gap: 7px;
+        justify-content: flex-end;
+      }
+
+      .status-target-explain-btn {
+        width: auto;
+        min-width: 0;
+        height: 30px;
+        min-height: 30px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        line-height: 1;
+        white-space: nowrap;
+      }
+
+      .status-target-explain-btn span {
+        font-size: 14px;
+        line-height: 1;
+      }
+
+      .status-source-note {
+        margin-top: 14px;
+        padding: 10px;
+        gap: 8px;
+        font-size: 11px;
+      }
+
+      .status-source-note-icon {
+        width: 18px;
+        height: 18px;
+      }
+
+      .timeline-head {
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .timeline-title-wrap {
+        min-width: 0;
+        flex: 1 1 auto;
+        gap: 7px;
+        flex-wrap: nowrap;
+      }
+
+      .timeline-title-wrap h3,
+      .history-head h3 {
+        min-width: 0;
+        overflow: hidden;
+        font-size: 17px;
+        line-height: 24px;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+
+      .source-chip {
+        flex: 0 0 auto;
+        height: 22px;
+        padding: 2px 7px;
+        font-size: 10.5px;
+      }
+
+      .timeline-actions {
+        flex: 0 0 auto;
+      }
+
+      .timeline-actions .btn {
+        width: 34px;
+        min-width: 34px;
+        height: 34px;
+        padding: 0;
+        border-radius: 10px;
+        font-size: 16px;
+      }
+
+      .timeline-actions .btn > span:last-child { display: none; }
+
+      .timeline-item {
+        min-width: 0;
+        gap: 8px;
+        margin-left: 6px;
+        padding: 11px 8px 11px 13px;
+      }
+
+      .timeline-time {
+        min-width: 0;
+        font-size: 14px;
+        white-space: nowrap;
+      }
+
+      .timeline-duration {
+        min-width: 0;
+        font-size: 13px;
+        white-space: nowrap;
+      }
+
+      .timeline-room {
+        flex: 0 0 auto;
+        padding: 3px 7px !important;
+        font-size: 11px !important;
+        white-space: nowrap;
+      }
+
+      .history-head {
+        min-width: 0;
+        flex-wrap: nowrap;
+        gap: 7px;
+        margin-bottom: 12px;
+      }
+
+      .week-chart { padding-top: 10px; }
+      .chart-container { height: 128px; gap: 6px; padding: 0 2px; }
+      .bar-value { font-size: 10px; }
+      .bar-label { font-size: 11px; }
+
+      .lb-modal {
+        padding: 12px;
+      }
+
+      .lb-dialog {
+        width: 100%;
+        max-width: 560px;
+        max-height: calc(100dvh - 24px);
+        border-radius: 20px;
+      }
+
+      .lb-dialog__body {
+        min-height: 0;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .lb-dialog__header {
+        min-height: 56px;
+        padding: 14px 16px;
+      }
+
+      .lb-dialog__body {
+        padding: 14px 16px 18px;
+      }
+
+      .target-explain-hero {
+        padding: 16px;
+        border-radius: 16px;
+      }
+
+      .target-explain-hero-value {
+        font-size: clamp(25px, 7vw, 30px);
+        line-height: 1.25;
+        word-break: break-word;
+      }
+
+      .target-explain-hero-value { gap: 0 7px; }
+
+      .target-explain-hero-period {
+        line-height: 1.5;
+      }
+
+      .target-explain-quick {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .target-explain-quick-item {
+        min-height: 56px;
+        padding: 10px 11px;
+      }
+
+      .target-explain-copy,
+      .target-explain-step {
+        font-size: 12.5px;
+        line-height: 1.6;
+      }
+
+      .target-explain-steps { gap: 10px; }
+    }
+
+    @media (max-width: 360px) {
+      .detail-content { padding-inline: 10px; }
+      .info-card,
+      .timeline-card,
+      .history-card { padding: 14px !important; }
+      .info-head { gap: 8px; }
+      .student-info h2 { font-size: 24px; }
+      .score-cards-container,
+      .score-card { min-width: 94px; width: 94px; }
+      .score-card { padding-inline: 6px; }
+      .score-value { font-size: 19px; }
+      .status-hero { padding-inline: 14px; }
+      .status-body { padding-inline: 14px; }
+      .status-section-title { font-size: 14px; }
+      .status-progress-meta {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+        font-size: 12px;
+      }
+      .status-target-meta {
+        width: 100%;
+        justify-content: space-between;
+      }
+      .timeline-title-wrap h3,
+      .history-head h3 { font-size: 16px; }
+      .target-explain-quick { grid-template-columns: 1fr; }
+      .target-explain-hero-value { font-size: 24px; gap: 0 6px; }
+    }
+  </style>
 </head>
 <body>
   <main class="container">
@@ -4084,14 +4652,14 @@
                 <span class="ri-dim-label" style="background:rgba(59,130,246,.14);color:#3b82f6">综合榜</span>
                 <div class="ri-dim-content">
                   <div class="ri-dim-title">本周综合排名分前 10 个名额</div>
-                  <div class="ri-dim-desc">排名分由 5 项合成，但新版更看重“目标达成、近期稳定、长期底盘”。达到个人周目标后，继续超量练琴仍有帮助，但额外收益会明显变小，不再是谁无限加时长谁就一直更占优。每次还卡后几分钟内刷新。<strong>综合榜按学生人数占名额：并列学生每人占 1 个名额，满 10 人即停止；例如第 2 名有 2 人并列，前 10 人最后显示到第 9 名。</strong>综合榜前 10 个名额不再进入下面三个分类榜，专项荣誉留给更多同学。</div>
+                  <div class="ri-dim-desc">排名分由 5 项合成，但新版更看重“目标达成、近期稳定、长期底盘”。达到个人周目标后，继续超量练琴仍有帮助，但额外收益会明显变小，不再是谁无限加时长谁就一直更占优。每次还卡后几分钟内刷新。<strong>综合榜按学生人数占名额：并列学生每人占 1 个名额，满 10 人即停止；例如第 2 名有 2 人并列，前 10 人最后显示到第 9 名。</strong>综合榜前 10 个名额不再进入下面四个分类榜，专项荣誉留给更多同学。</div>
                 </div>
               </div>
               <div class="ri-dim">
                 <span class="ri-dim-label" style="background:rgba(16,185,129,.14);color:#059669">进步榜</span>
                 <div class="ri-dim-content">
                   <div class="ri-dim-title">本周综合分绝对涨分最大 Top 6</div>
-                  <div class="ri-dim-desc">用「本周综合分 − 近期最佳历史周综合分」计算<strong>绝对涨分</strong>。它看的是你这周是不是比自己最近的最好状态更进一步，不是单看谁总时长更夸张。要求：本周工作日练琴 ≥ 2 次，涨分 ≥ 1.0 分，近 10 条工作日记录 ≥ 4 条，近 10 条异常率 ≤ 45%。</div>
+                  <div class="ri-dim-desc">用「本周综合分 − 最近两个有效周综合分的平均值」计算<strong>绝对涨分</strong>。当前周和两个对比周都要有至少 <strong>4 个有效练琴日</strong>，再判断是否上涨 ≥ 1.0 分；同时要求当前评分周期最近 20 条工作日记录 ≥ 4 条、异常率 ≤ 20%，且不在综合榜前 10 个名额。</div>
                 </div>
               </div>
               <div class="ri-dim">
@@ -4111,8 +4679,8 @@
               <div class="ri-dim">
                 <span class="ri-dim-label" style="background:rgba(244,63,94,.14);color:#e11d48">缩水榜</span>
                 <div class="ri-dim-content">
-                  <div class="ri-dim-title">当前应完成进度低于 70%</div>
-                  <div class="ri-dim-desc">只统计本周已经开始有效练琴的学生。按“本周实际累计有效时长 ÷ 截至当前工作日理论应完成时长”计算，低于<strong>70%</strong>即进入榜单，完成率越低排名越靠前。前 6 个名额按第 1 名 <strong>-10</strong>、第 2–3 名 <strong>-6</strong>、第 4–6 名 <strong>-4</strong> 扣除音符币；并列学生每人占 1 个名额，满 6 人即停止扣币；余额不足时继续显示负数。没有开始练琴的学生单独统计，不参与排名。</div>
+                  <div class="ri-dim-title">本周综合分绝对降分最大 Top 6</div>
+                  <div class="ri-dim-desc">与进步榜使用完全相同的比较口径，方向相反：用「本周综合分 − 最近两个有效周综合分的平均值」计算，当前周和两个对比周都要有至少 <strong>4 个有效练琴日</strong>，下降至少 <strong>1.0 分</strong>才进入，降分越多排名越靠前。还要求最近 20 条工作日记录 ≥ 4 条、异常率 ≤ 20%，且不在综合榜前 10 个名额。前 6 个名额按 <strong>-10 / -6 / -4</strong> 扣币，余额不足可显示负数。</div>
                 </div>
               </div>
             </div>
@@ -4129,7 +4697,7 @@
               </div>
               <div class="ri-tip-item">
                 <span class="ri-tip-icon">📅</span>
-                <div><strong>本周至少练两次</strong> — 本周没练琴或只练一次，进步榜和多数分类榜都不参与排名。</div>
+                <div><strong>每周至少 4 个有效练琴日</strong> — 当前周和比较周都要达到这个门槛，才会参与进步榜和缩水榜。</div>
               </div>
               <div class="ri-tip-item">
                 <span class="ri-tip-icon">🃏</span>
@@ -4227,8 +4795,8 @@
 
             <div style="background:var(--surface-0); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 14px; font-size:12.5px; color:var(--text-2); line-height:1.7; margin-bottom:8px;">
               <div style="font-weight:700; color:var(--text-1); margin-bottom:6px;">💡 小提示</div>
-              <div>• <strong>综合榜前 10 个名额</strong>不参与三个分类榜，无法获得分类榜奖励；其余同学若同时上进步/稳定/守则榜，奖励<strong>叠加计算</strong></div>
-              <div>• <strong>缩水榜前 6 个名额</strong>按 -10 / -6 / -4 自动扣币；并列每人占 1 个名额，本周未开始练琴的学生单独统计且不参与排名</div>
+              <div>• <strong>综合榜前 10 个名额</strong>不参与进步、稳定、守则和缩水榜；其余同学若同时上多个正向分类榜，奖励<strong>叠加计算</strong></div>
+              <div>• <strong>缩水榜前 6 个名额</strong>按 -10 / -6 / -4 自动扣币；它按综合分相对最近两周均值的降分排名，不再按周目标完成率排名</div>
               <div>• 音符币<strong>仅限本学期使用</strong>，学期结束由琴房管理老师手动全部清零</div>
               <div>• 每周五结算后即可在个人页面查看余额；管理员关闭自动结算开关时，奖励与缩水榜扣币都会暂停</div>
               <div>• ⚠️ 前台管理员对存在<strong>违规练琴记录</strong>的学生有权<strong>扣除</strong>音符币</div>
@@ -4244,7 +4812,7 @@
             <button type="button" class="ri-close">✕</button>
           </div>
           <div class="ru-body">
-            <p class="ru-intro"><strong>2026 年 8 月 22–27 日</strong>：评分、音符币与参与规则已更新。</p>
+            <p class="ru-intro"><strong>2026 年 9 月 3 日</strong>：评分、音符币与参与规则已更新。</p>
 
             <div class="ru-section">
               <div class="ru-label">1 · 综合榜评分</div>
@@ -4258,7 +4826,7 @@
 
             <div class="ru-section">
               <div class="ru-label">3 · 参与与刷新</div>
-              <div class="ru-text">仅统计工作日有效记录，还卡后自动刷新。分类榜仍按次数、均时、异常率和 α 筛选。</div>
+              <div class="ru-text">仅统计工作日有效记录，还卡后自动刷新。有效周至少有 4 个有效练琴日；缩水榜与进步榜使用最近两周均值的反向比较，不再只看周目标完成率。</div>
             </div>
 
             <div class="ru-section">
@@ -4376,7 +4944,10 @@
                 </div>
                 <div class="status-progress-meta">
                   <div>有效计分 <strong id="weeklyTargetAchieved">--</strong></div>
-                  <div>目标 <strong id="weeklyTarget">--</strong></div>
+                  <div class="status-target-meta">
+                    <span>目标 <strong id="weeklyTarget">--</strong></span>
+                    <button type="button" class="status-target-explain-btn" id="weekTargetHelpBtn" title="查看本周目标怎么计算" aria-label="查看本周目标计算说明"><span aria-hidden="true">ⓘ</span> 目标怎么定</button>
+                  </div>
                 </div>
               </div>
               <div class="status-source-note">
@@ -4394,7 +4965,7 @@
                 <span class="source-chip">占用时段</span>
               </div>
               <div class="timeline-actions">
-                <button class="btn btn--sm btn--ghost" id="viewWeekSlotsBtn" title="查看每周时段">🗓 查看周时段</button>
+                <button class="btn btn--sm btn--ghost" id="viewWeekSlotsBtn" title="查看每周时段"><span aria-hidden="true">🗓</span><span>周时段</span></button>
               </div>
             </div>
             <div class="timeline-container" id="todayTimeline">
@@ -5207,6 +5778,30 @@
         return null;
       } catch (e) {
         console.warn('fetchRuleV2WeekTargetContext exception:', e);
+        return null;
+      }
+    }
+
+    async function fetchStudentWeekTargetExplanation(studentName) {
+      try {
+        if (!supabaseClient) return null;
+        const weekMonday = utils.toIsoDate(getCurrentWeekMondayDate());
+        const candidates = getStudentNameCandidates(studentName);
+        for (const candidate of candidates) {
+          const { data, error } = await supabaseClient.rpc('get_student_week_target_explanation', {
+            p_student_name: candidate,
+            p_week_monday: weekMonday
+          });
+          if (error) {
+            console.warn('fetchStudentWeekTargetExplanation error:', error);
+            continue;
+          }
+          const row = Array.isArray(data) ? (data[0] || null) : (data || null);
+          if (row) return row;
+        }
+        return null;
+      } catch (error) {
+        console.warn('fetchStudentWeekTargetExplanation exception:', error);
         return null;
       }
     }
@@ -8247,6 +8842,7 @@
         }
       };
       document.addEventListener('keydown', handleEsc);
+      return modal;
     }
     
     // 关闭评分详情模态框
@@ -8403,6 +8999,11 @@
       // 绑定“查看周时段”按钮（不受周末影响）
       const weekBtn = document.getElementById('viewWeekSlotsBtn');
       if (weekBtn) weekBtn.onclick = () => showWeekSlots(studentName);
+
+      const weekTargetHelpBtn = document.getElementById('weekTargetHelpBtn');
+      if (weekTargetHelpBtn) {
+        weekTargetHelpBtn.onclick = () => showWeekTargetExplanation(studentName);
+      }
       
       // 绑定刷新时间轴按钮
   // 删除手动刷新按钮（自动实时更新即可）
@@ -8682,6 +9283,182 @@
       }
     }
 
+    function formatTargetExplanationDate(value, offsetDays = 0) {
+      if (!value) return '暂无日期';
+      const date = new Date(`${String(value).slice(0, 10)}T00:00:00+08:00`);
+      if (Number.isNaN(date.getTime())) return '暂无日期';
+      date.setUTCDate(date.getUTCDate() + offsetDays);
+      return new Intl.DateTimeFormat('zh-CN', {
+        timeZone: 'Asia/Shanghai',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }).format(date);
+    }
+
+    function formatTargetMinutes(minutes) {
+      const value = Math.max(0, Math.round(Number(minutes) || 0));
+      return value >= 60 ? utils.formatDurationHoursMinutes(value) : `${value}分钟`;
+    }
+
+    function formatTargetMinutesHero(minutes) {
+      return formatTargetMinutes(minutes);
+    }
+
+    function getTargetReferenceGroupLabel(source) {
+      if (source === 'period_peer_major_grade_60pct') return '同教研室、同年级学生';
+      if (source === 'period_peer_major_60pct') return '同教研室学生';
+      if (source === 'period_peer_grade_60pct') return '同年级学生';
+      if (source === 'period_peer_school_60pct') return '全校有历史记录的学生';
+      return '学校统一起始值';
+    }
+
+    function getTargetAdjustmentCopy(data) {
+      const source = String(data.calculation_source || '');
+      const current = Number(data.current_target_minutes || 0);
+      const previous = Number(data.previous_target_minutes || data.initial_target_minutes || current);
+      const change = current - previous;
+      const recentAverage = Number(data.recent_average_minutes || 0);
+      const recentAverageText = recentAverage > 0 ? formatTargetMinutes(recentAverage) : '';
+
+      if (source === 'semester_personal_week_average') {
+        return `新学期个人有效周均为 <strong>${recentAverageText}</strong>，本周目标按这个平均值设为 <strong>${formatTargetMinutes(current)}</strong>。`;
+      }
+      if (source === 'carry_forward_before_personal_semester_week') {
+        return `新学期还没有新的有效练琴周，本周先保持 <strong>${formatTargetMinutes(current)}</strong>；有了第一周记录后，从下一周开始按个人周均更新。`;
+      }
+      if (recentAverage > 0 && source === 'adaptive_increase_sustainable_60pct') {
+        return `近期个人周均为 <strong>${recentAverageText}</strong>，本周目标从 <strong>${formatTargetMinutes(previous)}</strong> 调整为 <strong>${formatTargetMinutes(current)}</strong>。`;
+      }
+      if (source === 'adaptive_decrease_guarded') {
+        return `近期个人记录偏低，本周目标从 <strong>${formatTargetMinutes(previous)}</strong> 调整为 <strong>${formatTargetMinutes(current)}</strong>。`;
+      }
+      if (source.startsWith('adaptive_hold')) {
+        return `近期记录没有触发调整，本周保持 <strong>${formatTargetMinutes(current)}</strong>。`;
+      }
+      if (Math.abs(change) >= 2.5) {
+        const direction = change > 0 ? '上调' : '下调';
+        return `根据个人近期记录，本周目标从 <strong>${formatTargetMinutes(previous)}</strong> ${direction}到 <strong>${formatTargetMinutes(current)}</strong>。`;
+      }
+      return `这是当前阶段的起始目标：<strong>${formatTargetMinutes(current)}</strong>。本周保持不变，下周再更新。`;
+    }
+
+    async function showWeekTargetExplanation(studentName) {
+      studentName = resolveStudentName(studentName);
+      const safeStudentName = escapeHtml(studentName);
+      const loadingModal = createScoreDetailModal(`
+        <div class="lb-section">
+          <div class="lb-card">
+            <h4>正在读取 ${safeStudentName} 的目标依据…</h4>
+            <p>正在读取个人目标依据。</p>
+          </div>
+        </div>
+      `, '本周目标怎么来的');
+
+      try {
+        const data = await fetchStudentWeekTargetExplanation(studentName);
+        if (!data) throw new Error('target explanation unavailable');
+        if (!document.body.contains(loadingModal)) return;
+
+        const current = Number(data.current_target_minutes || 0);
+        const initial = Number(data.initial_target_minutes || current);
+        const previous = Number(data.previous_target_minutes || initial);
+        const floor = Number(data.protected_floor_minutes || 270);
+        const targetChange = current - previous;
+        const referenceAverage = Number(data.reference_average_minutes || 0);
+        const personalWeeks = Number(data.personal_history_week_count || 0);
+        const peerStudents = Number(data.peer_sample_students || 0);
+        const referenceWeeks = Number(data.reference_week_count || 0);
+        const referenceKind = String(data.reference_kind || 'default');
+        const initialSource = String(data.initial_calculation_source || '');
+        const weekStart = formatTargetExplanationDate(data.week_monday);
+        const weekEnd = formatTargetExplanationDate(data.week_monday, 6);
+        const referenceStart = formatTargetExplanationDate(data.reference_period_start);
+        const referenceEnd = formatTargetExplanationDate(data.reference_period_end, 4);
+
+        const changeText = targetChange === 0
+          ? '本周保持'
+          : `${targetChange > 0 ? '上调' : '下调'} ${Math.abs(Math.round(targetChange))} 分钟`;
+
+        let referenceCopy = '';
+        if (referenceKind === 'personal_history') {
+          referenceCopy = `起始目标参考你在 <strong>${referenceStart}至${referenceEnd}</strong> 的 <strong>${personalWeeks} 个有效周</strong>，每个有效周都有至少 4 个有效练琴日，周均 <strong>${formatTargetMinutes(referenceAverage)}</strong>。`;
+        } else if (referenceKind === 'peer_history') {
+          const groupLabel = getTargetReferenceGroupLabel(initialSource);
+          referenceCopy = `暂时没有个人历史，起始目标参考<strong>${groupLabel}</strong>的 <strong>${peerStudents} 人、${referenceWeeks} 个有效周</strong>，周均 <strong>${formatTargetMinutes(referenceAverage)}</strong>。`;
+        } else {
+          referenceCopy = `暂时没有可用历史记录，先按学校统一的 <strong>每周 5 小时参考值</strong>计算起始目标。`;
+        }
+
+        const limitCopy = `目标按个人有效周均计算，按 5 分钟取整；本周最低保护线为 <strong>${formatTargetMinutes(floor)}</strong>，最高为每周 25 小时。`;
+
+        const body = loadingModal.querySelector('.lb-dialog__body');
+        if (!body) return;
+        body.innerHTML = `
+          <div class="lb-section">
+            <div class="target-explain-hero">
+              <div class="target-explain-hero-name">${safeStudentName} · 本周个人目标</div>
+              <div class="target-explain-hero-value">${formatTargetMinutesHero(current)}</div>
+              <div class="target-explain-hero-period">适用时间：${weekStart}至${weekEnd}，本周内保持不变</div>
+            </div>
+            <div class="target-explain-quick">
+              <div class="target-explain-quick-item">
+                <span>学期起始目标</span>
+                <strong>${formatTargetMinutes(initial)}</strong>
+              </div>
+              <div class="target-explain-quick-item">
+                <span>本周变化</span>
+                <strong>${changeText}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="lb-section">
+            <div class="lb-section__title">怎么算 <span>简单三步</span></div>
+            <div class="lb-card">
+              <div class="target-explain-steps">
+                <div class="target-explain-step">
+                  <span class="target-explain-step-number">1</span>
+                  <div><strong>新学期第一周</strong><p>先用学期起始目标：个人历史周均 × 60%；没有个人历史，才参考同教研室、同年级。</p></div>
+                </div>
+                <div class="target-explain-step">
+                  <span class="target-explain-step-number">2</span>
+                  <div><strong>从你的第二个有效周开始</strong><p>下一周目标 = 你此前所有新学期有效周的平均时长；每个有效周至少有 4 个有效练琴日。</p></div>
+                </div>
+                <div class="target-explain-step">
+                  <span class="target-explain-step-number">3</span>
+                  <div><strong>每周一更新</strong><p>空周或不足 4 个有效练琴日的周不计入平均；只统计周一至周五，本周内目标不变。</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="lb-section">
+            <div class="lb-section__title">本周依据 <span>${current > previous ? '上调' : current < previous ? '下调' : '保持'}</span></div>
+            <div class="lb-card">
+              <div class="target-explain-copy">${referenceCopy}</div>
+              <div class="target-explain-copy">${getTargetAdjustmentCopy(data)}</div>
+              <div class="target-explain-note">${limitCopy}</div>
+            </div>
+          </div>
+        `;
+      } catch (error) {
+        console.error('显示周目标说明失败:', error);
+        if (!document.body.contains(loadingModal)) return;
+        const body = loadingModal.querySelector('.lb-dialog__body');
+        if (body) {
+          body.innerHTML = `
+            <div class="lb-section">
+              <div class="lb-card">
+                <h4>暂时无法读取目标依据</h4>
+                <p>本周目标仍可正常使用，请稍后重新打开说明。</p>
+              </div>
+            </div>
+          `;
+        }
+      }
+    }
+
     async function showWProgressExplanation(studentName) {
       try {
         const metrics = await fetchBackendWProgressMetrics(studentName, new Date());
@@ -8734,7 +9511,8 @@
               <h4>📘 当前口径</h4>
               <div style="font-size:13px;line-height:1.8;color:var(--text-2);">
                 <p>• 有效计分时长：由后端按计分规则结算，比登记占用时长更接近实际练琴</p>
-                <p>• 周目标：系统根据个人近期记录和同专业情况计算</p>
+                <p>• 周目标：新学习周期先取个人历史周均的 60%；没有个人历史时才参考同教研室、同年级学生</p>
+                <p>• 每周更新：周一根据最近完整周重新判断，本周内保持不变</p>
                 <p>• 截至今日应练：周目标 × 已过工作日 ÷ 5</p>
                 <p>• 今日目标：截至今日应练 − 今天之前已结算分钟</p>
                 <p>• 周末：练琴不计入排行榜进度</p>
@@ -11432,7 +12210,7 @@
           maxRatio: 0.5,       // 相对提升上限（50%→满8分）
           denomFloor: 80,      // 小分母防护
           minPrevTotal: 40,    // 前窗口每个有效记录的最低分数要求
-          minActiveDaysPerWindow: 2, // 数据充足门槛：近/前各5个工作日内，有效天数≥2
+          minActiveDaysPerWindow: 4, // 数据充足门槛：近/前各5个工作日内，有效天数≥4
           windowSize: 5        // 工作日窗口（原7改5）
         },
         consistency: {
@@ -13481,10 +14259,10 @@
 
     const WLB_SUBTITLES = {
       '综合榜': '综合表现前 10 个名额 · 并列按人数计',
-      '进步榜': '较近期最佳周进步最多 · 前 6 个名额',
+      '进步榜': '较最近两周均值上升 ≥ 1.0 · 有效周至少4天 · 前 6 个名额',
       '稳定榜': '练琴最规律稳定 · 前 6 个名额',
       '守则榜': '异常率最低 · 前 6 个名额',
-      '缩水榜': '已开始且进度低于 70% · 前 6 个名额扣币',
+      '缩水榜': '较最近两周均值下降 ≥ 1.0 · 有效周至少4天 · 前 6 个名额扣币',
     };
 
     const WLB_MAJ_SHORT = m => {
@@ -13558,11 +14336,11 @@
       }
       const row = Array.isArray(summary) ? (summary[0] || null) : summary;
       if (!row) {
-        el.textContent = '未开始人数暂不可用';
+        el.textContent = '本周参与情况暂不可用';
       } else {
         const notStarted = Number(row.not_started_students || 0);
         const shrink = Number(row.shrink_students || 0);
-        el.textContent = `未开始 ${notStarted} 人 · 缩水榜 ${shrink} 人`;
+        el.textContent = `综合分下降达标 ${shrink} 人 · 本周未开始 ${notStarted} 人（不参与）`;
       }
       el.style.display = 'block';
     }
@@ -13659,13 +14437,11 @@
         return `<div class="wlb-right"><div class="wlb-val" style="color:${c}">${orPct}%</div><div class="wlb-val-sub">${label}</div></div>`;
       }
       if (board === '缩水榜') {
-        const ratio = Number(row.completion_ratio ?? (Number(row.display_score || 0) / 100));
-        const pctText = Number.isFinite(ratio) ? `${(ratio * 100).toFixed(1)}%` : '—';
-        const shortfall = Number(row.shortfall_minutes);
+        const decline = Math.abs(Number(row.trend_score || 0));
+        const currentScore = Number(row.display_score || 0);
         const penalty = weeklyCoinChange(board, row.rank_no, slotNo);
-        const gap = Number.isFinite(shortfall) ? `还差 ${shortfall.toFixed(0)}min` : '进度不足70%';
-        const sub = penalty < 0 ? `${penalty} 币 · ${gap}` : gap;
-        return `<div class="wlb-right"><div class="wlb-val" style="color:#fb7185">${pctText}</div><div class="wlb-val-sub">${sub}</div></div>`;
+        const sub = penalty < 0 ? `${penalty} 币 · 当前 ${currentScore.toFixed(1)} 分` : `当前 ${currentScore.toFixed(1)} 分`;
+        return `<div class="wlb-right"><div class="wlb-val" style="color:#fb7185">-${decline.toFixed(1)}<span style="font-size:.7em;opacity:.8"> 分</span></div><div class="wlb-val-sub">${sub}</div></div>`;
       }
       return '';
     }
