@@ -435,6 +435,25 @@ tbody td.b{color:var(--t1);font-weight:700}
   text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px}
 .ccard .cw{position:relative;height:170px}
 
+.target-rule{background:linear-gradient(135deg,rgba(6,182,212,.1),rgba(79,142,247,.06));border:1px solid rgba(6,182,212,.25);border-radius:var(--r);padding:16px 18px}
+.target-rule-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.target-rule-title{font-size:.8rem;color:var(--t2);font-weight:800}
+.target-rule-badge{font-size:.66rem;color:#a5f3fc;background:rgba(6,182,212,.12);border:1px solid rgba(6,182,212,.25);border-radius:999px;padding:3px 8px;white-space:nowrap}
+.target-rule-lead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.target-rule-current{font-size:1.65rem;font-weight:900;color:var(--teal);line-height:1}
+.target-rule-unit{font-size:.75rem;color:var(--t3)}
+.target-rule-change{font-size:.75rem;font-weight:800}
+.target-rule-change.up{color:var(--green)}
+.target-rule-change.down{color:var(--orange)}
+.target-rule-change.flat{color:var(--t3)}
+.target-rule-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.target-rule-item{background:rgba(8,12,26,.22);border:1px solid rgba(148,163,184,.1);border-radius:8px;padding:9px 10px;min-width:0}
+.target-rule-item-label{font-size:.65rem;color:var(--t3);margin-bottom:4px}
+.target-rule-item-value{font-size:.75rem;color:var(--t2);font-weight:700;line-height:1.45;word-break:break-word}
+.target-rule-note{margin-top:10px;color:var(--t3);font-size:.7rem;line-height:1.55}
+@media(max-width:760px){.target-rule-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:430px){.target-rule-grid{grid-template-columns:1fr}}
+
 /* extra metrics row */
 .xm-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 @media(max-width:700px){.xm-row{grid-template-columns:1fr}}
@@ -626,7 +645,7 @@ tbody td.b{color:var(--t1);font-weight:700}
     <div class="cat-boards-hd">
       <h2>分类排行榜</h2>
       <div class="sep"></div>
-      <span style="font-size:.72rem;color:var(--t3)">实时按本周数据更新 · 默认显示前6个名额（并列按人数计）</span>
+      <span style="font-size:.72rem;color:var(--t3)">实时按当前学期本周数据更新 · 默认显示前6个名额（并列按人数计）</span>
       <span class="shrink-summary" id="shrinkSummary">本周未开始人数加载中…</span>
     </div>
     <div class="cat-boards-note" id="catBoardsNotice" style="display:none"></div>
@@ -637,7 +656,7 @@ tbody td.b{color:var(--t1);font-weight:700}
           <div class="cat-board-icon" style="background:linear-gradient(135deg,rgba(16,185,129,.25),rgba(16,185,129,.1));border:1px solid rgba(16,185,129,.3)">📈</div>
           <div>
             <div class="cat-board-title" style="color:#34d399">进步榜</div>
-            <div class="cat-board-sub">本周绝对涨分最大 · 涨分 ≥1.0 · 本周工作日 ≥2次 · 最近20条记录 ≥4 · 异常率 ≤20%</div>
+            <div class="cat-board-sub">本周绝对涨分最大 · 涨分 ≥1.0 · 本周至少4个有效练琴日 · 最近20条记录 ≥4 · 异常率 ≤20%</div>
           </div>
           <button class="cbl-view-all-btn" onclick="openLbModal('进步榜')">查看全部</button>
         </div>
@@ -673,7 +692,7 @@ tbody td.b{color:var(--t1);font-weight:700}
           <div class="cat-board-icon" style="background:linear-gradient(135deg,rgba(244,63,94,.25),rgba(244,63,94,.1));border:1px solid rgba(244,63,94,.3)">📉</div>
           <div>
             <div class="cat-board-title" style="color:#fb7185">缩水榜</div>
-            <div class="cat-board-sub">已开始练琴但当前进度低于应完成进度70% · 前6个名额按 -10 / -6 / -4 扣币 · 并列按人数计 · 余额可为负</div>
+            <div class="cat-board-sub">与进步榜同口径反向判断 · 本周相对最近两周均值下降 ≥1.0 · 当前周和对比周均需4个有效练琴日 · 前6个名额扣币</div>
           </div>
           <button class="cbl-view-all-btn" onclick="openLbModal('缩水榜')">查看全部</button>
         </div>
@@ -708,7 +727,7 @@ tbody td.b{color:var(--t1);font-weight:700}
           <th data-col="student_name" onclick="srt(this)">姓名</th>
           <th data-col="student_major" onclick="srt(this)">专业</th>
           <th data-col="student_grade" onclick="srt(this)">年级</th>
-          <th data-col="composite_score" onclick="srt(this)">全校排名分
+          <th data-col="composite_score" onclick="srt(this)">综合分
             <i class="thtip">?<span class="thtip-b">五个维度（B进步+T趋势+M动量+A底盘+W本周进度）加权合成的绝对分（0-100）。100 = 满分，不是百分位。学生按此分数从高到低排名；本周无练琴的学生得 0 分，不参与排名。</span></i>
           </th>
           <th data-col="raw_score" onclick="srt(this)">个人变化值
@@ -845,44 +864,61 @@ async function rpc(fnName,params={}){
 const fetchHealth=()=>api('v_baseline_health?select=*').then(r=>r[0]||null);
 const fetchStudents=()=>api('student_baseline?select=*&order=composite_score.desc.nullslast');
 const fetchStudentDirectory=()=>api('student_database?select=id,name,major,grade,archived,updated_at&archived=eq.false&order=name.asc&limit=10000');
-const fetchHistory=n=>api(`student_score_history?student_name=eq.${encodeURIComponent(n)}&select=snapshot_date,composite_score,raw_score,baseline_score,trend_score,momentum_score,accum_score,outlier_rate,short_session_rate,mean_duration,record_count&order=snapshot_date.desc&limit=52`).then(rows=>rows.reverse());
-const fetchSessions=n=>api(`practice_sessions?student_name=eq.${encodeURIComponent(n)}&select=session_start,session_end,raw_duration,cleaned_duration,room_name,is_outlier,outlier_reason&order=session_start.desc&limit=20`);
-const fetchWeekSessions=n=>api(`practice_sessions?student_name=eq.${encodeURIComponent(n)}&select=session_start,cleaned_duration&session_start=gte.${encodeURIComponent(getWeekMondayLocalISO())}&order=session_start.asc&limit=500`);
-const fetchHistorySessions=n=>{
+const rpcRow=result=>Array.isArray(result)?(result[0]||null):(result||null);
+const fetchStudentScoreContext=n=>rpc('get_student_score_semester_context',{p_student_name:n}).then(rpcRow);
+const fetchStudentWeekProgress=n=>rpc('get_student_week_progress_context',{p_student_name:n,p_week_monday:getWeekMonday(),p_as_of_date:null}).then(rpcRow);
+const fetchStudentTargetExplanation=n=>rpc('get_student_week_target_explanation',{p_student_name:n,p_week_monday:getWeekMonday()}).then(rpcRow);
+const fetchHistory=(n,scoreContext=null)=>{
+  const historyFrom=scoreContext?.student_score_period_monday||scoreContext?.score_semester_monday;
+  const boundary=historyFrom?`&snapshot_date=gte.${encodeURIComponent(historyFrom)}`:'';
+  return api(`student_score_history?student_name=eq.${encodeURIComponent(n)}${boundary}&select=snapshot_date,composite_score,raw_score,baseline_score,trend_score,momentum_score,accum_score,outlier_rate,short_session_rate,mean_duration,record_count&order=snapshot_date.desc&limit=52`).then(rows=>rows.reverse());
+};
+const fetchSessions=(n,scoreContext=null)=>{
+  const periodStart=scoreContext?.student_score_period_started_at||scoreContext?.score_semester_started_at;
+  const boundary=periodStart?`&session_start=gte.${encodeURIComponent(periodStart)}`:'';
+  return api(`practice_sessions?student_name=eq.${encodeURIComponent(n)}${boundary}&select=session_start,session_end,raw_duration,cleaned_duration,room_name,is_outlier,outlier_reason&order=session_start.desc&limit=20`);
+};
+const fetchHistorySessions=(n,scoreContext=null)=>{
   const since=new Date();
   since.setDate(since.getDate()-371);
+  const periodStart=scoreContext?.student_score_period_started_at||scoreContext?.score_semester_started_at;
+  if(periodStart){
+    const periodDate=new Date(periodStart);
+    if(Number.isFinite(periodDate.getTime())&&periodDate>since)since.setTime(periodDate.getTime());
+  }
   return api(`practice_sessions?student_name=eq.${encodeURIComponent(n)}&cleaned_duration=gt.0&session_start=gte.${encodeURIComponent(since.toISOString())}&select=session_start,cleaned_duration&order=session_start.asc&limit=5000`);
 };
-const fetchPersonalizedWRef=n=>rpc('get_personalized_w_daily_ref',{p_student_name:n}).then(r=>Array.isArray(r)?(r[0]||null):(r||null));
-const fetchRuleV2WeekTargetContext=n=>rpc('get_rule_v2_week_target_context',{p_student_name:n,p_week_monday:getWeekMonday()}).then(r=>Array.isArray(r)?(r[0]||null):(r||null));
 
 // 返回本周一的「本地日期」字符串，格式 YYYY-MM-DD
 // 注意：必须用本地日期，不能用 toISOString()（UTC 日期会使中国用户偏移一天）
 function getWeekMonday(){
-  const d=new Date();
-  const day=d.getDay(); // 0=周日
-  const diff=day===0?-6:1-day; // 调整到本周一
-  d.setDate(d.getDate()+diff);
-  const y=d.getFullYear();
-  const m=String(d.getMonth()+1).padStart(2,'0');
-  const dd=String(d.getDate()).padStart(2,'0');
+  const beijingNow=new Date(Date.now()+8*3600000);
+  const day=beijingNow.getUTCDay();
+  const diff=day===0?-6:1-day;
+  beijingNow.setUTCDate(beijingNow.getUTCDate()+diff);
+  const y=beijingNow.getUTCFullYear();
+  const m=String(beijingNow.getUTCMonth()+1).padStart(2,'0');
+  const dd=String(beijingNow.getUTCDate()).padStart(2,'0');
   return `${y}-${m}-${dd}`;
 }
 
-// 返回本周一本地午夜对应的 ISO 字符串（用于 timestamptz 比较）
 function getWeekMondayLocalISO(){
-  const d=new Date();
-  const day=d.getDay();
-  const diff=day===0?-6:1-day;
-  d.setDate(d.getDate()+diff);
-  d.setHours(0,0,0,0); // 本地午夜
-  return d.toISOString();
+  return `${getWeekMonday()}T00:00:00+08:00`;
 }
 
 function isWorkdayDate(v){
-  const d=v instanceof Date?v:new Date(v);
-  const day=d.getDay();
+  const timestamp=v instanceof Date?v.getTime():new Date(v).getTime();
+  if(!Number.isFinite(timestamp))return false;
+  const d=new Date(timestamp+8*3600000);
+  const day=d.getUTCDay();
   return day!==0&&day!==6;
+}
+
+function getBeijingDateKey(v){
+  const timestamp=v instanceof Date?v.getTime():new Date(v).getTime();
+  if(!Number.isFinite(timestamp))return null;
+  const beijing=new Date(timestamp+8*3600000);
+  return `${beijing.getUTCFullYear()}-${String(beijing.getUTCMonth()+1).padStart(2,'0')}-${String(beijing.getUTCDate()).padStart(2,'0')}`;
 }
 
 function getBeijingWeekMonday(v){
@@ -896,15 +932,21 @@ function getBeijingWeekMonday(v){
 }
 
 function normalizeHistoryBySessions(history=[],sessionRows=[]){
-  const activeWeeks=new Set();
+  const activeWeekDays=new Map();
   (Array.isArray(sessionRows)?sessionRows:[]).forEach(session=>{
     if(Number(session?.cleaned_duration||0)<=0)return;
+    if(!isWorkdayDate(session.session_start))return;
     const monday=getBeijingWeekMonday(session.session_start);
-    if(monday)activeWeeks.add(monday);
+    const dateKey=getBeijingDateKey(session.session_start);
+    if(!monday||!dateKey)return;
+    const dates=activeWeekDays.get(monday)||new Set();
+    dates.add(dateKey);
+    activeWeekDays.set(monday,dates);
   });
   return (Array.isArray(history)?history:[]).map(row=>{
-    const hasPractice=activeWeeks.has(row.snapshot_date);
-    if(hasPractice)return {...row,has_practice:true};
+    const validPracticeDays=activeWeekDays.get(row.snapshot_date)?.size||0;
+    const hasPractice=validPracticeDays>0;
+    if(hasPractice)return {...row,has_practice:true,valid_practice_days:validPracticeDays};
     return {
       ...row,
       composite_score:0,
@@ -915,6 +957,7 @@ function normalizeHistoryBySessions(history=[],sessionRows=[]){
       accum_score:null,
       mean_duration:0,
       outlier_rate:0,
+      valid_practice_days:0,
       has_practice:false
     };
   });
@@ -984,16 +1027,16 @@ async function refreshSelectedStudentDetail(){
   const s=S.students.find(x=>x.student_name===S.selected);
   if(!s)return;
   try{
-    const [historyRows,historySessions,sessions,weekSessions,wRefServer,wTargetCtx]=await Promise.all([
-      fetchHistory(S.selected),
-      fetchHistorySessions(S.selected),
-      fetchSessions(S.selected),
-      fetchWeekSessions(S.selected),
-      fetchPersonalizedWRef(S.selected).catch(()=>null),
-      fetchRuleV2WeekTargetContext(S.selected).catch(()=>null)
+    const scoreContext=await fetchStudentScoreContext(S.selected).catch(()=>null);
+    const [historyRows,historySessions,sessions,progressContext,targetExplanation]=await Promise.all([
+      fetchHistory(S.selected,scoreContext),
+      fetchHistorySessions(S.selected,scoreContext),
+      fetchSessions(S.selected,scoreContext),
+      fetchStudentWeekProgress(S.selected).catch(()=>null),
+      fetchStudentTargetExplanation(S.selected).catch(()=>null)
     ]);
     const hist=normalizeHistoryBySessions(historyRows,historySessions);
-    renderDP(s,hist,sessions,weekSessions,wRefServer,wTargetCtx);
+    renderDP(s,hist,sessions,progressContext,targetExplanation,scoreContext);
   }catch(e){
     console.warn('[detail] 刷新当前学生详情失败:',e.message);
   }
@@ -1211,10 +1254,10 @@ function addDaysDateOnly(dateStr, days){
 
 function boardShortNote(board){
   if(board==='综合榜') return '综合分绝对分（0-100）· 前10个名额';
-  if(board==='进步榜') return '涨分（本周 vs 上周）· 前6个名额';
+  if(board==='进步榜') return '涨分（本周 vs 最近两周均值）· 前6个名额';
   if(board==='稳定榜') return 'α优先 · 时长波动率次之 · 前6个名额';
   if(board==='守则榜') return '最近20条异常率（越低越好）· 前6个名额';
-  if(board==='缩水榜') return '当前应完成进度低于70%（越低越前，前6个名额扣币）';
+  if(board==='缩水榜') return '降分（本周 vs 最近两周均值）· 前6个名额扣币';
   return '';
 }
 
@@ -1308,15 +1351,13 @@ function buildPrintTableRows(board, rows){
   }
   if(board==='缩水榜'){
     return safeRows.map((r, i)=>{
-      const ratio = Number(r.completion_ratio ?? Number(r.display_score || 0) / 100);
-      const completion = Number.isFinite(ratio) ? `${(ratio * 100).toFixed(1)}%` : '—';
-      const shortfall = Number(r.shortfall_minutes);
-      const shortfallText = Number.isFinite(shortfall) ? `还差${shortfall.toFixed(0)}min` : '—';
+      const decline = Math.abs(Number(r.trend_score || 0));
+      const currentScore = Number(r.display_score || 0);
       const coins = coinReward(board, r.rank_no, i + 1);
       return `<tr>
         <td class="c">#${esc(r.rank_no ?? '—')}</td>
         <td>${esc(r.student_name ?? '—')} <span class="tag">${esc(toMajorShort(r.student_major||''))}</span></td>
-        <td class="r"><strong>${esc(completion)}</strong><br><span style="font-size:8px;color:#64748b">${esc(shortfallText)}</span> <span class="coin penalty">${esc(coins)}</span></td>
+        <td class="r"><strong>-${decline.toFixed(1)}分</strong><br><span style="font-size:8px;color:#64748b">当前${currentScore.toFixed(1)}分</span> <span class="coin penalty">${esc(coins)}</span></td>
       </tr>`;
     }).join('');
   }
@@ -1359,7 +1400,7 @@ function exportLeaderboardsPdf(){
 
     const rightCards = ['进步榜','稳定榜','守则榜','缩水榜'].map(b=>{
       const rows=[...(map[b]||[])].sort(compareLeaderboardRows).slice(0, limits[b]);
-      const valueHeader = b === '缩水榜' ? '进度 / 币' : '币';
+      const valueHeader = b === '缩水榜' ? '降分 / 币' : '币';
       return `<div class="card">
         <div class="ct">
           <h2>${esc(b)}</h2>
@@ -1452,7 +1493,7 @@ function renderShrinkSummary(summary){
   }
   const notStarted=Number(summary.not_started_students||0);
   const shrink=Number(summary.shrink_students||0);
-  el.textContent=`本周未开始 ${notStarted} 人（不进入缩水榜） · 缩水榜 ${shrink} 人`;
+  el.textContent=`综合分下降达标 ${shrink} 人 · 本周未开始 ${notStarted} 人（不参与）`;
 }
 
 // ── 分类排行榜（后端 RPC 数据驱动）────────────────
@@ -1590,13 +1631,11 @@ function renderCatBoards(lbMap){
     return`<div class="cbl-right"><div class="cbl-val" style="color:${orC}">${orPct}%</div><div class="cbl-val-sub">${label}</div></div>`;
   };
   valFns['缩水榜']=(r, slotNo)=>{
-    const ratio=Number(r.completion_ratio ?? (Number(r.display_score||0)/100));
-    const pctText=Number.isFinite(ratio)?`${(ratio*100).toFixed(1)}%`:'—';
-    const shortfall=Number(r.shortfall_minutes);
+    const decline=Math.abs(Number(r.trend_score||0));
+    const currentScore=Number(r.display_score||0);
     const penalty=coinReward('缩水榜',r.rank_no,slotNo);
-    const gap=Number.isFinite(shortfall)?`还差 ${shortfall.toFixed(0)}min`:'进度不足70%';
-    const sub=penalty<0?`${penalty} 币 · ${gap}`:gap;
-    return`<div class="cbl-right"><div class="cbl-val" style="color:#fb7185">${pctText}</div><div class="cbl-val-sub">${sub}</div></div>`;
+    const sub=penalty<0?`${penalty} 币 · 当前 ${currentScore.toFixed(1)} 分`:`当前 ${currentScore.toFixed(1)} 分`;
+    return`<div class="cbl-right"><div class="cbl-val" style="color:#fb7185">-${decline.toFixed(1)}<span style="font-size:.7em;opacity:.8"> 分</span></div><div class="cbl-val-sub">${sub}</div></div>`;
   };
   window._lbValFns=valFns;
 
@@ -1791,21 +1830,21 @@ async function pickStudent(name){
   dp.innerHTML=`<div style="padding:40px;text-align:center;color:var(--t3)"><div class="spin"></div><br><br>加载 ${name} 的数据…</div>`;
   try{
     const s=S.students.find(x=>x.student_name===name);
-    const [historyRows,historySessions,sessions,weekSessions,wRefServer,wTargetCtx]=await Promise.all([
-      fetchHistory(name),
-      fetchHistorySessions(name),
-      fetchSessions(name),
-      fetchWeekSessions(name),
-      fetchPersonalizedWRef(name).catch(()=>null),
-      fetchRuleV2WeekTargetContext(name).catch(()=>null)
+    const scoreContext=await fetchStudentScoreContext(name).catch(()=>null);
+    const [historyRows,historySessions,sessions,progressContext,targetExplanation]=await Promise.all([
+      fetchHistory(name,scoreContext),
+      fetchHistorySessions(name,scoreContext),
+      fetchSessions(name,scoreContext),
+      fetchStudentWeekProgress(name).catch(()=>null),
+      fetchStudentTargetExplanation(name).catch(()=>null)
     ]);
     const hist=normalizeHistoryBySessions(historyRows,historySessions);
     S.currentStudent=s;
-    renderDP(s,hist,sessions,weekSessions,wRefServer,wTargetCtx);
+    renderDP(s,hist,sessions,progressContext,targetExplanation,scoreContext);
   }catch(e){dp.innerHTML=`<div style="padding:28px;color:var(--red)">加载失败：${e.message}</div>`;toast(`加载失败：${e.message}`,'err')}
 }
 
-function renderDP(s,hist,sessions=[],weekSessions=[],wRefServer=null,wTargetCtx=null){
+function renderDP(s,hist,sessions=[],progressContext=null,targetExplanation=null,scoreContext=null){
   const dp=$('dp');
   const bestScore = calcPersonalBestFromHistory(hist, s);
   // has_week_snapshot=true 表示本周无练琴（由 loadAll 根据 practice_sessions 判断）
@@ -1842,51 +1881,26 @@ function renderDP(s,hist,sessions=[],weekSessions=[],wRefServer=null,wTargetCtx=
   // ── weekday data from student_baseline.weekday_pattern
   const wd=buildWD(s.weekday_pattern);
 
-  // ── W 维度补充指标：当周累计/日均/完成率（仅工作日）
-  const elapsedWeekdays = (() => {
-    const d = new Date().getDay(); // 0=周日, 1=周一...
-    return (d === 0 || d === 6) ? 5 : d;
-  })();
-  const weekWorkdayMinutes = (weekSessions || []).reduce((sum, r) => {
-    const dt = new Date(r.session_start);
-    const dow = dt.getDay();
-    if (dow === 0 || dow === 6) return sum;
-    const mins = Number(r.cleaned_duration || 0);
-    return sum + (mins > 0 ? mins : 0);
-  }, 0);
+  const elapsedWeekdays = Number(progressContext?.elapsed_workdays||0);
+  const weekWorkdayMinutes = Number(progressContext?.settled_week_minutes||0);
   const weekDailyAvg = elapsedWeekdays > 0 ? (weekWorkdayMinutes / elapsedWeekdays) : 0;
-  const wRefFallback = calcWRefDailyFromStudents(s, S.students);
-  const fallbackDailyRef = Number(wRefFallback.denomDailyRef || 0);
-  const finalTargetWeek = Number(wTargetCtx?.final_target_week || 0);
-  const personalTargetWeek = Number(wTargetCtx?.personal_target_week || 0);
-  const majorFloorWeek = Number(wTargetCtx?.major_floor_week || 0);
-  const effectiveDailyTarget = finalTargetWeek > 0 ? (finalTargetWeek / 5) : fallbackDailyRef;
-  const wRefSource = finalTargetWeek > 0 ? '后端真实周目标' : '前端兜底估算';
-  const weekCompletionPct = effectiveDailyTarget > 0 ? (weekDailyAvg / effectiveDailyTarget) * 100 : null;
-  const weekCompletionRatio = finalTargetWeek > 0
-    ? (weekWorkdayMinutes / (finalTargetWeek * (elapsedWeekdays / 5)))
-    : (effectiveDailyTarget > 0 ? (weekDailyAvg / effectiveDailyTarget) : null);
-  const targetSourceSummary = finalTargetWeek > 0
-    ? (personalTargetWeek > 0 && majorFloorWeek > 0
-        ? `${personalTargetWeek.toFixed(0)} / ${majorFloorWeek.toFixed(0)}`
-        : personalTargetWeek > 0
-          ? `${personalTargetWeek.toFixed(0)} / —`
-          : majorFloorWeek > 0
-            ? `— / ${majorFloorWeek.toFixed(0)}`
-            : '— / —')
-    : '— / —';
+  const finalTargetWeek = Number(progressContext?.week_target_minutes||targetExplanation?.current_target_minutes||0);
+  const weekCompletionRatio = Number.isFinite(Number(progressContext?.pace_completion_ratio))
+    ? Number(progressContext.pace_completion_ratio)
+    : null;
+  const expectedToDateMinutes = Number(progressContext?.expected_to_date_minutes||0);
+  const targetRule=buildTargetRule(targetExplanation,scoreContext,finalTargetWeek);
   const wTip = `看这周到目前为止的进度完成得怎么样。系统按“本周工作日累计 ÷ 当前周目标 × 已过工作日比例”实时计算，所以每练完一次都会立刻变化。<br><br>
-当前进度：${weekCompletionPct !== null ? `${weekCompletionPct.toFixed(0)}%` : '—'} &nbsp;·&nbsp;
+当前进度：${weekCompletionRatio !== null ? `${(weekCompletionRatio*100).toFixed(0)}%` : '—'} &nbsp;·&nbsp;
 本周累计：${weekWorkdayMinutes.toFixed(0)} 分钟 &nbsp;·&nbsp;
-当前周目标：${finalTargetWeek > 0 ? `${finalTargetWeek.toFixed(0)} 分钟/周` : '—'}<br>
-目标来源：个人 ${personalTargetWeek > 0 ? personalTargetWeek.toFixed(0) : '—'} / 专业 ${majorFloorWeek > 0 ? majorFloorWeek.toFixed(0) : '—'} 分钟/周`;
+达到今日应有进度：${expectedToDateMinutes>0?`${expectedToDateMinutes.toFixed(0)} 分钟`:'—'}<br>
+当前周目标：${finalTargetWeek > 0 ? `${finalTargetWeek.toFixed(0)} 分钟/周` : '—'}`;
 
   // ── 总记录数分类（FIX-55 后 record_count 只统计工作日且 cleaned_duration>0 的有效记录）
   // sessions 来自 practice_sessions，包含全部记录（含周末 + cleaned_duration=0）
   const totalFetched = sessions.length;
   const weekendFetched = sessions.filter(r=>{
-    const dow = new Date(r.session_start).getDay();
-    return dow === 0 || dow === 6;
+    return !isWorkdayDate(r.session_start);
   }).length;
   const cleanedZeroFetched = sessions.filter(r=>
     (r.cleaned_duration??0) === 0
@@ -1917,10 +1931,10 @@ function renderDP(s,hist,sessions=[],weekSessions=[],wRefServer=null,wTargetCtx=
     </div>
     <div class="dp-score-area">
       <div class="dp-score-box rank">
-        <div class="dp-score-top">全校排名分</div>
+        <div class="dp-score-top">综合分</div>
         ${rankHtml}
-        <div class="dp-score-lbl">${noPracticeWeek?'本周尚未练琴（历史分）':'本周全校排名分 + 排名'}</div>
-        <div class="dp-score-sub">${noPracticeWeek?`练琴后自动更新 · 历史最高 ${bestScore??'—'} 分`:(rankNo!=null&&rankTotal?`本周第 ${rankNo} 名 / 共 ${rankTotal} 人 · 历史最高 ${bestScore??'—'} 分`:`本周排名待更新 · 历史最高 ${bestScore??'—'} 分`)}</div>
+        <div class="dp-score-lbl">${noPracticeWeek?'本周尚未练琴（历史分）':'本周综合分 + 排名'}</div>
+        <div class="dp-score-sub">${noPracticeWeek?`练琴后自动更新 · 本评分周期最高 ${bestScore??'—'} 分`:(rankNo!=null&&rankTotal?`本周第 ${rankNo} 名 / 共 ${rankTotal} 人 · 本评分周期最高 ${bestScore??'—'} 分`:`本周排名待更新 · 本评分周期最高 ${bestScore??'—'} 分`)}</div>
       </div>
       <div class="dp-score-box raw">
         <div class="dp-score-top">个人变化</div>
@@ -2009,19 +2023,20 @@ function renderDP(s,hist,sessions=[],weekSessions=[],wRefServer=null,wTargetCtx=
         <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
           ${xMetric('当周累计（工作日）',weekWorkdayMinutes.toFixed(0),'分钟','当前周一到现在、仅工作日（周一至周五）的 cleaned_duration 累计。','var(--teal)')}
           ${xMetric('当周日均',weekDailyAvg.toFixed(1),'分钟/天',`当周累计（工作日）÷ 已过工作日天数（当前按 ${elapsedWeekdays} 天计算）。`,'var(--blue)')}
-          ${xMetric('当前周目标',finalTargetWeek>0?finalTargetWeek.toFixed(0):'—','分钟/周','W 真实计分使用的周目标。由“个人目标锚”和“同专业地板锚”共同决定，前端现已与线上真实规则对齐。','var(--teal)')}
+          ${xMetric('当前周目标',finalTargetWeek>0?finalTargetWeek.toFixed(0):'—','分钟/周','W 真实计分使用的周目标，由学生自己的有效周记录动态计算；没有个人历史时才使用在读学生参考值。','var(--teal)')}
           ${xMetric('当前完成率',weekCompletionRatio!==null?`${(weekCompletionRatio*100).toFixed(0)}`:'—','%', '本周工作日累计 ÷ [当前周目标 × (已过工作日天数 / 5)]，与后端当前 W 规则一致。','var(--yellow)')}
-          ${xMetric('目标来源',targetSourceSummary,'个人 / 专业','当前周目标由两个来源共同决定：前者是该学生自己的个人目标锚，后者是同专业地板锚。系统取两者中的更高值作为当前周目标。','var(--green)')}
-          ${xMetric('近期达标周数',s.weeks_improving??'—','周','近4活跃周中完成个人周目标约 92% 以上的周数统计，与新的 M 稳定达标分同源。','var(--green)')}
+          ${xMetric('目标依据',targetRule.currentSource,'','当前周目标本周使用的实际计算依据。','var(--green)')}
+          ${xMetric('近期有效周数',targetRule.activeWeeks||'—','周','只统计每周至少有4个有效练琴日的周；空白周不会把目标拉低。','var(--green)')}
           ${xMetric('成长加速度',s.growth_velocity!==null&&s.growth_velocity!==undefined?(s.growth_velocity>0?'+':'')+((s.growth_velocity||0)*100).toFixed(2)+'%/周':'—','','近4周斜率 − 近8周斜率。正数说明加速进步，负数说明进步在放缓甚至倒退','var(--blue)')}
-          ${xMetric('历史最高全校排名',s.personal_best??'—','分','该学生有史以来最高的 composite_score（全校百分位）','var(--yellow)')}
+          ${xMetric('本周期最高综合分',bestScore??'—','分','当前评分周期内的最高综合分，不引用旧学期成绩。','var(--yellow)')}
         </div>
+        ${targetRuleCard(targetRule)}
       </div>
 
       <!-- Charts row 1: composite + weekday -->
       <div class="ch-row">
         <div class="ccard">
-          <h4>全校排名分历史趋势（百分位 · 近一年）
+          <h4>综合分历史趋势（当前评分周期）
             <span style="float:right;font-size:.68rem;color:var(--t3);text-transform:none;letter-spacing:0;font-weight:400">横向比较用，0-100</span>
           </h4>
           <div class="cw"><canvas id="dp-hist"></canvas></div>
@@ -2036,7 +2051,7 @@ function renderDP(s,hist,sessions=[],weekSessions=[],wRefServer=null,wTargetCtx=
 
       <!-- Chart row 2: B/T/M/A history（flex:1 撑满剩余高度）-->
       <div class="ccard ccard-fill">
-        <h4>个人 B/T/M/A 历史趋势（进步·趋势·动量·底盘 · 近一年）
+        <h4>个人 B/T/M/A 历史趋势（当前评分周期）
           <span style="float:right;font-size:.68rem;color:var(--t3);text-transform:none;letter-spacing:0;font-weight:400">原始分 0-1，&gt;0.5 为良好；W（本周进度）实时存储于后端，见上方五维卡片</span>
         </h4>
         <div class="cw-fill"><canvas id="dp-dim"></canvas></div>
@@ -2047,7 +2062,7 @@ function renderDP(s,hist,sessions=[],weekSessions=[],wRefServer=null,wTargetCtx=
         <h4 onclick="toggleSessTable()" style="margin-bottom:0;cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px">
           <span id="dp-sess-arrow" style="color:var(--blue);font-size:.85rem;transition:transform .2s;display:inline-block">▶</span>
           最近 20 次练琴记录明细
-          <span style="margin-left:auto;font-size:.68rem;color:var(--t3);font-weight:400;text-transform:none;letter-spacing:0">点击展开 · 来源：practice_sessions</span>
+          <span style="margin-left:auto;font-size:.68rem;color:var(--t3);font-weight:400;text-transform:none;letter-spacing:0">点击展开 · 当前评分周期 · 来源：practice_sessions</span>
         </h4>
         <div id="dp-sess-body-wrap" style="display:none;margin-top:14px">
           <div style="overflow-x:auto">
@@ -2078,7 +2093,7 @@ function renderDP(s,hist,sessions=[],weekSessions=[],wRefServer=null,wTargetCtx=
       <div class="ccard" id="dp-snaptbl-wrap">
         <h4 onclick="toggleSnapTable()" style="margin-bottom:0;cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px">
           <span id="dp-snap-arrow" style="color:var(--blue);font-size:.85rem;transition:transform .2s;display:inline-block">▶</span>
-          每周历史快照明细（最近 12 周）
+          每周历史快照明细（当前评分周期 · 最近 12 周）
           <span style="margin-left:auto;font-size:.68rem;color:var(--t3);font-weight:400;text-transform:none;letter-spacing:0">点击展开 · 来源：student_score_history</span>
         </h4>
         <div id="dp-snaptbl-body-wrap" style="display:none;margin-top:14px">
@@ -2087,7 +2102,7 @@ function renderDP(s,hist,sessions=[],weekSessions=[],wRefServer=null,wTargetCtx=
               <thead>
                 <tr style="border-bottom:1px solid var(--bdr)">
                   <th style="padding:7px 10px;text-align:left;color:var(--t3);font-weight:700;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">日期</th>
-                  <th style="padding:7px 10px;text-align:center;color:var(--t3);font-weight:700;font-size:.7rem;text-transform:uppercase">全校排名分</th>
+                  <th style="padding:7px 10px;text-align:center;color:var(--t3);font-weight:700;font-size:.7rem;text-transform:uppercase">综合分</th>
                   <th style="padding:7px 10px;text-align:center;color:var(--t3);font-weight:700;font-size:.7rem;text-transform:uppercase">个人变化值</th>
                   <th style="padding:7px 10px;text-align:center;color:var(--t3);font-weight:700;font-size:.7rem;text-transform:uppercase">B 基线</th>
                   <th style="padding:7px 10px;text-align:center;color:var(--t3);font-weight:700;font-size:.7rem;text-transform:uppercase">T 趋势</th>
@@ -2101,9 +2116,9 @@ function renderDP(s,hist,sessions=[],weekSessions=[],wRefServer=null,wTargetCtx=
             </table>
           </div>
           <div style="font-size:.72rem;color:var(--t3);margin-top:10px;line-height:1.6;padding:0 2px">
-            📌 <strong>全校排名分</strong>：当周全校百分位排名（0-100），由系统每周 PERCENT_RANK 归一化写入。
+            📌 <strong>综合分</strong>：当周五个维度合成的绝对分（0-100），用于当前评分周期内排序，不是百分位。
             &nbsp;·&nbsp;<strong>个人变化值</strong>：该学生自己的原始成长值（0-1），含 B/T/M/A/W 五维加权，只适合看自己前后变化。
-            &nbsp;·&nbsp;<strong>B/T/M/A/W</strong>：原始维度分（0-1）。B=上周 vs 前周 1v1 进步；T=近3周趋势；M=连续改善周数；A=同专业底盘；W=本周工作日实际/期望时长，每次练完后端实时写入。
+            &nbsp;·&nbsp;<strong>B/T/M/A/W</strong>：原始维度分（0-1）。B=个人进步；T=近期趋势；M=稳定性；A=长期底盘；W=本周工作日实际/期望时长，每次练完后端实时写入。
             &nbsp;·&nbsp;<strong>均时长</strong>：该快照时刻使用的基线均值（分钟）。
           </div>
         </div>
@@ -2145,6 +2160,101 @@ function xMetric(label,val,unit,tip,color='var(--t2)'){
     </div>
     <div style="font-size:1.1rem;font-weight:900;color:${color}">${val}<span style="font-size:.75rem;font-weight:400;color:var(--t3);margin-left:3px">${unit}</span></div>
   </div>`;
+}
+
+function targetSourceLabel(source){
+  const value=String(source||'');
+  if(value.includes('personal_history'))return'个人历史均值的 60%';
+  if(value.includes('peer_major_grade'))return'同专业同年级均值的 60%';
+  if(value.includes('peer_major'))return'同专业均值的 60%';
+  if(value.includes('peer_grade'))return'同年级均值的 60%';
+  if(value.includes('peer_school'))return'在读学生均值的 60%';
+  if(value.includes('default'))return'系统默认参考值';
+  return'个人历史与本学期记录';
+}
+
+function currentTargetSourceLabel(source,initialSource){
+  const value=String(source||'');
+  if(value==='semester_personal_week_average')return'本学期个人有效周均值';
+  if(value.includes('carry_forward'))return'有效周不足，沿用上一周';
+  if(value.includes('adaptive'))return'本学期个人有效周均值';
+  if(value.includes('period_'))return targetSourceLabel(value);
+  return targetSourceLabel(initialSource||value);
+}
+
+function buildTargetRule(explanation=null,scoreContext=null,fallbackTarget=0){
+  const row=explanation||{};
+  const number=(value,fallback=null)=>{
+    const parsed=Number(value);
+    return Number.isFinite(parsed)?parsed:fallback;
+  };
+  const formatMinutes=value=>value===null||value===undefined?'—':`${Math.round(value)} 分钟`;
+  const current=number(row.current_target_minutes,number(fallbackTarget,0));
+  const initial=number(row.initial_target_minutes);
+  const previous=number(row.previous_target_minutes);
+  const change=number(row.target_change_minutes,previous!==null&&current!==null?current-previous:null);
+  const floor=number(row.protected_floor_minutes);
+  const initialSource=targetSourceLabel(row.initial_calculation_source||row.reference_kind);
+  const currentSource=currentTargetSourceLabel(row.calculation_source,row.initial_calculation_source);
+  const validDays=number(scoreContext?.valid_practice_days,4);
+  const activeWeeks=number(row.recent_active_weeks,number(row.reference_week_count,0));
+  const currentAverage=number(row.recent_average_minutes);
+  const referenceAverage=number(row.reference_average_minutes);
+  const semesterStart=scoreContext?.score_semester_started_at?getBeijingDateKey(scoreContext.score_semester_started_at):null;
+  const personalStart=scoreContext?.student_score_period_started_at?getBeijingDateKey(scoreContext.student_score_period_started_at):null;
+  const periodStart=row.reference_period_start||null;
+  const periodEnd=row.reference_period_end||null;
+  const changeClass=change===null||Math.abs(change)<0.01?'flat':change>0?'up':'down';
+  const changeText=change===null?'等待上一周数据':Math.abs(change)<0.01?'本周无变化':`${change>0?'+':''}${Math.round(change)} 分钟`;
+  const referenceText=currentAverage!==null
+    ?`${formatMinutes(currentAverage)} · ${activeWeeks} 个有效周`
+    :'等待本学期有效周数据';
+  const historyText=referenceAverage!==null
+    ?`${formatMinutes(referenceAverage)} · ${initialSource}`
+    :'暂无个人历史，使用在读学生参考值';
+  const periodText=personalStart?`个人周期从 ${personalStart} 开始`:(periodStart?`参考 ${periodStart}${periodEnd?` 至 ${periodEnd}`:''}`:'个人周期待建立');
+  const semesterText=semesterStart?`评分学期自 ${semesterStart} 起`:'当前评分学期';
+  return{
+    current,
+    initial,
+    previous,
+    floor,
+    validDays,
+    activeWeeks,
+    currentSource,
+    initialSource,
+    change,
+    changeClass,
+    changeText,
+    historyText,
+    referenceText,
+    periodText,
+    semesterText
+  };
+}
+
+function targetRuleCard(rule){
+  if(!rule)return'';
+  const currentText=rule.current>0?formatRuleMinutes(rule.current):'—';
+  const initialText=rule.initial!==null?formatRuleMinutes(rule.initial):'—';
+  const floorText=rule.floor!==null?`不低于 ${formatRuleMinutes(rule.floor)}`:'按专业范围保护';
+  const changeColor=rule.changeClass==='up'?'up':rule.changeClass==='down'?'down':'flat';
+  return`<div class="target-rule">
+    <div class="target-rule-head"><div class="target-rule-title">本周目标怎么定</div><span class="target-rule-badge">${esc(rule.semesterText)}</span></div>
+    <div class="target-rule-lead"><span class="target-rule-current">${currentText}</span><span class="target-rule-unit">本周目标</span><span class="target-rule-change ${changeColor}">${esc(rule.changeText)}（较上一周）</span></div>
+    <div class="target-rule-grid">
+      <div class="target-rule-item"><div class="target-rule-item-label">学期初起点</div><div class="target-rule-item-value">${esc(initialText)} · ${esc(rule.initialSource)}</div></div>
+      <div class="target-rule-item"><div class="target-rule-item-label">本周依据</div><div class="target-rule-item-value">${esc(rule.currentSource)}</div></div>
+      <div class="target-rule-item"><div class="target-rule-item-label">参考数据</div><div class="target-rule-item-value">${esc(rule.referenceText)}</div></div>
+      <div class="target-rule-item"><div class="target-rule-item-label">最低保护</div><div class="target-rule-item-value">${esc(floorText)}</div></div>
+    </div>
+    <div class="target-rule-note">学期初参考：${esc(rule.historyText)}；${esc(rule.periodText)}。有效周要求每周至少 ${rule.validDays} 个有效练琴日。没有足够有效周时不把空白周算作 0，也不会因此降低目标。</div>
+  </div>`;
+}
+
+function formatRuleMinutes(value){
+  const parsed=Number(value);
+  return Number.isFinite(parsed)?`${Math.round(parsed)} 分钟`:'—';
 }
 
 function medianOf(arr){
@@ -2199,13 +2309,13 @@ function renderHistCh(hist){
   const pr=data.length>20?2:5;
   S.charts.hist=new Chart(ctx.getContext('2d'),{type:'line',
     data:{labels,datasets:[{
-      label:'全校排名分',data,borderColor:'#4f8ef7',backgroundColor:'rgba(79,142,247,.07)',
+      label:'综合分',data,borderColor:'#4f8ef7',backgroundColor:'rgba(79,142,247,.07)',
       borderWidth:2.5,pointRadius:pr,pointBackgroundColor:'#4f8ef7',fill:true,tension:.35,spanGaps:true}]},
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false},
         tooltip:{callbacks:{
           title:it=>{const h=hist[it[0].dataIndex];return h?.snapshot_date||''},
-          label:c=>`全校排名分: ${c.raw}`}}},
+          label:c=>`综合分: ${c.raw}`}}},
       scales:{
         x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#4b5e82',font:{size:9},maxTicksLimit:8,
           callback:(v,i)=>i%Math.ceil(Math.max(labels.length,1)/8)===0?labels[i]:''}},
@@ -2261,9 +2371,11 @@ function renderSnapTable(hist){
     const b=h.baseline_score,t=h.trend_score,m=h.momentum_score,a=h.accum_score;
     const dur=h.mean_duration,or=h.outlier_rate;
     const rowBg=noPractice?'background:rgba(100,116,139,.06)':i%2===0?'':'background:rgba(255,255,255,.015)';
+    const validDays=Number(h.valid_practice_days||0);
+    const validDaysText=validDays>0&&validDays<4?`<span style="margin-left:6px;font-size:.68rem;color:var(--yellow)">有效日 ${validDays}/4</span>`:'';
     const d01=(v)=>v!=null?`<span style="color:${s01C(v)};font-weight:700">${v.toFixed(3)}</span>`:'<span style="color:var(--t3)">—</span>';
     return`<tr style="border-bottom:1px solid var(--bdr);${rowBg}${noPractice?';opacity:.6':''}">
-      <td style="padding:8px 10px;color:var(--t2)">${h.snapshot_date||'—'}${noPractice?'<span style="margin-left:6px;font-size:.68rem;color:var(--t3)">本周未练</span>':''}</td>
+      <td style="padding:8px 10px;color:var(--t2)">${h.snapshot_date||'—'}${noPractice?'<span style="margin-left:6px;font-size:.68rem;color:var(--t3)">本周未练</span>':validDaysText}</td>
       <td style="padding:8px 10px;text-align:center">${noPractice?'<span style="color:var(--t3);font-size:.8rem">—</span>':sc!==null?`<span class="badge ${bdgCls(sc)}" style="min-width:36px;padding:2px 8px;font-size:.78rem">${sc}</span>`:'—'}</td>
       <td style="padding:8px 10px;text-align:center">${noPractice?'<span style="color:var(--t3);font-size:.8rem">—</span>':raw!=null?`<span style="color:${s01C(raw)};font-weight:800">${raw.toFixed(3)}</span>`:'—'}</td>
       <td style="padding:8px 10px;text-align:center">${d01(b)}</td>
