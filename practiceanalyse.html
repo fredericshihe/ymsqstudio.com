@@ -645,7 +645,7 @@ tbody td.b{color:var(--t1);font-weight:700}
     <div class="cat-boards-hd">
       <h2>分类排行榜</h2>
       <div class="sep"></div>
-      <span style="font-size:.72rem;color:var(--t3)">实时按当前学期本周数据更新 · 默认显示前6个名额（并列按人数计）</span>
+      <span id="catBoardsMode" style="font-size:.72rem;color:var(--t3)">实时按当前学期本周数据更新 · 默认显示前6个名额（并列按人数计）</span>
       <span class="shrink-summary" id="shrinkSummary">本周未开始人数加载中…</span>
     </div>
     <div class="cat-boards-note" id="catBoardsNotice" style="display:none"></div>
@@ -1042,15 +1042,39 @@ async function refreshSelectedStudentDetail(){
   }
 }
 
-// 读取共享现有榜单与独立缩水榜，独立降级避免新 RPC 未部署时影响已有榜单
-const fetchLeaderboards=()=>Promise.all([
-  rpc('get_weekly_leaderboards')
-    .then(rows=>{ window._lbLastError=null; return Array.isArray(rows)?rows:[]; })
-    .catch(err=>{ window._lbLastError=err; console.warn('[lb] 主榜 RPC 失败:', err?.message||err); return []; }),
-  rpc('get_weekly_decline_leaderboard')
-    .then(rows=>{ window._lbShrinkLastError=null; return Array.isArray(rows)?rows:[]; })
-    .catch(err=>{ window._lbShrinkLastError=err; console.warn('[lb] 缩水榜 RPC 失败:', err?.message||err); return []; })
-]).then(([rows,declineRows])=>rows.concat(declineRows));
+// 21:30 锁榜后优先读取结算快照，避免实时榜继续变化导致奖励文案与实际发放不一致。
+let _lbSettlement = null;
+async function fetchLeaderboards(){
+  const weekMonday = getWeekMonday();
+  try{
+    const status = rpcRow(await rpc('get_weekly_leaderboard_settlement_status', {p_week_monday:weekMonday}));
+    if(status?.is_locked){
+      const snapshot = await rpc('get_weekly_leaderboard_settlement_snapshot', {p_week_monday:weekMonday});
+      if(Array.isArray(snapshot) && snapshot.length){
+        _lbSettlement = {
+          week_monday: status.week_monday || weekMonday,
+          locked_at: status.locked_at || null,
+          snapshot_rows: Number(status.snapshot_rows || snapshot.length)
+        };
+        window._lbLastError = null;
+        window._lbShrinkLastError = null;
+        return snapshot;
+      }
+    }
+  }catch(err){
+    console.warn('[lb] 锁榜快照暂不可用，回退实时榜:', err?.message || err);
+  }
+
+  _lbSettlement = null;
+  return Promise.all([
+    rpc('get_weekly_leaderboards')
+      .then(rows=>{ window._lbLastError=null; return Array.isArray(rows)?rows:[]; })
+      .catch(err=>{ window._lbLastError=err; console.warn('[lb] 主榜 RPC 失败:', err?.message||err); return []; }),
+    rpc('get_weekly_decline_leaderboard')
+      .then(rows=>{ window._lbShrinkLastError=null; return Array.isArray(rows)?rows:[]; })
+      .catch(err=>{ window._lbShrinkLastError=err; console.warn('[lb] 缩水榜 RPC 失败:', err?.message||err); return []; })
+  ]).then(([rows,declineRows])=>rows.concat(declineRows));
+}
 const fetchShrinkSummary=()=>rpc('get_weekly_shrink_summary')
   .then(result=>Array.isArray(result)?(result[0]||{}):(result||{}))
   .catch(err=>{ console.warn('[lb] 缩水榜汇总 RPC 失败:', err?.message||err); return null; });
@@ -1501,6 +1525,12 @@ function renderCatBoards(lbMap){
   const wrap=$('catBoardsWrap');
   const notice=$('catBoardsNotice');
   const grid=$('catBoards');
+  const mode=$('catBoardsMode');
+  if(mode){
+    mode.textContent = _lbSettlement
+      ? `21:30 已锁定结算榜 · 发币按此榜发放 · 前6个名额（并列按人数计）`
+      : '实时按当前学期本周数据更新 · 默认显示前6个名额（并列按人数计）';
+  }
   const hasData=lbMap&&(
     (lbMap['综合榜']||[]).length||
     (lbMap['进步榜']||[]).length||
