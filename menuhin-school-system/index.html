@@ -14233,7 +14233,7 @@
     }
 
     // ══════════════════════════════════════════════════════
-    // 本周五类排行榜（后端 RPC 驱动，实时刷新）
+    // 本周五类排行榜（21:30 锁榜后优先读取结算快照）
     // ══════════════════════════════════════════════════════
     let _wlbData = {};          // 缓存后端返回数据 { 综合榜:[], 进步榜:[], ... }
     let _wlbActiveTab = '综合榜';
@@ -14246,6 +14246,7 @@
     let _wlbDataSignature = '';
     let _coinRewardSettingPromise = null;
     let _coinRewardEnabled = true;
+    let _wlbSettlement = null;
     const _wlbExpanded = {};    // 每个榜单独立展开状态 { '综合榜': false, ... }
     const WLB_DEFAULT_N = { '综合榜': 10, '进步榜': 6, '稳定榜': 6, '守则榜': 6, '缩水榜': 6 };
     const WLB_BOARD_ORDER = ['综合榜', '稳定榜', '守则榜', '进步榜', '缩水榜'];
@@ -14323,6 +14324,10 @@
     function updateWlbUpdatedLabel(ts = Date.now()) {
       const upd = document.getElementById('wlbUpdated');
       if (!upd) return;
+      if (_wlbSettlement) {
+        upd.textContent = '21:30 已锁定 · 发币按此榜';
+        return;
+      }
       const n = new Date(ts);
       upd.textContent = `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')} 更新`;
     }
@@ -14526,6 +14531,50 @@
       }
     }
 
+    async function loadWlbRowsForDisplay() {
+      const weekMonday = utils.toIsoDate(getCurrentWeekMondayDate());
+      try {
+        const { data: statusData, error: statusError } = await supabaseClient.rpc(
+          'get_weekly_leaderboard_settlement_status',
+          { p_week_monday: weekMonday }
+        );
+        const status = Array.isArray(statusData) ? (statusData[0] || null) : (statusData || null);
+        if (!statusError && status?.is_locked) {
+          const { data: snapshotData, error: snapshotError } = await supabaseClient.rpc(
+            'get_weekly_leaderboard_settlement_snapshot',
+            { p_week_monday: weekMonday }
+          );
+          if (!snapshotError && Array.isArray(snapshotData) && snapshotData.length) {
+            return {
+              data: snapshotData,
+              error: null,
+              declineData: [],
+              declineError: null,
+              settlement: {
+                week_monday: status.week_monday || weekMonday,
+                locked_at: status.locked_at || null,
+                snapshot_rows: Number(status.snapshot_rows || snapshotData.length)
+              }
+            };
+          }
+        }
+      } catch (e) {
+        console.warn('[wlb] 锁榜快照暂不可用，回退实时榜:', e);
+      }
+
+      const [mainResult, declineResult] = await Promise.all([
+        supabaseClient.rpc('get_weekly_leaderboards'),
+        supabaseClient.rpc('get_weekly_decline_leaderboard')
+      ]);
+      return {
+        data: mainResult.data,
+        error: mainResult.error,
+        declineData: declineResult.data,
+        declineError: declineResult.error,
+        settlement: null
+      };
+    }
+
     async function loadWeeklyLeaderboards(options = {}) {
       const { force = false, reason = 'manual' } = options;
       if (!supabaseClient) return _wlbData;
@@ -14550,16 +14599,19 @@
         _wlbNeedsRefresh = false;
         void loadCoinRewardSetting({ force, reason });
         try {
-          const [
-            { data, error },
-            { data: declineData, error: declineError },
-            { data: shrinkSummaryData, error: shrinkSummaryError }
-          ] = await Promise.all([
-            supabaseClient.rpc('get_weekly_leaderboards'),
-            supabaseClient.rpc('get_weekly_decline_leaderboard'),
+          const [leaderboardResult, { data: shrinkSummaryData, error: shrinkSummaryError }] = await Promise.all([
+            loadWlbRowsForDisplay(),
             supabaseClient.rpc('get_weekly_shrink_summary')
           ]);
+          const {
+            data,
+            error,
+            declineData,
+            declineError,
+            settlement
+          } = leaderboardResult;
           if (error) throw error;
+          _wlbSettlement = settlement;
           if (declineError) {
             console.warn('[wlb] 缩水榜 RPC 暂不可用:', declineError);
           }
